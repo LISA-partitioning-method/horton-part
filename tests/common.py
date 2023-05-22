@@ -27,7 +27,7 @@ import numpy as np
 
 from contextlib import contextmanager
 
-from ..proatomdb import ProAtomRecord
+from denspart.proatomdb import ProAtomRecord
 from horton_grid import LinearRTransform, PowerRTransform, ExpRTransform, RadialGrid
 
 

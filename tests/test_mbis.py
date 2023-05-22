@@ -21,7 +21,7 @@
 # --
 
 
-from ..mbis import _get_nshell, _get_initial_mbis_propars
+from denspart.mbis import _get_nshell, _get_initial_mbis_propars
 
 
 def test_get_nshell():

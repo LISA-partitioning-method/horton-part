@@ -22,7 +22,7 @@
 
 import numpy as np
 
-from ..proatomdb import ProAtomDB
+from denspart.proatomdb import ProAtomDB
 from .common import load_atoms_npz
 
 

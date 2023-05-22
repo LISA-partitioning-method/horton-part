@@ -24,8 +24,8 @@
 from nose.tools import assert_raises
 
 from .common import load_molecule_npz
-from ..becke import BeckeWPart
-from ..grid import ExpRTransform, RadialGrid, BeckeMolGrid
+from denspart.becke import BeckeWPart
+from denspart.grid import ExpRTransform, RadialGrid, BeckeMolGrid
 
 
 def test_becke_n2_hfs_sto3g():

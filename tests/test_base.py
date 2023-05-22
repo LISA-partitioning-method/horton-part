@@ -24,8 +24,8 @@
 from nose.tools import assert_raises
 
 from .common import load_molecule_npz
-from ..base import WPart
-from ..grid import ExpRTransform, RadialGrid, BeckeMolGrid
+from denspart.base import WPart
+from denspart.grid import ExpRTransform, RadialGrid, BeckeMolGrid
 
 
 def test_base_exceptions():
