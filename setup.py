@@ -43,7 +43,6 @@ else:
     with open(fn_version, "w") as fh:
         fh.write(version_template.format(__version__))
 
-
 setup(
     name="denspart",
     version=__version__,
@@ -64,5 +63,5 @@ setup(
         "Topic :: Scientific/Engineering :: Chemistry",
         "Intended Audience :: Science/Research",
     ],
-    requires=["numpy", "scipy", "setuptools"],
+    python_requires=">=3.10",
 )
