@@ -22,8 +22,8 @@
 
 
 import numpy as np
-from scipy.optimize import minimize, LinearConstraint
 from horton_grid.log import log, biblio
+import quadprog
 from .stockholder import StockholderWPart
 from .iterstock import IterativeProatomMixin
 
@@ -187,79 +187,14 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
     def _get_initial_propars(number):
         """Create initial parameters for proatom density functions."""
         nprim = get_nprim(number)
+        # return np.ones(nprim, float) / nprim
         return np.ones(nprim, float) / nprim
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
-        if self._obj_fn_type == 1:
-            return self._opt_propars_by_mbis_opt(rho, propars, rgrid, alphas, threshold)
-        elif self._obj_fn_type == 2:
-            return self._opt_propars_by_mbis_opt2(
-                rho, propars, rgrid, alphas, threshold
-            )
-        elif self._obj_fn_type == 3:
-            return self._opt_propars_constrained_least_squares(
-                rho, propars, rgrid, alphas, threshold
-            )
-        else:
-            raise NotImplementedError
+        return self._constrained_least_squares(rho, propars, rgrid, alphas, threshold)
 
     @staticmethod
-    def _opt_propars_by_mbis_opt(rho, propars, rgrid, alphas, threshold):
-        r"""
-        Optimize parameters for proatom density functions.
-
-        .. math::
-
-            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-        Parameters
-        ----------
-        rho:
-            Atomic spherical-average density, i.e.,
-            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-        propars:
-            Parameters array.
-        rgrid:
-            Radial grid.
-        alphas:
-            Exponential coefficients of Gaussian primitive functions.
-        threshold:
-            Threshold for convergence.
-
-        Returns
-        -------
-
-        """
-        nprim = len(propars)
-        r = rgrid.radii
-        oldpro = None
-        for irep in range(1000):
-            # compute the contributions to the pro-atom
-            terms = np.array(
-                [get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)]
-            )
-            pro = terms.sum(axis=0)
-            # transform to partitions
-            terms *= rho / pro
-            # the partitions and the updated parameters
-            for k in range(nprim):
-                propars[k] = rgrid.integrate(terms[k])
-            # check for convergence
-            if oldpro is None:
-                change = 1e100
-            else:
-                error = oldpro - pro
-                change = np.sqrt(rgrid.integrate(error, error))
-            if change < threshold:
-                return propars
-            oldpro = pro
-        log("Not converge, but go ahead!")
-        # The initial values could lead to converged issues.
-        # assert False
-        return propars
-
-    @staticmethod
-    def _opt_propars_by_mbis_opt2(rho, propars, rgrid, alphas, threshold):
+    def _constrained_least_squares(rho, propars, rgrid, alphas, threshold):
         r"""
         Optimize parameters for proatom density functions.
 
@@ -293,94 +228,45 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         -------
 
         """
+
         nprim = len(propars)
         r = rgrid.radii
-        oldG = None
-        for irep in range(1000):
-            # compute the contributions to the pro-atom
-            terms = np.array(
-                [get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)]
-            )
-            pro = terms.sum(axis=0)
-            S = (
-                2
-                / np.pi**1.5
-                * (alphas[:, None] * alphas[None, :]) ** 1.5
-                / (alphas[:, None] + alphas[None, :]) ** 1.5
-            )
+        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
 
-            b = np.zeros(nprim, float)
-            for k in range(nprim):
-                b[k] = rgrid.integrate(terms[k, :], rho)
+        # compute the contributions to the pro-atom
+        # terms = np.array([get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)])
+        # pro = terms.sum(axis=0)
 
-            newG = 0.5 * np.einsum("i,ij,j->", propars, S, propars) - np.einsum(
-                "i,i->", propars, b
-            )
-
-            # transform to partitions
-            terms *= rho / pro
-            # the partitions and the updated parameters
-            for k in range(nprim):
-                propars[k] = rgrid.integrate(terms[k])
-            # check for convergence
-            if oldG is None:
-                change = 1e100
-            else:
-                change = np.abs(oldG - newG)
-            if change < threshold:
-                return propars
-            oldG = newG
-        log("Not converge, but go ahead!")
-        # The initial values could lead to converged issues.
-        # assert False
-        return propars
-
-    # TODO: why this doesn't work?
-    @staticmethod
-    def _opt_propars_constrained_least_squares(rho, propars, rgrid, alphas, threshold):
-        """Update parameters of proatom density functions."""
-        nprim = len(propars)
-        r = rgrid.radii
-        pop_a = rgrid.integrate(rho)
-
-        def objective(params):
-            """The objective function."""
-            # compute the contributions to the pro-atom using a list comprehension for speed
-            terms = np.array(
-                [get_pro_a_k(params[k], alphas[k], r) for k in range(nprim)]
-            )
-            pro_a = terms.sum(axis=0)
-            delta = pro_a - rho
-            return rgrid.integrate(delta, delta)
-            # grad = np.zeros(nprim, float)
-            # for i in range(nprim):
-            #     grad[i] = rgrid.integrate(2 * delta, terms[i, :] / params[i])
-            # return rgrid.integrate(error, error), grad
-
-            # # L-ISA objective function
-            # F = -rgrid.integrate(r**2 * rho * np.log(pro_a))
-            # grad = np.zeros(nprim, float)
-            # for i in range(nprim):
-            #     grad[i] = -rgrid.integrate(r**2 * rho * terms[i, :] / pro_a / params[i])
-            # return F, grad
-
-        A = np.zeros((nprim, nprim), float)
-        A[0, :] = 1
-        b = np.zeros((nprim,), float)
-        b[0] = pop_a
-        constraint = LinearConstraint(A, b, b)
-        bounds = [(5e-5, 1e2)] * len(propars)
-
-        # Solve the constrained optimization problem
-        result = minimize(
-            objective,
-            propars,
-            # jac=True,
-            # hess=SR1(),
-            constraints=constraint,
-            method="trust-constr",
-            # method="slsqp",
-            bounds=bounds,
-            tol=threshold,
+        S = (
+            1
+            / np.pi**1.5
+            * (alphas[:, None] * alphas[None, :]) ** 1.5
+            / (alphas[:, None] + alphas[None, :]) ** 1.5
         )
-        return result.x
+
+        vec_b = np.zeros(nprim, float)
+        for k in range(nprim):
+            vec_b[k] = rgrid.integrate(gauss_funcs[k], rho)
+
+        # METHOD 2 : using Python quadratic programming optimization routines
+        # (linear equality or inequality constraints)
+        matrix_constraint = np.zeros([nprim, nprim + 1])
+        # First column : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k)= N_a
+        matrix_constraint[:, 0] = np.ones(nprim)
+        # Other K_a columns : correspond to the INEQUALITY constraints c_(a,k) >=0
+        matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
+
+        vector_constraint = np.zeros(nprim + 1)
+
+        # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
+        N_a = rgrid.integrate(rho)
+        vector_constraint[0] = N_a
+
+        propars = quadprog.solve_qp(
+            G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
+        )[0]
+
+        print(propars)
+        print("charges:", np.sum(propars) - N_a)
+
+        return propars

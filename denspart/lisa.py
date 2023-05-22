@@ -23,6 +23,7 @@
 
 from __future__ import division, print_function
 import numpy as np
+import cvxopt
 from horton_grid.log import log
 from .gisa import GaussianIterativeStockholderWPart, get_pro_a_k
 
@@ -46,10 +47,25 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             #     "Robert2022 the use of Linear Iterative Stockholder ", "partitioning"
             # )
 
+    def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
+        if self._obj_fn_type == 1:
+            return self._opt_propars_with_lisa_method(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._obj_fn_type == 2:
+            return self._opt_propars_with_mbis_lagrangian(
+                rho, propars, rgrid, alphas, threshold
+            )
+        else:
+            raise NotImplementedError
+
     @staticmethod
-    def _opt_propars_by_mbis_opt(rho, propars, rgrid, alphas, threshold):
+    def _opt_propars_with_mbis_lagrangian(rho, propars, rgrid, alphas, threshold):
         r"""
-        Optimize parameters for proatom density functions.
+        Optimize parameters for proatom density functions using MBIS Lagrange.
+
+        The parameters can be computed analytically in this way. which should give the same results
+        as the L-ISA algorithms.
 
         .. math::
 
@@ -100,3 +116,117 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         # The initial values could lead to converged issues.
         # assert False
         return propars
+
+    @staticmethod
+    def _opt_propars_with_lisa_method(
+        rho, propars, rgrid, alphas, threshold, verbose=False
+    ):
+        r"""
+        Optimize parameters for proatom density functions.
+
+        .. math::
+
+            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+        Parameters
+        ----------
+        rho:
+            Atomic spherical-average density, i.e.,
+            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+        propars:
+            Parameters array.
+        rgrid:
+            Radial grid.
+        alphas:
+            Exponential coefficients of Gaussian primitive functions.
+        threshold:
+            Threshold for convergence.
+
+        Returns
+        -------
+
+        """
+        # Conversion of the identity matrix into CVXOPT format :
+        # G = matrix_constraint_ineq
+        nprim = len(propars)
+        matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
+
+        # h = vector_constraint_ineq
+        vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
+
+        ###########################
+        # Linear equality constraints :
+        # Ax = b with x=(c_(a,k))_{k=1..Ka} ; A = (1...1) and b = Na = (Na)
+        matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
+
+        r = rgrid.radii
+        # N_a : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
+        N_a = rgrid.integrate(rho)
+        vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))
+
+        # Use optimized x to calculate Gaussian functions
+        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
+
+        def F(x=None, z=None):
+            # x is the optimized coefficients
+            if x is None:
+                # For the initial step, this should be propars
+                return 0, cvxopt.matrix(propars[:])
+
+            x = np.clip(x, 1e-6, None)  # Replace values < 1e-6 with 1e-6
+
+            # Use optimized to calculate density from each Gaussian function.
+            gauss_pros = np.array(
+                [get_pro_a_k(x[k], alphas[k], r) for k in range(nprim)]
+            )
+            pro = gauss_pros.sum(axis=0)
+
+            f = -rgrid.integrate(rho * np.log(pro))
+            df = np.zeros((1, nprim), float)
+            for i in range(nprim):
+                # NOTE: in Horton's grid, the 4 * \pi * r**2 is already included
+                df[0, i] = -rgrid.integrate(rho * gauss_funcs[i] / pro)
+            df = cvxopt.matrix(df)
+
+            if verbose:
+                print("f=", f)
+                print("df=", df)
+
+            if z is None:
+                return f, df
+
+            hess = np.zeros((nprim, nprim), float)
+            for i in range(nprim):
+                for j in range(i, nprim):
+                    hess[i, j] = rgrid.integrate(
+                        # NOTE: in Horton's grid, the 4 * \pi * r**2 is already included
+                        rho
+                        * gauss_funcs[i]
+                        * gauss_funcs[j]
+                        / pro**2
+                    )
+                    hess[j, i] = hess[i, j]
+            hess = z[0] * cvxopt.matrix(hess)
+
+            if verbose:
+                print("hess:")
+                print(hess)
+
+            return f, df, hess
+
+        opt_CVX = cvxopt.solvers.cp(
+            F,
+            G=matrix_constraint_ineq,
+            h=vector_constraint_ineq,
+            A=matrix_constraint_eq,
+            b=vector_constraint_eq,
+            verbose=verbose,
+            reltol=threshold,
+        )
+
+        optimized_res = opt_CVX["x"]
+        assert (np.asarray(optimized_res) > 0).all()
+        assert np.sum(optimized_res) - N_a < 1e-8
+
+        new_propars = np.asarray(opt_CVX["x"]).flatten()
+        return new_propars
