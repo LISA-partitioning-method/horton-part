@@ -5,7 +5,7 @@ from horton_grid import context, BeckeMolGrid, log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
-from denspart import MBISWPart
+from horton_part import MBISWPart
 
 
 # Load the Gaussian output from file from HORTON's test data directory.

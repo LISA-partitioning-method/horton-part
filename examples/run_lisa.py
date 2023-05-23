@@ -5,7 +5,7 @@ from horton_grid import BeckeMolGrid, log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
-from denspart import LinearIterativeStockholderWPart
+from horton_part import LinearIterativeStockholderWPart
 
 from utils import load_fchk
 

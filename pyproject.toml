@@ -26,6 +26,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
+    "pep517",
     "numpy",
     "pre-commit",
     "pytest",

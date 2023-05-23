@@ -5,7 +5,7 @@ from horton_grid import BeckeMolGrid, log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
-from denspart import GaussianIterativeStockholderWPart
+from horton_part import GaussianIterativeStockholderWPart
 from utils import load_fchk
 
 np.set_printoptions(precision=3, suppress=True, linewidth=np.inf)
