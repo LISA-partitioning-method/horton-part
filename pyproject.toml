@@ -68,7 +68,7 @@ target-version = "py310"
 max-complexity = 10
 
 [tool.setuptools_scm]
-write_to = "src/horton_part/version.py"
+write_to = "src/horton_part/_version.py"
 version_scheme = "post-release"
 local_scheme = "no-local-version"
 
