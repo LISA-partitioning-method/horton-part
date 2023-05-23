@@ -101,3 +101,4 @@ ENV/
 
 # PyCharm
 .idea/
+_version.py
