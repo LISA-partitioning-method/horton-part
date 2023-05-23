@@ -3,7 +3,7 @@
 
 
 ## About
-This package implements various partitioning schemes described in <a href=https://doi.org/10.1063/5.0076630>This paper</a>.
+This package implements various partitioning schemes described in <a href=https://doi.org/10.1063/5.0076630>this paper</a>.
 
 The methods included in this library are:
 
@@ -18,12 +18,12 @@ The methods included in this library are:
 
 ## License
 
-DensPart is distributed under GPL License version 3 (GPLv3).
+`horton-part` is distributed under GPL License version 3 (GPLv3).
 
 
 ## Dependencies
 
-The following dependencies will be necessary for DensPart to build properly,
+The following dependencies will be necessary for `horton-part` to build properly,
 
 * Python >= 3.10: http://www.python.org/
 * SciPy : http://www.scipy.org/
@@ -46,7 +46,7 @@ the near future.
 
 ## Installation
 
-To install DensPart:
+To install `horton-part`:
 
 ```bash
 git clone http://github.com/yingxingcheng/horton-part
