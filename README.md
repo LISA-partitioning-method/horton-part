@@ -1,49 +1,61 @@
-DensPart
-======
-<a href='https://docs.python.org/2.7/'><img src='https://img.shields.io/badge/python-2.7-blue.svg'></a>
-<a href='https://docs.python.org/3.5/'><img src='https://img.shields.io/badge/python-3.5-blue.svg'></a>
+# HORTON-PART
+<a href='https://docs.python.org/3.10/'><img src='https://img.shields.io/badge/python-3.10-blue.svg'></a>
 
 
-About
------
+## About
+This package implements various partitioning schemes described in<a href=https://doi.org/10.1063/5.0076630>This paper</a>.
 
+The methods included in this library are:
 
-License
--------
+- Becke method
+- Mulliken method
+- Hirshfeld partitioning scheme
+- Iterative Hirshfeld (Hirshfeld-I) partitioning scheme
+- Iterative stockholder approach (ISA)
+- Gaussian iterative stockholder approach (GISA)
+- Minimal Basis Iterative Stockholder (MBIS)
+- Linear approximation of the ISA (L-ISA) method
+
+## License
 
 DensPart is distributed under GPL License version 3 (GPLv3).
 
 
-Dependencies
-------------
+## Dependencies
 
 The following dependencies will be necessary for DensPart to build properly,
 
-* Python >= 2.7, >= 3.5: http://www.python.org/
-* SciPy >= 0.11.0: http://www.scipy.org/
-* NumPy >= 1.9.1: http://www.numpy.org/
-* Nosetests >= 1.1.2: http://readthedocs.org/docs/nose/en/latest/
-* HORTON >= 2.0.1: http://theochem.github.io/horton/2.0.1/index.html
+* Python >= 3.10: http://www.python.org/
+* SciPy : http://www.scipy.org/
+* NumPy : http://www.numpy.org/
+* Nosetests : http://readthedocs.org/docs/nose/en/latest/
+* horton-grid : http://github.com/yingxingcheng/horton-grid
 
-The dependence on HORTON is only because of the `grid` module. This will be replaced by `qcgrids` in
+The dependence on `horton-grid` is only because of the `grid` module. This will be replaced by `qcgrids` in
 the near future.
 
 
-Installation
-------------
+## Installation
 
 To install DensPart:
 
 ```bash
-python ./setup install --user
+git clone http://github.com/yingxingcheng/horton-part
+cd horton-part
+pip install . [--user]
+```
+
+For developers:
+```bash
+pip install -e .
 ```
 
 
-Testing
--------
+## Testing
 
 To run tests:
 
 ```bash
-nosetests -v denspart
+git clone http://github.com/yingxingcheng/horton-part
+pytest horton-part
 ```
