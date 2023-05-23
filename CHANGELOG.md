@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Tests and examples for ISA methods
+- Examples for ISA methods
+- Tests for all methods
 - L-ISA method using two different optimization approaches
 - G-ISA method
 - The Python 3.10 support
