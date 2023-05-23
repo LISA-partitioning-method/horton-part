@@ -3,7 +3,7 @@
 
 
 ## About
-This package implements various partitioning schemes described in<a href=https://doi.org/10.1063/5.0076630>This paper</a>.
+This package implements various partitioning schemes described in <a href=https://doi.org/10.1063/5.0076630>This paper</a>.
 
 The methods included in this library are:
 
@@ -30,6 +30,15 @@ The following dependencies will be necessary for DensPart to build properly,
 * NumPy : http://www.numpy.org/
 * Nosetests : http://readthedocs.org/docs/nose/en/latest/
 * horton-grid : http://github.com/yingxingcheng/horton-grid
+* pytest : https://docs.pytest.org/en/7.3.x/contents.html
+* matplotlib : https://matplotlib.org/
+* quadprog>=0.1.11 : https://github.com/quadprog/quadprog
+* cvxopt>=1.3.1 : https://github.com/cvxopt/cvxopt
+* qc-iodata : https://github.com/theochem/iodata
+* gbasis : https://github.com/theochem/gbasis
+* horton-grid : https://github.com/yingxingcheng/horton-grid
+* pep517 : https://peps.python.org/pep-0517/ (for developers)
+* pre-commit : https://pre-commit.com/ (for developers)
 
 The dependence on `horton-grid` is only because of the `grid` module. This will be replaced by `qcgrids` in
 the near future.
