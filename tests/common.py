@@ -27,8 +27,13 @@ import numpy as np
 
 from contextlib import contextmanager
 
-from denspart.proatomdb import ProAtomRecord
-from horton_grid import LinearRTransform, PowerRTransform, ExpRTransform, RadialGrid
+from horton_part.proatomdb import ProAtomRecord
+from horton_part.wrapper import (
+    LinearRTransform,
+    PowerRTransform,
+    ExpRTransform,
+    RadialGrid,
+)
 
 
 __all__ = [

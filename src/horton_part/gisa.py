@@ -22,7 +22,7 @@
 
 
 import numpy as np
-from horton_grid.log import log, biblio
+from .wrapper import log, biblio
 import quadprog
 from .stockholder import StockholderWPart
 from .iterstock import IterativeProatomMixin

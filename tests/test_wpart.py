@@ -23,9 +23,9 @@
 import numpy as np
 from nose.plugins.attrib import attr
 
-from denspart.grid import ExpRTransform, RadialGrid, BeckeMolGrid
-from denspart.proatomdb import ProAtomDB
-from denspart.utils import wpart_schemes
+from horton_part.wrapper import ExpRTransform, RadialGrid, BeckeMolGrid
+from horton_part.proatomdb import ProAtomDB
+from horton_part.utils import wpart_schemes
 from .common import (
     load_molecule_npz,
     load_atoms_npz,

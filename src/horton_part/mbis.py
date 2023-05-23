@@ -29,7 +29,7 @@ from .stockholder import StockholderWPart
 from .iterstock import IterativeProatomMixin
 
 
-__all__ = ["MBISWPart"]
+__all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
 
 
 def _get_nshell(number):

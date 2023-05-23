@@ -27,7 +27,7 @@ import numpy as np
 
 from .base import WPart
 from .utils import angstrom, radius_becke, radius_covalent
-from .grid import becke_helper_atom
+from .wrapper import becke_helper_atom
 
 
 __all__ = ["BeckeWPart"]

@@ -23,7 +23,7 @@
 import numpy as np
 from nose.tools import assert_raises
 
-from denspart.cache import JustOnceClass, Cache, just_once
+from horton_part.cache import JustOnceClass, Cache, just_once
 
 
 class Example(JustOnceClass):

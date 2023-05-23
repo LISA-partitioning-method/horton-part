@@ -27,7 +27,7 @@ import numpy as np
 
 from .cache import JustOnceClass, just_once, Cache
 from .utils import typecheck_geo
-from .grid import AtomicGrid, solve_poisson_becke
+from .wrapper import AtomicGrid, solve_poisson_becke
 
 
 __all__ = ["Part", "WPart"]

@@ -25,7 +25,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from .grid import CubicSpline
+from .wrapper import CubicSpline
 
 
 __all__ = ["ProAtomRecord", "ProAtomDB"]

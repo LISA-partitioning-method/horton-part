@@ -24,7 +24,7 @@ import numpy as np
 
 from numpy.testing import assert_almost_equal, assert_equal
 
-from denspart.mulliken import get_mulliken_operators
+from horton_part.mulliken import get_mulliken_operators
 
 
 def test_mulliken_operators_water_sto3g():

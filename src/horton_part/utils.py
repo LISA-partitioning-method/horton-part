@@ -22,7 +22,13 @@
 
 import numpy as np
 
-__all__ = ["typecheck_geo", "radius_becke", "radius_covalent", "wpart_schemes"]
+__all__ = [
+    "typecheck_geo",
+    "radius_becke",
+    "radius_covalent",
+    "wpart_schemes",
+    "angstrom",
+]
 
 
 angstrom = 1.0e-10 / 0.5291772083e-10
