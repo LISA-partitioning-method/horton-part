@@ -446,6 +446,8 @@ class WPart(Part):
                 self.do_partitioning()
                 print("5:Computing density decomposition for atom %i" % index)
                 at_weights = self.cache.load("at_weights", index)
+                # at_grid = AtomGrid()
+                # at_grid.radial_component_splines(moldens, at_grid.at_weights)
                 splines = atgrid.get_spherical_decomposition(
                     moldens, at_weights, lmax=self.lmax
                 )

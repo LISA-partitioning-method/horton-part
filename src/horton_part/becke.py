@@ -27,7 +27,7 @@ import numpy as np
 
 from .base import WPart
 from .utils import angstrom, radius_becke, radius_covalent
-from .wrapper import becke_helper_atom
+from grid.becke import BeckeWeights
 
 
 __all__ = ["BeckeWPart"]
@@ -102,13 +102,21 @@ class BeckeWPart(WPart):
             radii.append(radius)
         radii = np.array(radii)
 
+        # for new API
+        radii_dict = {int(_atm): _radius for _atm, _radius in zip(self.numbers, radii)}
+        bw_helper = BeckeWeights(radii_dict, self._k)
+
         # Actual work
         for index in range(self.natom):
             grid = self.get_grid(index)
             at_weights = self.cache.load("at_weights", index, alloc=grid.shape)[0]
-            at_weights[:] = 1
-            becke_helper_atom(
-                grid.points, at_weights, radii, self.coordinates, index, self._k
+            # at_weights[:] = 1
+            # becke_helper_atom(
+            #     grid.points, at_weights, radii, self.coordinates, index, self._k
+            # )
+            # use new API
+            at_weights[:] = bw_helper.compute_atom_weight(
+                grid.points, self.coordinates, self.numbers, index
             )
 
     def _get_k(self):
