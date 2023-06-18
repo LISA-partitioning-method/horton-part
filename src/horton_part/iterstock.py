@@ -186,15 +186,16 @@ class IterativeStockholderWPart(IterativeProatomMixin, StockholderWPart):
         atgrid = self.get_grid(index)
         dens = self.get_moldens(index)
         at_weights = self.cache.load("at_weights", index)
-        spherical_average = np.clip(
-            atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
-        )
+        spline = atgrid.spherical_average(at_weights * dens)
+        spherical_average = np.clip(spline(atgrid.rgrid.points), 1e-100, np.inf)
 
         # assign as new propars
         propars = self.cache.load("propars")
         propars[self._ranges[index] : self._ranges[index + 1]] = spherical_average
 
         # compute the new charge
-        pseudo_population = atgrid.rgrid.integrate(spherical_average)
+        pseudo_population = atgrid.rgrid.integrate(
+            4 * np.pi * atgrid.rgrid.points**2 * spherical_average
+        )
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[index] = self.pseudo_numbers[index] - pseudo_population

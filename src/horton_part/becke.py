@@ -109,7 +109,7 @@ class BeckeWPart(WPart):
         # Actual work
         for index in range(self.natom):
             grid = self.get_grid(index)
-            at_weights = self.cache.load("at_weights", index, alloc=grid.shape)[0]
+            at_weights = self.cache.load("at_weights", index, alloc=grid.size)[0]
             # at_weights[:] = 1
             # becke_helper_atom(
             #     grid.points, at_weights, radii, self.coordinates, index, self._k

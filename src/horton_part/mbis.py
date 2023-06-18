@@ -57,7 +57,7 @@ def _get_initial_mbis_propars(number):
 def _opt_mbis_propars(rho, propars, rgrid, threshold):
     assert len(propars) % 2 == 0
     nshell = len(propars) // 2
-    r = rgrid.radii
+    r = rgrid.points
     terms = np.zeros((nshell, len(r)), float)
     oldpro = None
     for irep in range(1000):
@@ -71,8 +71,8 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
         terms *= rho / pro
         # the partitions and the updated parameters
         for ishell in range(nshell):
-            m0 = rgrid.integrate(terms[ishell])
-            m1 = rgrid.integrate(terms[ishell], r)
+            m0 = rgrid.integrate(4 * np.pi * r**2, terms[ishell])
+            m1 = rgrid.integrate(4 * np.pi * r**2, terms[ishell], r)
             propars[2 * ishell] = m0
             propars[2 * ishell + 1] = 3 * m0 / m1
         # check for convergence
@@ -80,7 +80,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
             change = 1e100
         else:
             error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(error, error))
+            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
         if change < threshold:
             return propars
         oldpro = pro
@@ -151,7 +151,7 @@ class MBISWPart(IterativeProatomMixin, StockholderWPart):
         if propars is None:
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
-        r = rgrid.radii
+        r = rgrid.points
         y = np.zeros(len(r), float)
         d = np.zeros(len(r), float)
         my_propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
@@ -184,9 +184,11 @@ class MBISWPart(IterativeProatomMixin, StockholderWPart):
         rgrid = atgrid.rgrid
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
-        spherical_average = np.clip(
-            atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
-        )
+        # spherical_average = np.clip(
+        #     atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
+        # )
+        spline = atgrid.spherical_average(at_weights * dens)
+        spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
 
         # assign as new propars
         my_propars = self.cache.load("propars")[
@@ -197,7 +199,9 @@ class MBISWPart(IterativeProatomMixin, StockholderWPart):
         )
 
         # compute the new charge
-        pseudo_population = rgrid.integrate(spherical_average)
+        pseudo_population = rgrid.integrate(
+            4 * np.pi * rgrid.points**2 * spherical_average
+        )
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 

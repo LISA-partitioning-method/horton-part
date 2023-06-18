@@ -26,7 +26,10 @@ from __future__ import print_function
 import numpy as np
 
 from .base import WPart
-from .wrapper import CubicSpline, solve_poisson_becke
+
+# from .wrapper import CubicSpline, solve_poisson_becke
+from scipy.interpolate import CubicSpline, CubicHermiteSpline
+from .wrapper import eval_spline_grid
 
 
 __all__ = ["StockholderWPart"]
@@ -75,12 +78,17 @@ class StockHolderMixin(object):
         rho, deriv = self.fix_proatom_rho(index, rho, deriv)
 
         # Make a spline
-        rtf = self.get_rgrid(index).rtransform
-        return CubicSpline(rho, deriv, rtf)
+        # rtf = self.get_rgrid(index).rtransform
+        rgrid = self.get_rgrid(index)
+        if deriv is None:
+            return CubicSpline(rgrid.points, rho, True)
+        else:
+            return CubicHermiteSpline(rgrid.points, rho, deriv, True)
 
     def eval_spline(self, index, spline, output, grid, label="noname"):
         center = self.coordinates[index]
-        grid.eval_spline(spline, center, output)
+        # grid.eval_spline(spline, center, output)
+        output[:] = eval_spline_grid(spline, grid, center)
 
     def eval_proatom(self, index, output, grid):
         spline = self.get_proatom_spline(index)
@@ -92,14 +100,14 @@ class StockHolderMixin(object):
     def update_at_weights(self):
         # This will reconstruct the promolecular density and atomic weights
         # based on the current proatomic splines.
-        promoldens = self.cache.load("promoldens", alloc=self.grid.shape)[0]
+        promoldens = self.cache.load("promoldens", alloc=self.grid.size)[0]
         promoldens[:] = 0
 
         # update the promolecule density and store the proatoms in the at_weights
         # arrays for later.
         for index in range(self.natom):
             grid = self.get_grid(index)
-            at_weights = self.cache.load("at_weights", index, alloc=grid.shape)[0]
+            at_weights = self.cache.load("at_weights", index, alloc=grid.size)[0]
             self.update_pro(index, at_weights, promoldens)
 
         # Compute the atomic weights by taking the ratios between proatoms and
@@ -120,20 +128,21 @@ class StockHolderMixin(object):
                 print("5:Storing proatom density spline for atom %i." % index)
                 spline = self.get_proatom_spline(index)
                 self.cache.dump(key, spline, tags="o")
-            # hartree potential
-            key = ("spline_prohartree", index)
-            if key not in self.cache:
-                print(
-                    "5:Computing proatom hartree potential spline for atom %i." % index
-                )
-                rho_spline = self.cache.load("spline_prodensity", index)
-                v_spline = solve_poisson_becke([rho_spline])[0]
-                self.cache.dump(key, v_spline, tags="o")
+            # # hartree potential
+            # key = ("spline_prohartree", index)
+            # if key not in self.cache:
+            #     print(
+            #         "5:Computing proatom hartree potential spline for atom %i." % index
+            #     )
+            #     rho_spline = self.cache.load("spline_prodensity", index)
+            #     v_spline = solve_poisson_becke([rho_spline])[0]
+            #     self.cache.dump(key, v_spline, tags="o")
 
 
 class StockholderWPart(StockHolderMixin, WPart):
     def update_pro(self, index, proatdens, promoldens):
-        work = self.grid.zeros()
+        # work = self.grid.zeros()
+        work = np.zeros((self.grid.size,))
         self.eval_proatom(index, work, self.grid)
         promoldens += work
         proatdens[:] = self.to_atomic_grid(index, work)

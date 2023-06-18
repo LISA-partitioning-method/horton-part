@@ -27,7 +27,9 @@ import numpy as np
 
 from .cache import JustOnceClass, just_once, Cache
 from .utils import typecheck_geo
-from .wrapper import AtomicGrid, solve_poisson_becke
+from grid import AtomGrid
+
+# from .wrapper import AtomicGrid, solve_poisson_becke
 
 
 __all__ = ["Part", "WPart"]
@@ -228,6 +230,7 @@ class Part(JustOnceClass):
         dens = self.get_moldens(index)
         at_weights = self.cache.load("at_weights", index)
         wcor = self.get_wcor(index)
+        wcor = np.ones_like(at_weights) if wcor is None else wcor
         return grid.integrate(at_weights, dens, wcor)
 
     @just_once
@@ -311,29 +314,40 @@ class Part(JustOnceClass):
 
                 # 3) Compute weight corrections
                 wcor = self.get_wcor(i)
+                wcor = 1 if wcor is None else wcor
 
                 # 4) Compute Cartesian multipole moments
                 # The minus sign is present to account for the negative electron
                 # charge.
-                cartesian_multipoles[i] = -grid.integrate(
-                    aim, wcor, center=center, lmax=self.lmax, mtype=1
+                res = -grid.moments(
+                    orders=self.lmax,
+                    centers=np.asarray([center]),
+                    func_vals=aim * wcor,
+                    type_mom="cartesian",
                 )
+                cartesian_multipoles[i] = res.flatten()
                 cartesian_multipoles[i, 0] += self.pseudo_numbers[i]
 
                 # 5) Compute Pure multipole moments
                 # The minus sign is present to account for the negative electron
                 # charge.
-                pure_multipoles[i] = -grid.integrate(
-                    aim, wcor, center=center, lmax=self.lmax, mtype=2
-                )
+                pure_multipoles[i] = -grid.moments(
+                    orders=self.lmax,
+                    centers=np.asarray([center]),
+                    func_vals=aim * wcor,
+                    type_mom="pure",
+                ).flatten()
                 pure_multipoles[i, 0] += self.pseudo_numbers[i]
 
                 # 6) Compute Radial moments
                 # For the radial moments, it is not common to put a minus sign
                 # for the negative electron charge.
-                radial_moments[i] = grid.integrate(
-                    aim, wcor, center=center, lmax=self.lmax, mtype=3
-                )
+                radial_moments[i] = grid.moments(
+                    orders=self.lmax,
+                    centers=np.asarray([center]),
+                    func_vals=aim * wcor,
+                    type_mom="radial",
+                ).flatten()
 
     def do_all(self):
         """Computes all properties and return a list of their keys."""
@@ -390,7 +404,7 @@ class WPart(Part):
         lmax
              The maximum angular momentum in multipole expansions.
         """
-        if local and grid.subgrids is None:
+        if local and grid.atgrids is None:
             raise ValueError(
                 "Atomic grids are discarded from molecular grid object, "
                 "but are needed for local integrations."
@@ -417,7 +431,7 @@ class WPart(Part):
         )
 
     def _init_subgrids(self):
-        self._subgrids = self._grid.subgrids
+        self._subgrids = self._grid.atgrids
 
     def get_wcor(self, index):
         return None
@@ -426,8 +440,10 @@ class WPart(Part):
         if index is None or not self.local:
             return data
         else:
-            grid = self.get_grid(index)
-            return data[grid.begin : grid.end]
+            # grid = self.get_grid(index)
+            # return data[grid.begin : grid.end]
+            begin, end = self.grid.indices[index], self.grid.indices[index + 1]
+            return data[begin:end]
 
     @just_once
     def do_density_decomposition(self):
@@ -439,45 +455,42 @@ class WPart(Part):
 
         for index in range(self.natom):
             atgrid = self.get_grid(index)
-            assert isinstance(atgrid, AtomicGrid)
+            assert isinstance(atgrid, AtomGrid)
             key = ("density_decomposition", index)
             if key not in self.cache:
                 moldens = self.get_moldens(index)
                 self.do_partitioning()
                 print("5:Computing density decomposition for atom %i" % index)
                 at_weights = self.cache.load("at_weights", index)
-                # at_grid = AtomGrid()
-                # at_grid.radial_component_splines(moldens, at_grid.at_weights)
-                splines = atgrid.get_spherical_decomposition(
-                    moldens, at_weights, lmax=self.lmax
-                )
+                assert atgrid.l_max >= self.lmax
+                splines = atgrid.radial_component_splines(moldens * at_weights)
                 density_decomp = dict(
                     ("spline_%05i" % j, spl) for j, spl in enumerate(splines)
                 )
                 self.cache.dump(key, density_decomp, tags="o")
 
-    @just_once
-    def do_hartree_decomposition(self):
-        if not self.local:
-            print(
-                "5:!WARNING! Skip hartree decomposition because no local grids were found."
-            )
-            return
+    # @just_once
+    # def do_hartree_decomposition(self):
+    #     if not self.local:
+    #         print(
+    #             "5:!WARNING! Skip hartree decomposition because no local grids were found."
+    #         )
+    #         return
 
-        for index in range(self.natom):
-            key = ("hartree_decomposition", index)
-            if key not in self.cache:
-                self.do_density_decomposition()
-                print("5:Computing hartree decomposition for atom %i" % index)
-                density_decomposition = self.cache.load("density_decomposition", index)
-                rho_splines = [
-                    spline for foo, spline in sorted(density_decomposition.items())
-                ]
-                splines = solve_poisson_becke(rho_splines)
-                hartree_decomp = dict(
-                    ("spline_%05i" % j, spl) for j, spl in enumerate(splines)
-                )
-                self.cache.dump(key, hartree_decomp, tags="o")
+    #     for index in range(self.natom):
+    #         key = ("hartree_decomposition", index)
+    #         if key not in self.cache:
+    #             self.do_density_decomposition()
+    #             print("5:Computing hartree decomposition for atom %i" % index)
+    #             density_decomposition = self.cache.load("density_decomposition", index)
+    #             rho_splines = [
+    #                 spline for foo, spline in sorted(density_decomposition.items())
+    #             ]
+    #             splines = solve_poisson_becke(rho_splines)
+    #             hartree_decomp = dict(
+    #                 ("spline_%05i" % j, spl) for j, spl in enumerate(splines)
+    #             )
+    #             self.cache.dump(key, hartree_decomp, tags="o")
 
 
 def get_ncart_cumul(lmax):

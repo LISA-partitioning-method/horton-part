@@ -23,9 +23,10 @@
 
 from nose.tools import assert_raises
 
-from .common import load_molecule_npz
+from .common import load_molecule_npz, sorted_array
 from horton_part.base import WPart
-from horton_part.wrapper import ExpRTransform, RadialGrid, BeckeMolGrid
+
+from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 
 
 def test_base_exceptions():
@@ -34,35 +35,19 @@ def test_base_exceptions():
         "n2_hfs_sto3g_fchk_exp:1e-3:1e1:100:110.npz"
     )
     # make grid
-    rtf = ExpRTransform(1e-3, 1e1, 100)
-    rgrid = RadialGrid(rtf)
-    grid = BeckeMolGrid(
-        coords, nums, pseudo_nums, (rgrid, 110), random_rotate=False, mode="discard"
-    )
+    uniform_grid = UniformInteger(100)
+    rtf = ExpRTransform(1e-3, 1e1, 100 - 1)
+    rgrid = rtf.transform_1d_grid(uniform_grid)
+    becke = BeckeWeights()
+    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False)
     # check the grid points against stored points on which density is evaluated
-    assert (abs(points - grid.points) < 1.0e-6).all()
+    assert (abs(sorted_array(points) - sorted_array(grid.points)) < 1.0e-6).all()
 
     with assert_raises(ValueError):
-        # the default setting is local=true, which is not compatible with mode='discard'.
+        # the default setting is local=true, which is not compatible with store=False.
         WPart(coords, nums, pseudo_nums, grid, dens)
 
-    grid = BeckeMolGrid(
-        coords, nums, pseudo_nums, (rgrid, 110), random_rotate=False, mode="keep"
-    )
+    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
     with assert_raises(NotImplementedError):
         # It should not be possible to create instances of the base class.
         WPart(coords, nums, pseudo_nums, grid, dens)
-
-    grid = BeckeMolGrid(
-        coords, nums, pseudo_nums, (rgrid, 110), random_rotate=False, mode="only"
-    )
-    with assert_raises(NotImplementedError):
-        # It should not be possible to create instances of the base class.
-        WPart(coords, nums, pseudo_nums, grid, dens)
-
-    grid = BeckeMolGrid(
-        coords, nums, pseudo_nums, (rgrid, 110), random_rotate=False, mode="discard"
-    )
-    with assert_raises(NotImplementedError):
-        # It should not be possible to create instances of the base class.
-        WPart(coords, nums, pseudo_nums, grid, dens, local=False)

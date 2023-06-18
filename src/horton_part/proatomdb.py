@@ -25,7 +25,9 @@ from __future__ import print_function
 
 import numpy as np
 
-from .wrapper import CubicSpline
+# from .wrapper import CubicSpline
+from scipy.interpolate import CubicSpline, CubicHermiteSpline
+from grid import OneDGrid
 
 
 __all__ = ["ProAtomRecord", "ProAtomDB"]
@@ -162,8 +164,8 @@ class ProAtomRecord(object):
              be computed.
         """
         # compute the running integral of the density (popint)
-        radii = self.rgrid.radii
-        tmp = 4 * np.pi * radii**2 * self.rho * self.rgrid.rtransform.get_deriv()
+        radii = self.rgrid.points
+        tmp = 4 * np.pi * radii**2 * self.rho * self.rgrid.weights
         popint = tmp.cumsum()
         # find the radii
         indexes = popint.searchsorted(populations)
@@ -182,14 +184,16 @@ class ProAtomRecord(object):
 
     def get_moment(self, order):
         """Return the integral of rho*r**order"""
-        return self.rgrid.integrate(self.rho, self.rgrid.radii**order)
+        return self.rgrid.integrate(self.rho, self.rgrid.points**order)
 
     def chop(self, npoint):
         """Reduce the proatom to the given number of radial grid points."""
         self._rho = self._rho[:npoint]
         if self._deriv is not None:
             self._deriv = self._deriv[:npoint]
-        self._rgrid = self._rgrid.chop(npoint)
+        self._rgrid = OneDGrid(
+            self._rgrid.points[:npoint], self._rgrid.weights[:npoint]
+        )
 
     def __eq__(self, other):
         return (
@@ -250,11 +254,17 @@ class ProAtomDB(object):
                 self._rgrid_map[r.number] = r.rgrid
             else:
                 # compare
-                if rgrid != r.rgrid:
+                if not np.allclose(rgrid.points, r.rgrid.points):
                     raise ValueError(
                         "All proatoms of a given element must have the same radial "
                         "grid."
                     )
+
+                # if rgrid != r.rgrid:
+                #     raise ValueError(
+                #         "All proatoms of a given element must have the same radial "
+                #         "grid."
+                #     )
 
         # Update the safe flags based on the energies of other pro_atoms
         for number in self.get_numbers():
@@ -368,9 +378,9 @@ class ProAtomDB(object):
             else:
                 raise ValueError('Combine argument "%s" not supported.' % combine)
             if not isinstance(rho, np.ndarray):
-                rho = self.get_rgrid(number).zeros()
+                rho = np.zeros_like(self.get_rgrid(number).points)
                 if do_deriv:
-                    deriv = self.get_rgrid(number).zeros()
+                    deriv = np.zeros_like(self.get_rgrid(number).points)
             if do_deriv:
                 return rho, deriv
             else:
@@ -384,7 +394,11 @@ class ProAtomDB(object):
         **Arguments:** See ``get_rho`` method.
         """
         rho, deriv = self.get_rho(number, parameters, combine, do_deriv=True)
-        return CubicSpline(rho, deriv, self.get_rgrid(number).rtransform)
+        rgrid = self.get_rgrid(number)
+        if deriv is None:
+            return CubicSpline(rgrid.points, rho, True)
+        else:
+            return CubicHermiteSpline(rgrid.points, rho, deriv, True)
 
     def compact(self, nel_lost):
         """Make the pro-atoms more compact
@@ -411,7 +425,11 @@ class ProAtomDB(object):
             for charge in self.get_charges(number):
                 r = self.get_record(number, charge)
                 r.chop(npoint)
-            new_rgrid = self._rgrid_map[number].chop(npoint)
+            # new_rgrid = self._rgrid_map[number].chop(npoint)
+            new_rgrid = OneDGrid(
+                self._rgrid_map[number].points[:npoint],
+                self._rgrid_map[number].weights[:npoint],
+            )
             self._rgrid_map[number] = new_rgrid
             print(
                 "5:%4i   %5i -> %5i    %10.3e -> %10.3e"
@@ -419,8 +437,8 @@ class ProAtomDB(object):
                     number,
                     rgrid.size,
                     new_rgrid.size,
-                    rgrid.radii[-1],
-                    new_rgrid.radii[-1],
+                    rgrid.points[-1],
+                    new_rgrid.points[-1],
                 )
             )
         print()

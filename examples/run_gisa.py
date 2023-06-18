@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
 import numpy as np
-from horton_grid import BeckeMolGrid, log
+from horton_grid import log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
 from horton_part import GaussianIterativeStockholderWPart
 from utils import load_fchk
+from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 
 np.set_printoptions(precision=3, suppress=True, linewidth=np.inf)
 np.random.seed(44)
@@ -20,7 +21,14 @@ fn_fchk = load_fchk(name)
 mol = load_one(fn_fchk)
 
 # Specify the integration grid
-grid = BeckeMolGrid(mol.atcoords, mol.atnums, mol.atnums, mode="keep")
+# grid = BeckeMolGrid(mol.atcoords, mol.atnums, mol.atnums, mode="keep")
+rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
+uniform_grid = UniformInteger(120)
+rgrid = rtf.transform_1d_grid(uniform_grid)
+becke = BeckeWeights()
+grid = MolGrid.from_preset(
+    mol.atnums, mol.atcoords, rgrid, "fine", becke, rotate=False, store=True
+)
 
 # # Get the spin-summed density matrix
 one_rdm = mol.one_rdms.get("post_scf", mol.one_rdms.get("scf"))

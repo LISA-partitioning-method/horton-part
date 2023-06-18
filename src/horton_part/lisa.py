@@ -90,7 +90,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
 
         """
         nprim = len(propars)
-        r = rgrid.radii
+        r = rgrid.points
         oldF = None
         for irep in range(1000):
             # compute the contributions to the pro-atom
@@ -98,12 +98,12 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 [get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)]
             )
             pro = terms.sum(axis=0)
-            newF = -rgrid.integrate(r**2 * rho * np.log(pro))
+            newF = -rgrid.integrate(4 * np.pi * r**2, r**2 * rho * np.log(pro))
             # transform to partitions
             terms *= rho / pro
             # the partitions and the updated parameters
             for k in range(nprim):
-                propars[k] = rgrid.integrate(terms[k])
+                propars[k] = rgrid.integrate(4 * np.pi * r**2, terms[k])
             # check for convergence
             if oldF is None:
                 change = 1e100
@@ -159,9 +159,9 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         # Ax = b with x=(c_(a,k))_{k=1..Ka} ; A = (1...1) and b = Na = (Na)
         matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
 
-        r = rgrid.radii
+        r = rgrid.points
         # N_a : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-        N_a = rgrid.integrate(rho)
+        N_a = rgrid.integrate(4 * np.pi * r**2, rho)
         vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))
 
         # Use optimized x to calculate Gaussian functions
@@ -181,11 +181,12 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             )
             pro = gauss_pros.sum(axis=0)
 
-            f = -rgrid.integrate(rho * np.log(pro))
+            f = -rgrid.integrate(4 * np.pi * r**2, rho * np.log(pro))
             df = np.zeros((1, nprim), float)
             for i in range(nprim):
-                # NOTE: in Horton's grid, the 4 * \pi * r**2 is already included
-                df[0, i] = -rgrid.integrate(rho * gauss_funcs[i] / pro)
+                df[0, i] = -rgrid.integrate(
+                    4 * np.pi * r**2 * rho * gauss_funcs[i] / pro
+                )
             df = cvxopt.matrix(df)
 
             if verbose:
@@ -199,11 +200,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             for i in range(nprim):
                 for j in range(i, nprim):
                     hess[i, j] = rgrid.integrate(
-                        # NOTE: in Horton's grid, the 4 * \pi * r**2 is already included
-                        rho
-                        * gauss_funcs[i]
-                        * gauss_funcs[j]
-                        / pro**2
+                        4 * np.pi * r**2,
+                        rho * gauss_funcs[i] * gauss_funcs[j] / pro**2,
                     )
                     hess[j, i] = hess[i, j]
             hess = z[0] * cvxopt.matrix(hess)

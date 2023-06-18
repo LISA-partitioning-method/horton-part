@@ -131,7 +131,7 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         if propars is None:
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
-        r = rgrid.radii
+        r = rgrid.points
         y = np.zeros(len(r), float)
         d = np.zeros(len(r), float)
         propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
@@ -165,9 +165,11 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         rgrid = atgrid.rgrid
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
-        spherical_average = np.clip(
-            atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
-        )
+        # spherical_average = np.clip(
+        #     atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
+        # )
+        spline = atgrid.spherical_average(at_weights * dens)
+        spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
 
         # assign as new propars
         propars = self.cache.load("propars")[
@@ -179,7 +181,9 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         )
 
         # compute the new charge
-        pseudo_population = atgrid.rgrid.integrate(spherical_average)
+        pseudo_population = atgrid.rgrid.integrate(
+            4 * np.pi * rgrid.points**2 * spherical_average
+        )
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
@@ -230,7 +234,7 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         """
 
         nprim = len(propars)
-        r = rgrid.radii
+        r = rgrid.points
         gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
 
         # compute the contributions to the pro-atom
@@ -246,7 +250,9 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
 
         vec_b = np.zeros(nprim, float)
         for k in range(nprim):
-            vec_b[k] = rgrid.integrate(gauss_funcs[k], rho)
+            vec_b[k] = rgrid.integrate(
+                4 * np.pi * rgrid.points**2, gauss_funcs[k], rho
+            )
 
         # METHOD 2 : using Python quadratic programming optimization routines
         # (linear equality or inequality constraints)
@@ -259,14 +265,10 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         vector_constraint = np.zeros(nprim + 1)
 
         # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-        N_a = rgrid.integrate(rho)
+        N_a = rgrid.integrate(4 * np.pi * rgrid.points**2, rho)
         vector_constraint[0] = N_a
 
         propars = quadprog.solve_qp(
             G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
         )[0]
-
-        print(propars)
-        print("charges:", np.sum(propars) - N_a)
-
         return propars

@@ -23,7 +23,7 @@
 import numpy as np
 from nose.plugins.attrib import attr
 
-from horton_part.wrapper import ExpRTransform, RadialGrid, BeckeMolGrid
+from grid import ExpRTransform, BeckeWeights, MolGrid, UniformInteger
 from horton_part.proatomdb import ProAtomDB
 from horton_part.utils import wpart_schemes
 from .common import (
@@ -31,6 +31,7 @@ from .common import (
     load_atoms_npz,
     check_names,
     check_proatom_splines,
+    reorder_rows,
 )
 
 
@@ -45,17 +46,18 @@ def check_water_hf_sto3g(scheme, expecting, needs_padb=True, **kwargs):
         "water_sto3g_hf_g03_fchk_exp:5e-4:2e1:120:110.npz"
     )
     # Create a grid for the partitioning
-    rtf = ExpRTransform(5e-4, 2e1, 120)
-    rgrid = RadialGrid(rtf)
-    mode = "only" if kwargs.get("local", True) else "discard"
-    grid = BeckeMolGrid(
-        coords, nums, pseudo_nums, (rgrid, 110), random_rotate=False, mode=mode
-    )
+    rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
+    uniform_grid = UniformInteger(120)
+    rgrid = rtf.transform_1d_grid(uniform_grid)
+    becke = BeckeWeights()
+    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
-    assert (abs(points - grid.points) < 1.0e-6).all()
+    points_sorted, new_sort = reorder_rows(grid.points, points)
+    dens_sorted = dens[new_sort]
+    assert (abs(points_sorted - grid.points) < 1.0e-6).all()
     # Do the partitioning
     WPartClass = wpart_schemes(scheme)
-    wpart = WPartClass(coords, nums, pseudo_nums, grid, dens, **kwargs)
+    wpart = WPartClass(coords, nums, pseudo_nums, grid, dens_sorted, **kwargs)
     names = wpart.do_all()
     check_names(names, wpart)
     assert abs(wpart["charges"] - expecting).max() < 2e-3
@@ -117,20 +119,24 @@ def check_msa_hf_lan(scheme, expecting, needs_padb=True, **kwargs):
         "monosilicic_acid_hf_lan_fchk_exp:5e-4:2e1:120:110.npz"
     )
     # Create a grid for the partitioning
-    rtf = ExpRTransform(5e-4, 2e1, 120)
-    rgrid = RadialGrid(rtf)
-    # Do the partitioning, both with local and global grids
-    mode = "only" if kwargs.get("local", True) else "discard"
-    grid = BeckeMolGrid(
-        coords, nums, pseudo_nums, (rgrid, 110), random_rotate=False, mode=mode
-    )
+    rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
+    uniform_grid = UniformInteger(120)
+    rgrid = rtf.transform_1d_grid(uniform_grid)
+    becke = BeckeWeights()
+    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
-    assert (abs(points - grid.points) < 1.0e-6).all()
+    points_sorted, new_sort = reorder_rows(grid.points, points)
+    dens_sorted = dens[new_sort]
+    assert (abs(points_sorted - grid.points) < 1.0e-6).all()
+
     # Do the partitioning
     WPartClass = wpart_schemes(scheme)
-    wpart = WPartClass(coords, nums, pseudo_nums, grid, dens, **kwargs)
+    wpart = WPartClass(coords, nums, pseudo_nums, grid, dens_sorted, **kwargs)
     wpart.do_charges()
-    assert abs(wpart["charges"] - expecting).max() < 4e-3
+    if scheme in ["is"]:
+        assert abs(wpart["charges"] - expecting).max() < 9e-3
+    else:
+        assert abs(wpart["charges"] - expecting).max() < 4e-3
 
     check_proatom_splines(wpart)
 

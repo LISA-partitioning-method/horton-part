@@ -28,12 +28,11 @@ import numpy as np
 from contextlib import contextmanager
 
 from horton_part.proatomdb import ProAtomRecord
-from horton_part.wrapper import (
-    LinearRTransform,
+from grid import (
     PowerRTransform,
-    ExpRTransform,
-    RadialGrid,
+    UniformInteger,
 )
+import pytest
 
 
 __all__ = [
@@ -42,6 +41,7 @@ __all__ = [
     "load_atoms_npz",
     "check_names",
     "check_proatom_splines",
+    "reorder_rows",
 ]
 
 
@@ -85,8 +85,8 @@ def get_atoms_npz(numbers, max_cation, max_anion, rtf_type, level):
 def load_atoms_npz(numbers, max_cation, max_anion, rtf_type="pow", level=None):
     # radial transformation available
     rtf_classes = {
-        "lin": LinearRTransform,
-        "exp": ExpRTransform,
+        # "lin": LinearFiniteRTransform,
+        # "exp": ExpRTransform,
         "pow": PowerRTransform,
     }
     # get filepath of atoms npz
@@ -102,7 +102,10 @@ def load_atoms_npz(numbers, max_cation, max_anion, rtf_type="pow", level=None):
                 float(npz["energy"]),
             )
             dens, deriv = npz["dens"], npz["deriv"]
-            rgrid = RadialGrid(rtfclass(*npz["rgrid"]))
+            rmin, rmax, npoint = npz["rgrid"]
+            npoint = int(npoint)
+            uniform_grid = UniformInteger(npoint)
+            rgrid = rtfclass(rmin, rmax, npoint - 1).transform_1d_grid(uniform_grid)
             if "pseudo_number" in list(npz.keys()):
                 pseudo_number = npz["pseudo_number"]
             else:
@@ -132,9 +135,70 @@ def check_proatom_splines(part):
     for index in range(part.natom):
         spline = part.get_proatom_spline(index)
         grid = part.get_grid(index)
-        array1 = grid.zeros()
+        # array1 = grid.zeros()
+        array1 = np.zeros_like(grid.weights)
         part.eval_spline(index, spline, array1, grid)
-        array2 = grid.zeros()
+        # array2 = grid.zeros()
+        array2 = np.zeros_like(grid.weights)
         part.eval_proatom(index, array2, grid)
         assert abs(array1).max() != 0.0
         assert abs(array1 - array2).max() < 1e-5
+
+
+def sorted_array(array):
+    _array = np.copy(array)
+    return _array[np.lexsort((_array[:, 2], _array[:, 1], _array[:, 0]))]
+
+
+def reorder_rows(A, B, return_order=True, decimals=8):
+    assert A.shape == B.shape
+    if A.size == 0 or B.size == 0:
+        raise ValueError("Input matrices must not be empty")
+    A_tuples = [tuple(np.round(row, decimals)) for row in A]
+    B_tuples = [tuple(np.round(row, decimals)) for row in B]
+    # index_map_A = {row: i for i, row in enumerate(A_tuples)}
+    index_map_B = {row: i for i, row in enumerate(B_tuples)}
+    new_order = [index_map_B[row] for row in A_tuples]
+    B_sorted = B[new_order]
+    if return_order:
+        return B_sorted, new_order
+    else:
+        return B_sorted
+
+
+def test_reorder_rows():
+    A = np.array([[3, 2, 1], [1, 2, 3], [2, 3, 1]])
+    B = np.array([[1, 2, 3], [2, 3, 1], [3, 2, 1]])
+    B_sorted = reorder_rows(A, B)
+    expected_output = np.array([[3, 2, 1], [1, 2, 3], [2, 3, 1]])
+    np.testing.assert_array_equal(B_sorted, expected_output)
+
+
+def test_reorder_rows_same_matrix():
+    A = np.array([[1, 2, 3], [2, 3, 1], [3, 2, 1]])
+    B = np.array([[1, 2, 3], [2, 3, 1], [3, 2, 1]])
+    B_sorted = reorder_rows(A, B)
+    expected_output = np.array([[1, 2, 3], [2, 3, 1], [3, 2, 1]])
+    np.testing.assert_array_equal(B_sorted, expected_output)
+
+
+def test_reorder_rows_reverse_order():
+    A = np.array([[3, 2, 1], [2, 3, 1], [1, 2, 3]])
+    B = np.array([[1, 2, 3], [2, 3, 1], [3, 2, 1]])
+    B_sorted = reorder_rows(A, B)
+    expected_output = np.array([[3, 2, 1], [2, 3, 1], [1, 2, 3]])
+    np.testing.assert_array_equal(B_sorted, expected_output)
+
+
+def test_reorder_rows_empty_matrices():
+    A = np.array([[]])
+    B = np.array([[]])
+    with pytest.raises(ValueError):
+        reorder_rows(A, B)
+
+
+def test_reorder_rows_different_shape():
+    A = np.array([[3, 2, 1], [1, 2, 3]])
+    B = np.array([[1, 2, 3], [2, 3, 1], [3, 2, 1]])
+    with pytest.raises(AssertionError):
+        reorder_rows(A, B)

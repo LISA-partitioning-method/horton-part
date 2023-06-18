@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
 import numpy as np
-from horton_grid import context, BeckeMolGrid, log
+from horton_grid import context, log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
 from horton_part import MBISWPart
+from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 
 
 # Load the Gaussian output from file from HORTON's test data directory.
@@ -14,7 +15,13 @@ fn_fchk = context.get_fn("test/water_sto3g_hf_g03.fchk")
 mol = load_one(fn_fchk)
 
 # Specify the integration grid
-grid = BeckeMolGrid(mol.atcoords, mol.atnums, mol.atnums, mode="keep")
+rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
+uniform_grid = UniformInteger(120)
+rgrid = rtf.transform_1d_grid(uniform_grid)
+becke = BeckeWeights()
+grid = MolGrid.from_preset(
+    mol.atnums, mol.atcoords, rgrid, "fine", becke, rotate=False, store=True
+)
 
 # # Get the spin-summed density matrix
 one_rdm = mol.one_rdms.get("post_scf", mol.one_rdms.get("scf"))

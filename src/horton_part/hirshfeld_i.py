@@ -85,7 +85,7 @@ class HirshfeldIMixin(IterativeProatomMixin):
 
     def get_somefn(self, index, spline, key, label, grid):
         key = key + (index, id(grid))
-        result, new = self.cache.load(*key, alloc=grid.shape)
+        result, new = self.cache.load(*key, alloc=grid.size)
         if new:
             self.eval_spline(index, spline, result, grid, label)
         return result
