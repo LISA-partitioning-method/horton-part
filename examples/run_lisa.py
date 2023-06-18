@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from horton_grid import log
+from horton_part import log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
