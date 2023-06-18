@@ -55,6 +55,14 @@ def wpart_schemes(scheme):
         from .becke import BeckeWPart
 
         wpart = BeckeWPart
+    elif scheme == "lisa":
+        from .lisa import LinearIterativeStockholderWPart
+
+        wpart = LinearIterativeStockholderWPart
+    elif scheme == "gisa":
+        from .gisa import GaussianIterativeStockholderWPart
+
+        wpart = GaussianIterativeStockholderWPart
     return wpart
 
 

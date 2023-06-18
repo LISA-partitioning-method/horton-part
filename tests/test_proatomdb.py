@@ -119,16 +119,9 @@ def check_spline_pop(spline, pop, rgrid):
 
 
 def check_spline_mono_decr(spline, rgrid):
-    # t = np.arange(0, spline.x.size, 0.1)
-    # x = spline.rtransform.radius(t)
-    # x = np.linspace(rgrid.points[0], rgrid.points[1], 10 * rgrid.size)
-    # y = spline(x)
-    # i = (abs(y) < 1e-10).nonzero()[0][0]
-    # i = (abs(y) < 1e-10).nonzero()[0]
-    # y = y[:i]
-    # assert ((y[1:] - y[:-1]) / y[:-1]).min() < 1e-9
-    # TODO
-    pass
+    x = np.linspace(rgrid.points[0], rgrid.points[1], 100 * rgrid.size)
+    y = spline(x)
+    assert np.all(np.diff(y) <= 0)
 
 
 def test_get_spline():

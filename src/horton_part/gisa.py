@@ -22,7 +22,7 @@
 
 
 import numpy as np
-from .wrapper import log, biblio
+from .log import log, biblio
 import quadprog
 from .stockholder import StockholderWPart
 from .iterstock import IterativeProatomMixin

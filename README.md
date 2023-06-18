@@ -37,9 +37,9 @@ The following dependencies will be necessary for `horton-part` to build properly
 * horton-grid : https://github.com/yingxingcheng/horton-grid
 * pep517 : https://peps.python.org/pep-0517/ (for developers)
 * pre-commit : https://pre-commit.com/ (for developers)
-* horton-grid : http://github.com/yingxingcheng/horton-grid
+* grid : https://github.com/theochem/grid
 
-In order to use horton-grid, the following libraries with latest version should be installed manually.
+In order to use horton-part, the following libraries with latest version should be installed manually.
 
 * gbasis : https://github.com/theochem/gbasis (for running examples only)
 
@@ -47,9 +47,6 @@ To fix the error and install the required libraries, follow these steps:
 
 - Go to the gbasis GitHub repository: https://github.com/theochem/gbasis
 - Follow the installation instructions provided in the repository's README file.
-
-The dependence on `horton-grid` is only because of the `grid` module. This will be replaced by `qcgrids` in
-the near future.
 
 
 ## Installation

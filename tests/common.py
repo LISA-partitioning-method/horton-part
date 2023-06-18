@@ -145,18 +145,12 @@ def check_proatom_splines(part):
         assert abs(array1 - array2).max() < 1e-5
 
 
-def sorted_array(array):
-    _array = np.copy(array)
-    return _array[np.lexsort((_array[:, 2], _array[:, 1], _array[:, 0]))]
-
-
-def reorder_rows(A, B, return_order=True, decimals=8):
+def reorder_rows(A, B, return_order=False, decimals=8):
     assert A.shape == B.shape
     if A.size == 0 or B.size == 0:
         raise ValueError("Input matrices must not be empty")
     A_tuples = [tuple(np.round(row, decimals)) for row in A]
     B_tuples = [tuple(np.round(row, decimals)) for row in B]
-    # index_map_A = {row: i for i, row in enumerate(A_tuples)}
     index_map_B = {row: i for i, row in enumerate(B_tuples)}
     new_order = [index_map_B[row] for row in A_tuples]
     B_sorted = B[new_order]

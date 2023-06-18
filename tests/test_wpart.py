@@ -52,7 +52,7 @@ def check_water_hf_sto3g(scheme, expecting, needs_padb=True, **kwargs):
     becke = BeckeWeights()
     grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
-    points_sorted, new_sort = reorder_rows(grid.points, points)
+    points_sorted, new_sort = reorder_rows(grid.points, points, return_order=True)
     dens_sorted = dens[new_sort]
     assert (abs(points_sorted - grid.points) < 1.0e-6).all()
     # Do the partitioning
@@ -125,7 +125,7 @@ def check_msa_hf_lan(scheme, expecting, needs_padb=True, **kwargs):
     becke = BeckeWeights()
     grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
-    points_sorted, new_sort = reorder_rows(grid.points, points)
+    points_sorted, new_sort = reorder_rows(grid.points, points, return_order=True)
     dens_sorted = dens[new_sort]
     assert (abs(points_sorted - grid.points) < 1.0e-6).all()
 

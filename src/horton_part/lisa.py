@@ -24,7 +24,7 @@
 from __future__ import division, print_function
 import numpy as np
 import cvxopt
-from .wrapper import log
+from .log import log
 from .gisa import GaussianIterativeStockholderWPart, get_pro_a_k
 
 

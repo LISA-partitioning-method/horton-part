@@ -23,7 +23,6 @@ fn_fchk = load_fchk(name)
 mol = load_one(fn_fchk)
 
 # Specify the integration grid
-# grid = BeckeMolGrid(mol.atcoords, mol.atnums, mol.atnums, mode="keep")
 rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
 uniform_grid = UniformInteger(120)
 rgrid = rtf.transform_1d_grid(uniform_grid)

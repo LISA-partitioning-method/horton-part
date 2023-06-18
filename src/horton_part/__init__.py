@@ -32,6 +32,8 @@ from .proatomdb import *
 from .stockholder import *
 from .gisa import *
 from .lisa import *
+from .context import *
+from .log import *
 
 try:
     from _version import __version__

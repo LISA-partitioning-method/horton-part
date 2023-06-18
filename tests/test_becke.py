@@ -22,11 +22,10 @@
 
 
 from nose.tools import assert_raises
-
-from .common import load_molecule_npz, reorder_rows
+from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 from horton_part.becke import BeckeWPart
 
-from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
+from .common import load_molecule_npz, reorder_rows
 
 
 def test_becke_n2_hfs_sto3g():
@@ -41,7 +40,7 @@ def test_becke_n2_hfs_sto3g():
     becke = BeckeWeights()
     grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
-    points_sorted, new_sort = reorder_rows(grid.points, points)
+    points_sorted, new_sort = reorder_rows(grid.points, points, return_order=True)
     dens_sorted = dens[new_sort]
     assert (abs(points_sorted - grid.points) < 1.0e-6).all()
     # Becke partitioning

@@ -23,7 +23,7 @@
 
 from nose.tools import assert_raises
 
-from .common import load_molecule_npz, sorted_array
+from .common import load_molecule_npz, reorder_rows
 from horton_part.base import WPart
 
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
@@ -41,7 +41,9 @@ def test_base_exceptions():
     becke = BeckeWeights()
     grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False)
     # check the grid points against stored points on which density is evaluated
-    assert (abs(sorted_array(points) - sorted_array(grid.points)) < 1.0e-6).all()
+    points_reordered, order = reorder_rows(points, grid.points, return_order=True)
+    dens = dens[order]
+    assert (abs(points - points_reordered) < 1.0e-6).all()
 
     with assert_raises(ValueError):
         # the default setting is local=true, which is not compatible with store=False.
