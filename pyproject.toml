@@ -33,13 +33,14 @@ dependencies = [
     "scipy",
     "quadprog==0.1.11",
     "cvxopt==1.3.1",
+    "pytest",
+    "pytest-skip-slow",
     "qc-grid@git+https://github.com/theochem/grid",
 ]
 dynamic = ['version']
 
 [project.optional-dependencies]
 dev = ["pep517", "pre-commit", "qc-iodata", "gbasis"]
-test = ["nose", "pytest"]
 
 [project.urls]
 Homepage = 'https://github.com/yingxingcheng/horton-part'
