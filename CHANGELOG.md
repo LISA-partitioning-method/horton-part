@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2023-06-19
+
+### Fixed
+
+- Project dependencies
+- Fix a bug of ISA method, in which the $4 \times \pi * r**2$ is missed when doing radial integrating
+- Replace `nose` dependencies with `pytest` and `pytest-skip-slow`
+
 ## [1.0.1] - 2023-06-18
 
 ### Fixed
