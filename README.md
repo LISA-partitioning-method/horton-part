@@ -50,7 +50,6 @@ The following dependencies will be necessary for `horton-part` to build properly
 * quadprog>=0.1.11 : https://github.com/quadprog/quadprog
 * cvxopt>=1.3.1 : https://github.com/cvxopt/cvxopt
 * qc-grid : https://github.com/theochem/grid
-* pytest : https://docs.pytest.org/en/7.3.x/contents.html
 
 In order to use HORTON-PART, the following libraries with latest version should be installed manually.
 
@@ -60,25 +59,33 @@ In order to use HORTON-PART, the following libraries with latest version should 
 
 ## Installation
 
-To install `horton-part`:
+To install `horton-part` with version `0.0.x`:
+
+```bash
+pip install horton-part
+```
+
+To install latest `horton-part`:
 
 ```bash
 git clone http://github.com/yingxingcheng/horton-part
 cd horton-part
-pip install . [--user]
+pip install .
 ```
 
-For developers:
+To run examples, one needs to add dependencies for `examples`:
+
 ```bash
-pip install -e .
+pip install .[examples]
 ```
 
-
-## Testing
-
-To run tests:
+To run test, one needs to add tests dependencies for `tests`:
 
 ```bash
-git clone http://github.com/yingxingcheng/horton-part
-pytest horton-part
+pip install .[tests]
+```
+
+For developers, one could need all dependencies:
+```bash
+pip install -e .[dev,tests,examples]
 ```
