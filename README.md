@@ -67,11 +67,10 @@ The following dependencies will be necessary for `horton-part` to build properly
 
 * SciPy : http://www.scipy.org/
 * NumPy : http://www.numpy.org/
-* Nose : http://readthedocs.org/docs/nose/en/latest/
-* pytest : https://docs.pytest.org/en/7.3.x/contents.html
 * quadprog>=0.1.11 : https://github.com/quadprog/quadprog
 * cvxopt>=1.3.1 : https://github.com/cvxopt/cvxopt
 * qc-grid : https://github.com/theochem/grid
+* pytest : https://docs.pytest.org/en/7.3.x/contents.html
 * pep517 : https://peps.python.org/pep-0517/ (for developers)
 * pre-commit : https://pre-commit.com/ (for developers)
 
