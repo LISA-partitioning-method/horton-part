@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -42,13 +42,13 @@ class HirshfeldIMixin(IterativeProatomMixin):
         self._maxiter = maxiter
 
     def _init_log_scheme(self):
-        print("5: Initialized: %s" % self)
+        print("Initialized: %s" % self)
         print(
             [
-                ("5: Scheme", "Hirshfeld-I"),
-                ("5: Convergence threshold", "%.1e" % self._threshold),
-                ("5: Maximum iterations", self._maxiter),
-                ("5: Proatomic DB", self._proatomdb),
+                ("Scheme", "Hirshfeld-I"),
+                ("Convergence threshold", "%.1e" % self._threshold),
+                ("Maximum iterations", self._maxiter),
+                ("Proatomic DB", self._proatomdb),
             ]
         )
         self.biblio.append(["bultinck2007", "the use of Hirshfeld-I partitioning"])

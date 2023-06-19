@@ -21,7 +21,7 @@
 
 
 import numpy as np
-from nose.plugins.attrib import attr
+import pytest
 
 from grid import ExpRTransform, BeckeWeights, MolGrid, UniformInteger
 from horton_part.proatomdb import ProAtomDB
@@ -133,11 +133,7 @@ def check_msa_hf_lan(scheme, expecting, needs_padb=True, **kwargs):
     WPartClass = wpart_schemes(scheme)
     wpart = WPartClass(coords, nums, pseudo_nums, grid, dens_sorted, **kwargs)
     wpart.do_charges()
-    if scheme in ["is"]:
-        assert abs(wpart["charges"] - expecting).max() < 9e-3
-    else:
-        assert abs(wpart["charges"] - expecting).max() < 4e-3
-
+    assert abs(wpart["charges"] - expecting).max() < 4e-3
     check_proatom_splines(wpart)
 
 
@@ -158,7 +154,7 @@ def test_hirshfeld_msa_hf_lan_local():
     check_msa_hf_lan("h", expecting, local=True)
 
 
-@attr("slow")
+@pytest.mark.slow
 def test_hirshfeld_msa_hf_lan_global():
     expecting = np.array(
         [
@@ -176,7 +172,7 @@ def test_hirshfeld_msa_hf_lan_global():
     check_msa_hf_lan("h", expecting, local=False)
 
 
-@attr("slow")
+@pytest.mark.slow
 def test_hirshfeld_i_msa_hf_lan_local():
     expecting = np.array(
         [
@@ -194,7 +190,7 @@ def test_hirshfeld_i_msa_hf_lan_local():
     check_msa_hf_lan("hi", expecting, local=True)
 
 
-@attr("slow")
+@pytest.mark.slow
 def test_hirshfeld_i_msa_hf_lan_global():
     expecting = np.array(
         [
@@ -212,7 +208,7 @@ def test_hirshfeld_i_msa_hf_lan_global():
     check_msa_hf_lan("hi", expecting, local=False)
 
 
-@attr("slow")
+@pytest.mark.slow
 def test_is_msa_hf_lan():
     expecting = np.array(
         [

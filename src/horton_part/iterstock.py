@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -42,7 +42,7 @@ class IterativeProatomMixin:
             rho1, deriv1 = self.get_proatom_rho(index, propars1)
             rho2, deriv2 = self.get_proatom_rho(index, propars2)
             delta = rho1 - rho2
-            msd += rgrid.integrate(delta, delta)
+            msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
         return np.sqrt(msd)
 
     def _init_propars(self):
@@ -81,7 +81,7 @@ class IterativeProatomMixin:
         new |= "change" not in self.cache
         if new:
             propars = self._init_propars()
-            print("5:Iteration       Change")
+            print("Iteration       Change")
 
             counter = 0
             change = 1e100
@@ -95,7 +95,7 @@ class IterativeProatomMixin:
 
                 # Check for convergence
                 change = self.compute_change(propars, old_propars)
-                print("5:%9i   %10.5e" % (counter, change))
+                print("%9i   %10.5e" % (counter, change))
                 if change < self._threshold or counter >= self._maxiter:
                     break
             print()
@@ -152,12 +152,12 @@ class IterativeStockholderWPart(IterativeProatomMixin, StockholderWPart):
         )
 
     def _init_log_scheme(self):
-        print("5: Initialized: %s" % self)
+        print("Initialized: %s" % self)
         print(
             [
-                ("5: Scheme", "Iterative Stockholder"),
-                ("5: Convergence threshold", "%.1e" % self._threshold),
-                ("5: Maximum iterations", self._maxiter),
+                ("Scheme", "Iterative Stockholder"),
+                ("Convergence threshold", "%.1e" % self._threshold),
+                ("Maximum iterations", self._maxiter),
             ]
         )
         self.biblio.append(

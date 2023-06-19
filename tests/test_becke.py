@@ -21,7 +21,7 @@
 # --
 
 
-from nose.tools import assert_raises
+from pytest import raises
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 from horton_part.becke import BeckeWPart
 
@@ -50,7 +50,7 @@ def test_becke_n2_hfs_sto3g():
     bp.do_charges()
     assert abs(bp["charges"]).max() < 1e-4
     bp.clear()
-    with assert_raises(KeyError):
+    with raises(KeyError):
         bp["charges"]
     bp.do_charges()
     assert abs(bp["populations"] - 7).max() < 1e-4

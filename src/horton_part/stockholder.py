@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -27,12 +27,15 @@ import numpy as np
 
 from .base import WPart
 
-# from .wrapper import CubicSpline, solve_poisson_becke
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
-from .wrapper import eval_spline_grid
 
 
 __all__ = ["StockholderWPart"]
+
+
+def eval_spline_grid(spline, grid, center):
+    r = np.linalg.norm(grid.points - center, axis=1)
+    return spline(r)
 
 
 class StockHolderMixin(object):
@@ -65,7 +68,7 @@ class StockHolderMixin(object):
             deriv = None
             error = rgrid.integrate(rho) - original
             print(
-                "5:                Pro-atom not positive everywhere. Lost %.1e electrons"
+                "                Pro-atom not positive everywhere. Lost %.1e electrons"
                 % error
             )
         return rho, deriv
@@ -78,7 +81,6 @@ class StockHolderMixin(object):
         rho, deriv = self.fix_proatom_rho(index, rho, deriv)
 
         # Make a spline
-        # rtf = self.get_rgrid(index).rtransform
         rgrid = self.get_rgrid(index)
         if deriv is None:
             return CubicSpline(rgrid.points, rho, True)
@@ -87,7 +89,6 @@ class StockHolderMixin(object):
 
     def eval_spline(self, index, spline, output, grid, label="noname"):
         center = self.coordinates[index]
-        # grid.eval_spline(spline, center, output)
         output[:] = eval_spline_grid(spline, grid, center)
 
     def eval_proatom(self, index, output, grid):
@@ -125,14 +126,14 @@ class StockHolderMixin(object):
             # density
             key = ("spline_prodensity", index)
             if key not in self.cache:
-                print("5:Storing proatom density spline for atom %i." % index)
+                print("Storing proatom density spline for atom %i." % index)
                 spline = self.get_proatom_spline(index)
                 self.cache.dump(key, spline, tags="o")
             # # hartree potential
             # key = ("spline_prohartree", index)
             # if key not in self.cache:
             #     print(
-            #         "5:Computing proatom hartree potential spline for atom %i." % index
+            #         "Computing proatom hartree potential spline for atom %i." % index
             #     )
             #     rho_spline = self.cache.load("spline_prodensity", index)
             #     v_spline = solve_poisson_becke([rho_spline])[0]

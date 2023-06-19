@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON-GRID: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-GRID Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON-GRID
+# This file is part of HORTON-PART
 #
-# HORTON-GRID is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON-GRID is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -39,6 +39,12 @@ import time
 import urllib
 
 from .context import context
+
+try:
+    from _version import __version__
+except ImportError:
+    __version__ = "0.0.0a-dev"
+    __version_tuple__ = (0, 0, 0, "a-dev")
 
 __all__ = ["log", "timer", "biblio"]
 
@@ -732,14 +738,31 @@ class Biblio(object):
 
 head_banner = """\
 ================================================================================
- _ __ _
-/ (..) \ Welcome to HORTON %s!
+P_A__R_T
+/ (..) \ Welcome to HORTON-PART %s!
 \/ || \/
- |_''_|  HORTON is written and maintained by by Toon Verstraelen (1).
+ |_''_|  HORTON-PART is a computational chemistry package that supports different
+         partition schemes. It is based on the sub-module 'part' of HORTON2,
+         which is written and maintained by Toon Verstraelen (1).
 
-         This version contains contributions from Toon Verstraelen (1), Pawel Tecmer (2),
-         Farnaz Heidar-Zadeh (2), Cristina E. González-Espinoza (2), Matthew Chan (2),
-         Taewon D. Kim (2), Katharina Boguslawski (2), Stijn Fias (3),
+         In HORTON3, all sub-modules have been rewritten using the pure Python
+         programming language to support Python 3+. The 'part' module has also been
+         rewritten and is now called 'denspart' module.
+         (see https://github.com/theochem/denspart for more details).
+
+         However, the algorithm implemented in 'denspart' only uses one-step
+         optimization, which can be computationally expensive for large systems.
+         Additionally, 'denspart' only supports the 'MBIS' partitioning scheme.
+
+         Another 'part' module has been rewritten in pure Python programming language
+         by Farnaz Heidar-Zadeh (2). However, the integration grid implemented in
+         this module still uses the old 'grid' from Horton2. HORTON-PART version
+         0.X.X is based on this module. Starting from version 1.X.X, HORTON-PART
+         supports the new integration 'grid' (https://github.com/theochem/grid).
+
+         This version contains contributions from YingXing Cheng (1), Toon Verstraelen (1),
+         Pawel Tecmer (2), Farnaz Heidar-Zadeh (2), Cristina E. González-Espinoza (2),
+         Matthew Chan (2), Taewon D. Kim (2), Katharina Boguslawski (2), Stijn Fias (3),
          Steven Vandenbrande (1), Diego Berrocal (2), and Paul W. Ayers (2)
 
          (1) Center for Molecular Modeling (CMM), Ghent University, Ghent, Belgium.
@@ -754,21 +777,20 @@ head_banner = """\
          file and is accessible through the Python scripting interface.
 
 ================================================================================""" % (
-    "2.3.0"
-)  # (horton.__version__)
+    __version__
+)
 
 foot_banner = """
 ================================================================================
- _    _
-/ )--( \ End of the HORTON program.
+P_A  R_T
+/ )--( \ End of the HORTON-PART program.
 \|  \ |/
- |_||_|  Thank you for using HORTON %s! See you soon!
+ |_||_|  Thank you for using HORTON-PART %s! See you soon!
 ================================================================================""" % (
-    "2.3.0"
-)  # (horton.__version__)
+    __version__
+)
 
 timer = TimerGroup()
 biblio = Biblio(context.get_fn("references.bib"))
-# log = ScreenLog('HORTON', horton.__version__, head_banner, foot_banner, timer, biblio)
-log = ScreenLog("HORTON", "2.3.0", head_banner, foot_banner, timer, biblio)
+log = ScreenLog("HORTON-PART", __version__, head_banner, foot_banner, timer, biblio)
 atexit.register(log.print_footer)

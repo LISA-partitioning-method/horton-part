@@ -8,6 +8,9 @@ authors = [
   { name="YingXing Cheng", email="yingxing.cheng@ugent.be" },
   { name="Toon Verstraelen", email="toon.verstraelen@ugent.be" },
 ]
+maintainers = [
+    {name='YingXing Cheng', email='yingxing.cheng@ugent.be'}]
+keywords = ['partition schemes', 'atom-in-moleucle']
 description = "Molecular partitioning schemes used in computational chemistry"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -26,23 +29,26 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "pep517",
     "numpy",
-    "pre-commit",
-    "pytest",
-    "cython",
     "scipy",
-    "matplotlib",
     "quadprog==0.1.11",
     "cvxopt==1.3.1",
-    "qc-iodata",
-    # "gbasis", # this is not needed in the src code but in examples
     "qc-grid@git+https://github.com/theochem/grid",
-    # "horton-grid@git+https://github.com/yingxingcheng/horton-grid",
 ]
-
 dynamic = ['version']
 
+[project.optional-dependencies]
+dev = ["pep517", "pre-commit", "qc-iodata", "gbasis"]
+test = ["nose", "pytest"]
+
+[project.urls]
+Homepage = 'https://github.com/yingxingcheng/horton-part'
+# Documentation = "https://readthedocs.org"
+Repository = 'https://github.com/yingxingcheng/horton-part'
+Changelog = "https://github.com/yingxingcheng/horton-part/CHANGELOG.md"
+
+# [project.scripts]
+# my-script = "xx"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -278,11 +278,11 @@ class ProAtomDB(object):
         self._log_init()
 
     def _log_init(self):
-        print("5: Initialized: %s" % self)
+        print("Initialized: %s" % self)
         print(
             [
-                ("5: Numbers", list(self._rgrid_map.keys())),
-                ("5: Records", list(self._map.keys())),
+                ("Numbers", list(self._rgrid_map.keys())),
+                ("Records", list(self._map.keys())),
             ]
         )
         print()
@@ -413,8 +413,8 @@ class ProAtomDB(object):
         Note that only 'safe' atoms are considered to determine the cutoff
         radius.
         """
-        print("5:Reducing extents of the pro-atoms")
-        print("5:   Z     npiont           radius")
+        print("Reducing extents of the pro-atoms")
+        print("   Z     npiont           radius")
         for number in self.get_numbers():
             rgrid = self.get_rgrid(number)
             npoint = 0
@@ -432,7 +432,7 @@ class ProAtomDB(object):
             )
             self._rgrid_map[number] = new_rgrid
             print(
-                "5:%4i   %5i -> %5i    %10.3e -> %10.3e"
+                "%4i   %5i -> %5i    %10.3e -> %10.3e"
                 % (
                     number,
                     rgrid.size,
@@ -444,8 +444,8 @@ class ProAtomDB(object):
         print()
 
     def normalize(self):
-        print("5:Normalizing proatoms to integer populations")
-        print("5:   Z  charge             before             after")
+        print("Normalizing proatoms to integer populations")
+        print("   Z  charge             before             after")
         print()
         for number in self.get_numbers():
             rgrid = self.get_rgrid(number)
@@ -456,6 +456,6 @@ class ProAtomDB(object):
                 r.rho[:] *= nel_integer / nel_before
                 nel_after = rgrid.integrate(r.rho)
                 print(
-                    "5:%4i     %+3i    %15.8e   %15.8e"
+                    "%4i     %+3i    %15.8e   %15.8e"
                     % (number, charge, nel_before, nel_after)
                 )

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -53,11 +53,11 @@ class HirshfeldMixin(object):
         self._proatomdb = proatomdb
 
     def _init_log_scheme(self):
-        print("5: Initialized: %s" % self)
+        print("Initialized: %s" % self)
         print(
             [
-                ("5: Scheme", "Hirshfeld"),
-                ("5: Proatomic DB", self.proatomdb),
+                ("Scheme", "Hirshfeld"),
+                ("Proatomic DB", self.proatomdb),
             ]
         )
         self.biblio.append(["hirshfeld1977", "the use of Hirshfeld partitioning"])
@@ -78,7 +78,7 @@ class HirshfeldMixin(object):
     def do_dispersion(self):
         if self.lmax < 3:
             print(
-                "5:!WARNING! Skip computing dispersion coefficients because lmax=%i<3"
+                "!WARNING! Skip computing dispersion coefficients because lmax=%i<3"
                 % self.lmax
             )
             return
@@ -151,7 +151,7 @@ class HirshfeldMixin(object):
             self.do_moments()
             radial_moments = self._cache.load("radial_moments")
 
-            print("5:Computing atomic dispersion coefficients.")
+            print("Computing atomic dispersion coefficients.")
 
             for i in range(self.natom):
                 n = self.numbers[i]

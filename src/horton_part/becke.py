@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -72,11 +72,11 @@ class BeckeWPart(WPart):
         )
 
     def _init_log_scheme(self):
-        print("5: Initialized: %s" % self)
+        print(" Initialized: %s" % self)
         print(
             [
-                ("5: Scheme", "Becke"),
-                ("5: Switching function", "k=%i" % self._k),
+                (" Scheme", "Becke"),
+                (" Switching function", "k=%i" % self._k),
             ]
         )
         self.biblio.append(["becke1988_multicenter", "the use of Becke partitioning"])
@@ -85,7 +85,7 @@ class BeckeWPart(WPart):
         )
 
     def update_at_weights(self):
-        print("5:Computing Becke weights.")
+        print("Computing Becke weights.")
 
         # The list of radii is constructed to be as close as possible to
         # the original values used by Becke.
@@ -110,11 +110,6 @@ class BeckeWPart(WPart):
         for index in range(self.natom):
             grid = self.get_grid(index)
             at_weights = self.cache.load("at_weights", index, alloc=grid.size)[0]
-            # at_weights[:] = 1
-            # becke_helper_atom(
-            #     grid.points, at_weights, radii, self.coordinates, index, self._k
-            # )
-            # use new API
             at_weights[:] = bw_helper.compute_atom_weight(
                 grid.points, self.coordinates, self.numbers, index
             )

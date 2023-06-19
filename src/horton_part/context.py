@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON-GRID: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-GRID Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON-GRID
+# This file is part of HORTON-PART
 #
-# HORTON-GRID is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON-GRID is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -35,7 +35,6 @@ class Context(object):
     def __init__(self):
         # Determine data directory (also for in-place build)
         self.data_dir = pkg_resources.resource_filename(__name__, "data")
-        self.include_dir = pkg_resources.resource_filename(__name__, "include")
 
         # Check if directories exist
         if not pkg_resources.resource_isdir(__name__, "data"):
@@ -51,10 +50,6 @@ class Context(object):
     def glob(self, pattern):
         """Return all files in the data directory that match the given pattern."""
         return glob(self.get_fn(pattern))
-
-    def get_include(self):
-        """Return the list with directories containing header files (.h and .pxd)"""
-        return self.include_dir
 
 
 context = Context()

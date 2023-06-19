@@ -20,8 +20,7 @@
 #
 # --
 
-
-from nose.tools import assert_raises
+from pytest import raises
 
 from .common import load_molecule_npz, reorder_rows
 from horton_part.base import WPart
@@ -45,11 +44,11 @@ def test_base_exceptions():
     dens = dens[order]
     assert (abs(points - points_reordered) < 1.0e-6).all()
 
-    with assert_raises(ValueError):
+    with raises(ValueError):
         # the default setting is local=true, which is not compatible with store=False.
         WPart(coords, nums, pseudo_nums, grid, dens)
 
     grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
-    with assert_raises(NotImplementedError):
+    with raises(NotImplementedError):
         # It should not be possible to create instances of the base class.
         WPart(coords, nums, pseudo_nums, grid, dens)

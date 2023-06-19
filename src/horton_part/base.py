@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
+# Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -20,8 +20,6 @@
 # --
 """Base classes for (atoms-in-molecules) partitioning algorithms"""
 
-
-from __future__ import print_function
 
 import numpy as np
 
@@ -204,15 +202,15 @@ class Part(JustOnceClass):
         # compute and report usage
         estimates = self.get_memory_estimates()
         nbyte_total = 0
-        print("5:Coarse estimate of memory usage for the partitioning:")
-        print("5:                         Label  Memory[GB]")
+        print("Coarse estimate of memory usage for the partitioning:")
+        print("                         Label  Memory[GB]")
         print()
         for label, nlocals, nglobal in estimates:
             nbyte = np.dot(nlocals, nbyte_locals) + nglobal * nbyte_global
-            print("5:%30s  %10.3f" % (label, nbyte / 1024.0**3))
+            print("%30s  %10.3f" % (label, nbyte / 1024.0**3))
             nbyte_total += nbyte
-        print("5:%30s  %10.3f" % ("Total", nbyte_total / 1024.0**3))
-        print("5:" + "~" * 100)
+        print("%30s  %10.3f" % ("Total", nbyte_total / 1024.0**3))
+        print("" + "~" * 100)
         print()
 
     def get_memory_estimates(self):
@@ -251,7 +249,7 @@ class Part(JustOnceClass):
             pseudo_populations = self.cache.load(
                 "pseudo_populations", alloc=self.natom, tags="o"
             )[0]
-            print("5:Computing atomic populations.")
+            print("Computing atomic populations.")
             for i in range(self.natom):
                 pseudo_populations[i] = self.compute_pseudo_population(i)
             populations[:] = pseudo_populations
@@ -263,7 +261,7 @@ class Part(JustOnceClass):
         if new:
             self.do_populations()
             populations = self._cache.load("populations")
-            print("5:Computing atomic charges.")
+            print("Computing atomic charges.")
             charges[:] = self.numbers - populations
 
     @just_once
@@ -273,7 +271,7 @@ class Part(JustOnceClass):
                 "spin_charges", alloc=self.natom, tags="o"
             )
             self.do_partitioning()
-            print("5:Computing atomic spin charges.")
+            print("Computing atomic spin charges.")
             for index in range(self.natom):
                 grid = self.get_grid(index)
                 spindens = self.get_spindens(index)
@@ -300,9 +298,7 @@ class Part(JustOnceClass):
 
         if new1 or new2:
             self.do_partitioning()
-            print(
-                "5:Computing cartesian and pure AIM multipoles and radial AIM moments."
-            )
+            print("Computing cartesian and pure AIM multipoles and radial AIM moments.")
 
             for i in range(self.natom):
                 # 1) Define a 'window' of the integration grid for this atom
@@ -422,11 +418,11 @@ class WPart(Part):
         )
 
     def _init_log_base(self):
-        print("5:Performing a density-based AIM analysis with a wavefunction as input.")
+        print("Performing a density-based AIM analysis with a wavefunction as input.")
         print(
             [
-                ("5: Molecular grid", self._grid),
-                ("5: Using local grids", self._local),
+                (" Molecular grid", self._grid),
+                (" Using local grids", self._local),
             ]
         )
 
@@ -440,8 +436,6 @@ class WPart(Part):
         if index is None or not self.local:
             return data
         else:
-            # grid = self.get_grid(index)
-            # return data[grid.begin : grid.end]
             begin, end = self.grid.indices[index], self.grid.indices[index + 1]
             return data[begin:end]
 
@@ -449,7 +443,7 @@ class WPart(Part):
     def do_density_decomposition(self):
         if not self.local:
             print(
-                "5:!WARNING! Skip density decomposition because no local grids were found."
+                "!WARNING! Skip density decomposition because no local grids were found."
             )
             return
 
@@ -460,7 +454,7 @@ class WPart(Part):
             if key not in self.cache:
                 moldens = self.get_moldens(index)
                 self.do_partitioning()
-                print("5:Computing density decomposition for atom %i" % index)
+                print("Computing density decomposition for atom %i" % index)
                 at_weights = self.cache.load("at_weights", index)
                 assert atgrid.l_max >= self.lmax
                 splines = atgrid.radial_component_splines(moldens * at_weights)
@@ -473,7 +467,7 @@ class WPart(Part):
     # def do_hartree_decomposition(self):
     #     if not self.local:
     #         print(
-    #             "5:!WARNING! Skip hartree decomposition because no local grids were found."
+    #             "!WARNING! Skip hartree decomposition because no local grids were found."
     #         )
     #         return
 
@@ -481,7 +475,7 @@ class WPart(Part):
     #         key = ("hartree_decomposition", index)
     #         if key not in self.cache:
     #             self.do_density_decomposition()
-    #             print("5:Computing hartree decomposition for atom %i" % index)
+    #             print("Computing hartree decomposition for atom %i" % index)
     #             density_decomposition = self.cache.load("density_decomposition", index)
     #             rho_splines = [
     #                 spline for foo, spline in sorted(density_decomposition.items())
