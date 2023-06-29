@@ -34,6 +34,7 @@ from .gisa import *
 from .lisa import *
 from .context import *
 from .log import *
+from .moments import *
 
 try:
     from _version import __version__
