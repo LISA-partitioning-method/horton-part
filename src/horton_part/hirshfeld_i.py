@@ -25,21 +25,70 @@ from __future__ import print_function
 
 import numpy as np
 
-from .hirshfeld import HirshfeldWPart
-from .iterstock import IterativeProatomMixin
+from .cache import just_once
+from .hirshfeld import check_proatomdb, do_dispersion
+from .iterstock import ISAWPart
 
 
 __all__ = ["HirshfeldIWPart"]
 
 
-class HirshfeldIMixin(IterativeProatomMixin):
+class HirshfeldIWPart(ISAWPart):
+    """Iterative Hirshfeld partitioning with Becke-Lebedev grids"""
+
     name = "hi"
     options = ["lmax", "threshold", "maxiter"]
     linear = False
 
-    def __init__(self, threshold=1e-6, maxiter=500):
-        self._threshold = threshold
-        self._maxiter = maxiter
+    def __init__(
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        proatomdb,
+        spindens=None,
+        local=True,
+        lmax=3,
+        threshold=1e-6,
+        maxiter=500,
+    ):
+        """
+        **Arguments:** (that are not defined in ``WPart``)
+
+        proatomdb
+             In instance of ProAtomDB that contains all the reference atomic
+             densities.
+
+        **Optional arguments:** (that are not defined in ``WPart``)
+
+        threshold
+             The procedure is considered to be converged when the maximum
+             change of the charges between two iterations drops below this
+             threshold.
+
+        maxiter
+             The maximum number of iterations. If no convergence is reached
+             in the end, no warning is given.
+        """
+        check_proatomdb(numbers, pseudo_numbers, proatomdb)
+        self._proatomdb = proatomdb
+
+        ISAWPart.__init__(
+            self,
+            coordinates,
+            numbers,
+            pseudo_numbers,
+            grid,
+            moldens,
+            # proatomdb,
+            spindens,
+            local,
+            lmax,
+            threshold,
+            maxiter,
+        )
 
     def _init_log_scheme(self):
         print("Initialized: %s" % self)
@@ -52,6 +101,15 @@ class HirshfeldIMixin(IterativeProatomMixin):
             ]
         )
         self.biblio.append(["bultinck2007", "the use of Hirshfeld-I partitioning"])
+
+    def _get_proatomdb(self):
+        return self._proatomdb
+
+    proatomdb = property(_get_proatomdb)
+
+    def get_rgrid(self, index):
+        number = self.numbers[index]
+        return self.proatomdb.get_rgrid(number)
 
     def get_memory_estimates(self):
         # This is a conservative estimate.
@@ -112,7 +170,7 @@ class HirshfeldIMixin(IterativeProatomMixin):
         output += 1e-100
 
     def _init_propars(self):
-        IterativeProatomMixin._init_propars(self)
+        ISAWPart._init_propars(self)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         self.cache.dump("propars", charges, tags="o")
         return charges
@@ -125,60 +183,6 @@ class HirshfeldIMixin(IterativeProatomMixin):
         charges = self.cache.load("charges")
         charges[index] = self.pseudo_numbers[index] - pseudo_population
 
-
-class HirshfeldIWPart(HirshfeldIMixin, HirshfeldWPart):
-    """Iterative Hirshfeld partitioning with Becke-Lebedev grids"""
-
-    def __init__(
-        self,
-        coordinates,
-        numbers,
-        pseudo_numbers,
-        grid,
-        moldens,
-        proatomdb,
-        spindens=None,
-        local=True,
-        lmax=3,
-        threshold=1e-6,
-        maxiter=500,
-    ):
-        """
-        **Arguments:** (that are not defined in ``WPart``)
-
-        proatomdb
-             In instance of ProAtomDB that contains all the reference atomic
-             densities.
-
-        **Optional arguments:** (that are not defined in ``WPart``)
-
-        threshold
-             The procedure is considered to be converged when the maximum
-             change of the charges between two iterations drops below this
-             threshold.
-
-        maxiter
-             The maximum number of iterations. If no convergence is reached
-             in the end, no warning is given.
-        """
-        HirshfeldIMixin.__init__(self, threshold, maxiter)
-        HirshfeldWPart.__init__(
-            self,
-            coordinates,
-            numbers,
-            pseudo_numbers,
-            grid,
-            moldens,
-            proatomdb,
-            spindens,
-            local,
-            lmax,
-        )
-
-    def get_memory_estimates(self):
-        return HirshfeldWPart.get_memory_estimates(
-            self
-        ) + HirshfeldIMixin.get_memory_estimates(self)
-
-    def eval_proatom(self, index, output, grid):
-        HirshfeldIMixin.eval_proatom(self, index, output, grid)
+    @just_once
+    def do_dispersion(self):
+        do_dispersion(self)

@@ -25,8 +25,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from .stockholder import StockholderWPart
-from .iterstock import IterativeProatomMixin
+from .iterstock import ISAWPart
 
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
@@ -87,51 +86,12 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
     assert False
 
 
-class MBISWPart(IterativeProatomMixin, StockholderWPart):
+class MBISWPart(ISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "mbis"
     options = ["lmax", "threshold", "maxiter"]
     linear = False
-
-    def __init__(
-        self,
-        coordinates,
-        numbers,
-        pseudo_numbers,
-        grid,
-        moldens,
-        spindens=None,
-        lmax=3,
-        threshold=1e-6,
-        maxiter=500,
-    ):
-        """
-        **Optional arguments:** (that are not defined in ``WPart``)
-
-        threshold
-             The procedure is considered to be converged when the maximum
-             change of the charges between two iterations drops below this
-             threshold.
-
-        maxiter
-             The maximum number of iterations. If no convergence is reached
-             in the end, no warning is given.
-             Reduce the CPU cost at the expense of more memory consumption.
-        """
-        self._threshold = threshold
-        self._maxiter = maxiter
-        StockholderWPart.__init__(
-            self,
-            coordinates,
-            numbers,
-            pseudo_numbers,
-            grid,
-            moldens,
-            spindens,
-            True,
-            lmax,
-        )
 
     def _init_log_scheme(self):
         print("Initialized: %s" % self)
@@ -163,7 +123,7 @@ class MBISWPart(IterativeProatomMixin, StockholderWPart):
         return y, d
 
     def _init_propars(self):
-        IterativeProatomMixin._init_propars(self)
+        ISAWPart._init_propars(self)
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
@@ -206,7 +166,7 @@ class MBISWPart(IterativeProatomMixin, StockholderWPart):
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
     def _finalize_propars(self):
-        IterativeProatomMixin._finalize_propars(self)
+        ISAWPart._finalize_propars(self)
         propars = self.cache.load("propars")
         core_charges = []
         valence_charges = []

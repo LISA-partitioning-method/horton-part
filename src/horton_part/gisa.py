@@ -24,8 +24,7 @@
 import numpy as np
 from .log import log, biblio
 import quadprog
-from .stockholder import StockholderWPart
-from .iterstock import IterativeProatomMixin
+from .iterstock import ISAWPart
 
 
 __all__ = ["GaussianIterativeStockholderWPart", "get_pro_a_k"]
@@ -61,7 +60,7 @@ def get_pro_a_k(D_k, alpha_k, r, nderiv=0):
         raise NotImplementedError
 
 
-class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart):
+class GaussianIterativeStockholderWPart(ISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "gisa"
@@ -94,10 +93,10 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self._threshold = threshold
-        self._maxiter = maxiter
+        # self._threshold = threshold
+        # self._maxiter = maxiter
         self._obj_fn_type = obj_fn_type
-        StockholderWPart.__init__(
+        ISAWPart.__init__(
             self,
             coordinates,
             numbers,
@@ -107,6 +106,8 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
             spindens,
             True,
             lmax,
+            threshold,
+            maxiter,
         )
 
     def _init_log_scheme(self):
@@ -143,7 +144,7 @@ class GaussianIterativeStockholderWPart(IterativeProatomMixin, StockholderWPart)
         return y, d
 
     def _init_propars(self):
-        IterativeProatomMixin._init_propars(self)
+        ISAWPart._init_propars(self)
         self._ranges = [0]
         self._nprims = []
         for iatom in range(self.natom):

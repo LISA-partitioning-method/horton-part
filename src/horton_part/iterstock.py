@@ -29,10 +29,50 @@ from .cache import just_once
 from .stockholder import StockholderWPart
 
 
-__all__ = ["IterativeProatomMixin", "IterativeStockholderWPart"]
+__all__ = ["ISAWPart", "IterativeStockholderWPart"]
 
 
-class IterativeProatomMixin:
+class ISAWPart(StockholderWPart):
+    def __init__(
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        spindens=None,
+        local=True,
+        lmax=3,
+        threshold=1e-6,
+        maxiter=500,
+    ):
+        """
+        **Optional arguments:** (that are not defined in ``WPart``)
+
+        threshold
+             The procedure is considered to be converged when the maximum
+             change of the charges between two iterations drops below this
+             threshold.
+
+        maxiter
+             The maximum number of iterations. If no convergence is reached
+             in the end, no warning is given.
+             Reduce the CPU cost at the expense of more memory consumption.
+        """
+        self._threshold = threshold
+        self._maxiter = maxiter
+        StockholderWPart.__init__(
+            self,
+            coordinates,
+            numbers,
+            pseudo_numbers,
+            grid,
+            moldens,
+            spindens,
+            local,
+            lmax,
+        )
+
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
         # Compute mean-square deviation
@@ -105,51 +145,12 @@ class IterativeProatomMixin:
             self.cache.dump("change", change, tags="o")
 
 
-class IterativeStockholderWPart(IterativeProatomMixin, StockholderWPart):
+class IterativeStockholderWPart(ISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "is"
     options = ["lmax", "threshold", "maxiter"]
     linear = False
-
-    def __init__(
-        self,
-        coordinates,
-        numbers,
-        pseudo_numbers,
-        grid,
-        moldens,
-        spindens=None,
-        lmax=3,
-        threshold=1e-6,
-        maxiter=500,
-    ):
-        """
-        **Optional arguments:** (that are not defined in ``WPart``)
-
-        threshold
-             The procedure is considered to be converged when the maximum
-             change of the charges between two iterations drops below this
-             threshold.
-
-        maxiter
-             The maximum number of iterations. If no convergence is reached
-             in the end, no warning is given.
-             Reduce the CPU cost at the expense of more memory consumption.
-        """
-        self._threshold = threshold
-        self._maxiter = maxiter
-        StockholderWPart.__init__(
-            self,
-            coordinates,
-            numbers,
-            pseudo_numbers,
-            grid,
-            moldens,
-            spindens,
-            True,
-            lmax,
-        )
 
     def _init_log_scheme(self):
         print("Initialized: %s" % self)
@@ -173,7 +174,7 @@ class IterativeStockholderWPart(IterativeProatomMixin, StockholderWPart):
         return propars[self._ranges[index] : self._ranges[index + 1]], None
 
     def _init_propars(self):
-        IterativeProatomMixin._init_propars(self)
+        ISAWPart._init_propars(self)
         self._ranges = [0]
         for index in range(self.natom):
             npoint = self.get_rgrid(index).size

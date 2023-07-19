@@ -38,7 +38,14 @@ def eval_spline_grid(spline, grid, center):
     return spline(r)
 
 
-class StockHolderMixin(object):
+class StockholderWPart(WPart):
+    def update_pro(self, index, proatdens, promoldens):
+        # work = self.grid.zeros()
+        work = np.zeros((self.grid.size,))
+        self.eval_proatom(index, work, self.grid)
+        promoldens += work
+        proatdens[:] = self.to_atomic_grid(index, work)
+
     def get_rgrid(self, index):
         raise NotImplementedError
 
@@ -118,9 +125,6 @@ class StockHolderMixin(object):
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
 
-    def update_pro(self, index, proatdens, promoldens):
-        raise NotImplementedError
-
     def do_prosplines(self):
         for index in range(self.natom):
             # density
@@ -138,12 +142,3 @@ class StockHolderMixin(object):
             #     rho_spline = self.cache.load("spline_prodensity", index)
             #     v_spline = solve_poisson_becke([rho_spline])[0]
             #     self.cache.dump(key, v_spline, tags="o")
-
-
-class StockholderWPart(StockHolderMixin, WPart):
-    def update_pro(self, index, proatdens, promoldens):
-        # work = self.grid.zeros()
-        work = np.zeros((self.grid.size,))
-        self.eval_proatom(index, work, self.grid)
-        promoldens += work
-        proatdens[:] = self.to_atomic_grid(index, work)
