@@ -9,6 +9,8 @@ from horton_part import MBISWPart
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 from utils import load_fchk
 
+log.set_level(0)
+
 
 # Load the Gaussian output from file from HORTON's test data directory.
 fn_fchk = load_fchk("water_sto3g_hf_g03")
@@ -32,7 +34,7 @@ basis_grid = evaluate_basis(basis, grid.points, coord_type=coord_types)
 rho = np.einsum("ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True)
 
 nelec = grid.integrate(rho)
-log("nelec = {}".format(nelec))
+# log("nelec = {}".format(nelec))
 
 kwargs = {
     "coordinates": mol.atcoords,

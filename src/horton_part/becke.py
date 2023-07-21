@@ -27,6 +27,7 @@ import numpy as np
 
 from .base import WPart
 from .utils import angstrom, radius_becke, radius_covalent
+from .log import biblio, log
 from grid.becke import BeckeWeights
 
 
@@ -72,17 +73,18 @@ class BeckeWPart(WPart):
         )
 
     def _init_log_scheme(self):
-        print(" Initialized: %s" % self)
-        print(
-            [
-                (" Scheme", "Becke"),
-                (" Switching function", "k=%i" % self._k),
-            ]
-        )
-        self.biblio.append(["becke1988_multicenter", "the use of Becke partitioning"])
-        self.biblio.append(
-            ["slater1964", "the Brag-Slater radii used in the Becke partitioning"]
-        )
+        if log.do_medium:
+            log(" Initialized: %s" % self.__class__.__name__)
+            log.deflist(
+                [
+                    (" Scheme", "Becke"),
+                    (" Switching function", "k=%i" % self._k),
+                ]
+            )
+            biblio.cite("becke1988_multicenter", "the use of Becke partitioning")
+            biblio.cite(
+                "slater1964", "the Brag-Slater radii used in the Becke partitioning"
+            )
 
     def update_at_weights(self):
         print("Computing Becke weights.")
@@ -114,8 +116,7 @@ class BeckeWPart(WPart):
                 grid.points, self.coordinates, self.numbers, index
             )
 
-    def _get_k(self):
+    @property
+    def k(self):
         """The order of the Becke switching function."""
         return self._k
-
-    k = property(_get_k)

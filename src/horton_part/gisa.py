@@ -93,8 +93,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        # self._threshold = threshold
-        # self._maxiter = maxiter
         self._obj_fn_type = obj_fn_type
         ISAWPart.__init__(
             self,
@@ -166,9 +164,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         rgrid = atgrid.rgrid
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
-        # spherical_average = np.clip(
-        #     atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
-        # )
         spline = atgrid.spherical_average(at_weights * dens)
         spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
 
@@ -192,7 +187,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
     def _get_initial_propars(number):
         """Create initial parameters for proatom density functions."""
         nprim = get_nprim(number)
-        # return np.ones(nprim, float) / nprim
         return np.ones(nprim, float) / nprim
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
@@ -237,11 +231,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         nprim = len(propars)
         r = rgrid.points
         gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
-
-        # compute the contributions to the pro-atom
-        # terms = np.array([get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)])
-        # pro = terms.sum(axis=0)
-
         S = (
             1
             / np.pi**1.5
@@ -255,19 +244,15 @@ class GaussianIterativeStockholderWPart(ISAWPart):
                 4 * np.pi * rgrid.points**2, gauss_funcs[k], rho
             )
 
-        # METHOD 2 : using Python quadratic programming optimization routines
-        # (linear equality or inequality constraints)
+        # Construct linear equality or inequality constraints
         matrix_constraint = np.zeros([nprim, nprim + 1])
         # First column : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k)= N_a
         matrix_constraint[:, 0] = np.ones(nprim)
         # Other K_a columns : correspond to the INEQUALITY constraints c_(a,k) >=0
         matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
-
         vector_constraint = np.zeros(nprim + 1)
-
         # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-        N_a = rgrid.integrate(4 * np.pi * rgrid.points**2, rho)
-        vector_constraint[0] = N_a
+        vector_constraint[0] = rgrid.integrate(4 * np.pi * rgrid.points**2, rho)
 
         propars = quadprog.solve_qp(
             G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1

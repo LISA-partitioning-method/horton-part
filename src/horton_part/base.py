@@ -25,9 +25,8 @@ import numpy as np
 
 from .cache import JustOnceClass, just_once, Cache
 from .utils import typecheck_geo
+from .log import log
 from grid import AtomGrid
-
-# from .wrapper import AtomicGrid, solve_poisson_becke
 
 
 __all__ = ["Part", "WPart"]
@@ -103,45 +102,37 @@ class Part(JustOnceClass):
     def __getitem__(self, key):
         return self.cache.load(key)
 
-    def _get_natom(self):
+    @property
+    def natom(self):
         return self._natom
 
-    natom = property(_get_natom)
-
-    def _get_coordinates(self):
+    @property
+    def coordinates(self):
         return self._coordinates
 
-    coordinates = property(_get_coordinates)
-
-    def _get_numbers(self):
+    @property
+    def numbers(self):
         return self._numbers
 
-    numbers = property(_get_numbers)
-
-    def _get_pseudo_numbers(self):
+    @property
+    def pseudo_numbers(self):
         return self._pseudo_numbers
 
-    pseudo_numbers = property(_get_pseudo_numbers)
-
-    def _get_grid(self):
+    @property
+    def grid(self):
         return self.get_grid()
 
-    grid = property(_get_grid)
-
-    def _get_local(self):
+    @property
+    def local(self):
         return self._local
 
-    local = property(_get_local)
-
-    def _get_lmax(self):
+    @property
+    def lmax(self):
         return self._lmax
 
-    lmax = property(_get_lmax)
-
-    def _get_cache(self):
+    @property
+    def cache(self):
         return self._cache
-
-    cache = property(_get_cache)
 
     def __clear__(self):
         self.clear()
@@ -418,13 +409,14 @@ class WPart(Part):
         )
 
     def _init_log_base(self):
-        print("Performing a density-based AIM analysis with a wavefunction as input.")
-        print(
-            [
-                (" Molecular grid", self._grid),
-                (" Using local grids", self._local),
-            ]
-        )
+        if log.do_medium:
+            log("Performing a density-based AIM analysis with a wavefunction as input.")
+            log.deflist(
+                [
+                    (" Molecular grid", self._grid),
+                    (" Using local grids", self._local),
+                ]
+            )
 
     def _init_subgrids(self):
         self._subgrids = self._grid.atgrids

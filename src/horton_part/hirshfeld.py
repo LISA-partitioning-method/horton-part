@@ -24,6 +24,7 @@ from __future__ import print_function
 
 from .cache import just_once
 from .stockholder import StockholderWPart
+from .log import log, biblio
 
 
 __all__ = ["HirshfeldWPart", "check_proatomdb", "do_dispersion"]
@@ -173,14 +174,15 @@ class HirshfeldWPart(StockholderWPart):
         )
 
     def _init_log_scheme(self):
-        print("Initialized: %s" % self)
-        print(
-            [
-                ("Scheme", "Hirshfeld"),
-                ("Proatomic DB", self.proatomdb),
-            ]
-        )
-        self.biblio.append(["hirshfeld1977", "the use of Hirshfeld partitioning"])
+        if log.do_medium:
+            log("Initialized: %s" % self.__class__.__name__)
+            log.deflist(
+                [
+                    ("Scheme", "Hirshfeld"),
+                    ("Proatomic DB", self.proatomdb),
+                ]
+            )
+            biblio.cite("hirshfeld1977", "the use of Hirshfeld partitioning")
 
     def _get_proatomdb(self):
         return self._proatomdb

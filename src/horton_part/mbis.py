@@ -26,6 +26,7 @@ from __future__ import print_function
 import numpy as np
 
 from .iterstock import ISAWPart
+from .log import biblio, log
 
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
@@ -94,15 +95,16 @@ class MBISWPart(ISAWPart):
     linear = False
 
     def _init_log_scheme(self):
-        print("Initialized: %s" % self)
-        print(
-            [
-                ("Scheme", "Minimal Basis Iterative Stockholder (MBIS)"),
-                ("Convergence threshold", "%.1e" % self._threshold),
-                ("Maximum iterations", self._maxiter),
-            ]
-        )
-        self.biblio.append(["verstraelen2016", "the use of MBIS partitioning"])
+        if log.do_medium:
+            log("Initialized: %s" % self.__class__.__name__)
+            log.deflist(
+                [
+                    ("Scheme", "Minimal Basis Iterative Stockholder (MBIS)"),
+                    ("Convergence threshold", "%.1e" % self._threshold),
+                    ("Maximum iterations", self._maxiter),
+                ]
+            )
+            biblio.cite("verstraelen2016", "the use of MBIS partitioning")
 
     def get_rgrid(self, iatom):
         return self.get_grid(iatom).rgrid

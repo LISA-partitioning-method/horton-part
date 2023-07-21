@@ -24,7 +24,7 @@
 from __future__ import division, print_function
 import numpy as np
 import cvxopt
-from .log import log
+from .log import log, biblio
 from .gisa import GaussianIterativeStockholderWPart, get_pro_a_k
 
 
@@ -43,9 +43,9 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                     ("Maximum iterations", self._maxiter),
                 ]
             )
-            # biblio.cite(
-            #     "Robert2022 the use of Linear Iterative Stockholder ", "partitioning"
-            # )
+            biblio.cite(
+                "Robert2022, the use of Linear Iterative Stockholder partitioning"
+            )
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._obj_fn_type == 1:
@@ -112,7 +112,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             if change < threshold:
                 return propars
             oldF = newF
-        log("Not converge, but go ahead!")
+        print("Not converge, but go ahead!")
         # The initial values could lead to converged issues.
         # assert False
         return propars
@@ -154,7 +154,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         # h = vector_constraint_ineq
         vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
 
-        ###########################
         # Linear equality constraints :
         # Ax = b with x=(c_(a,k))_{k=1..Ka} ; A = (1...1) and b = Na = (Na)
         matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))

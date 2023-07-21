@@ -29,6 +29,8 @@ import numpy as np
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
 from grid import OneDGrid
 
+from .log import log
+
 
 __all__ = ["ProAtomRecord", "ProAtomDB"]
 
@@ -278,14 +280,14 @@ class ProAtomDB(object):
         self._log_init()
 
     def _log_init(self):
-        print("Initialized: %s" % self)
-        print(
-            [
-                ("Numbers", list(self._rgrid_map.keys())),
-                ("Records", list(self._map.keys())),
-            ]
-        )
-        print()
+        if log.do_medium:
+            log("Initialized: %s" % self.__class__.__name__)
+            log.deflist(
+                [
+                    ("Numbers", list(self._rgrid_map.keys())),
+                    ("Records", list(self._map.keys())),
+                ]
+            )
 
     def get_record(self, number, charge):
         return self._map[(number, charge)]
