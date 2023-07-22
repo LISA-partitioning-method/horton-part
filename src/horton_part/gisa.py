@@ -38,6 +38,9 @@ def get_alpha(number, nb_exp=6):
         6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
         7: np.array([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]),
         8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
+        # Even we use O atom data as Cl atom data, we can still obtain a reasonable result for LISA model for
+        # ClO- molecule. This means it needs small exponential coefficients.
+        # 17: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
     }
     if number in param_dict:
         return param_dict[number]
@@ -52,7 +55,7 @@ def get_alpha(number, nb_exp=6):
         # For Li and  Cl, nb_exp = 6
         # a0 = 0.529177
         a0 = 1  # we use atomic unit
-        # TODO: fix me
+        # TODO: in Toon's paper, these coefficients are optimized by fitting Hirshfeld-I pro-atomic density
         return np.array(
             [
                 2 * number ** (1 - ((i - 1) / (nb_exp - 1))) / a0

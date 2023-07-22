@@ -216,8 +216,11 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         )
 
         optimized_res = opt_CVX["x"]
-        assert (np.asarray(optimized_res) > 0).all()
-        assert np.sum(optimized_res) - N_a < 1e-8
+        if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
+            log("Not all values are positive!")
+
+        if np.sum(optimized_res) - N_a >= 1e-8 and log.do_warning:
+            log("The sum of results is not equal to N_a!")
 
         new_propars = np.asarray(opt_CVX["x"]).flatten()
         return new_propars

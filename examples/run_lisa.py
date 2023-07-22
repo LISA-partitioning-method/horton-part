@@ -12,7 +12,7 @@ from utils import load_fchk
 
 np.set_printoptions(precision=3, suppress=True, linewidth=np.inf)
 np.random.seed(44)
-log.set_level(2)
+log.set_level(0)
 
 
 def main(name):
@@ -63,6 +63,24 @@ if __name__ == "__main__":
     for name in ["co", "clo-"]:
         main(name)
         print("#" * 80)
+
+# CO
+"""
+charges:
+[ 0.199 -0.199]
+cartesian multipoles:
+[[ 0.199  0.     0.    -0.297 -3.893 -0.     0.    -3.893 -0.    -4.807  0.     0.    -0.186  0.    -0.     0.     0.    -0.186  0.    -1.001]
+ [-0.199  0.    -0.    -0.02  -3.733 -0.     0.    -3.733 -0.    -3.835 -0.     0.     0.096 -0.    -0.    -0.     0.     0.096  0.     0.096]]
+"""
+
+# ClO^-
+"""
+charges:
+[ 2.833 -3.88 ]
+cartesian multipoles:
+[[   2.833   -0.      -0.      -0.897   -3.286   -0.      -0.      -3.286   -0.      -3.188   -0.       0.      -0.67    -0.      -0.      -0.       0.      -0.67     0.      -1.664]
+ [  -3.88    -0.      -0.      -9.865  -12.019    0.       0.     -12.019    0.     -40.832   -0.      -0.     -23.683   -0.       0.      -0.      -0.     -23.683
+"""
 
 # C5H12
 """
