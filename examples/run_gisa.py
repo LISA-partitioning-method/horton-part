@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import numpy as np
-from horton_part import log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
@@ -36,7 +35,7 @@ basis_grid = evaluate_basis(basis, grid.points, coord_type=coord_types)
 rho = np.einsum("ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True)
 
 nelec = grid.integrate(rho)
-log("nelec = {}".format(nelec))
+print("nelec = {}".format(nelec))
 
 kwargs = {
     "coordinates": mol.atcoords,

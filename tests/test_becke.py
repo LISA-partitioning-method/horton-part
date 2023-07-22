@@ -23,7 +23,8 @@
 
 from pytest import raises
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
-from horton_part.becke import BeckeWPart, log
+from horton_part.becke import BeckeWPart
+from horton_part import log
 
 from .common import load_molecule_npz, reorder_rows
 

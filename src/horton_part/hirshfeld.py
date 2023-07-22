@@ -52,14 +52,11 @@ def do_dispersion(part):
         )
         return
 
-        part.biblio.append(
-            [
-                "tkatchenko2009",
-                "the method to evaluate atoms-in-molecules C6 parameters",
-            ]
+        biblio.cite(
+            "tkatchenko2009", "the method to evaluate atoms-in-molecules C6 parameters"
         )
-        part.biblio.append(["chu2004", "the reference C6 parameters of isolated atoms"])
-        part.biblio.append(["yan1996", "the isolated hydrogen C6 parameter"])
+        biblio.cite(["chu2004", "the reference C6 parameters of isolated atoms"])
+        biblio.cite(["yan1996", "the isolated hydrogen C6 parameter"])
 
     # reference C6 values in atomic units
     ref_c6s = {

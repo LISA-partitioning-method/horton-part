@@ -34,7 +34,7 @@ basis_grid = evaluate_basis(basis, grid.points, coord_type=coord_types)
 rho = np.einsum("ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True)
 
 nelec = grid.integrate(rho)
-# log("nelec = {}".format(nelec))
+print("nelec = {:.2f}".format(nelec))
 
 kwargs = {
     "coordinates": mol.atcoords,

@@ -112,7 +112,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             if change < threshold:
                 return propars
             oldF = newF
-        print("Not converge, but go ahead!")
+        if log.do_warning:
+            log("Not converge, but go ahead!")
         # The initial values could lead to converged issues.
         # assert False
         return propars
@@ -188,10 +189,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 )
             df = cvxopt.matrix(df)
 
-            if verbose:
-                print("f=", f)
-                print("df=", df)
-
             if z is None:
                 return f, df
 
@@ -204,11 +201,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                     )
                     hess[j, i] = hess[i, j]
             hess = z[0] * cvxopt.matrix(hess)
-
-            if verbose:
-                print("hess:")
-                print(hess)
-
             return f, df, hess
 
         opt_CVX = cvxopt.solvers.cp(

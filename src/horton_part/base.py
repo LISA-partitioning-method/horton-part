@@ -413,7 +413,7 @@ class WPart(Part):
             log("Performing a density-based AIM analysis with a wavefunction as input.")
             log.deflist(
                 [
-                    (" Molecular grid", self._grid),
+                    (" Molecular grid", self._grid.__class__.__name__),
                     (" Using local grids", self._local),
                 ]
             )

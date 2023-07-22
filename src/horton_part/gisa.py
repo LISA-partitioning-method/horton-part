@@ -22,16 +22,17 @@
 
 
 import numpy as np
-from .log import log, biblio
 import quadprog
 from .iterstock import ISAWPart
+from .log import log, biblio
 
 
 __all__ = ["GaussianIterativeStockholderWPart", "get_pro_a_k"]
 
 
-def get_alpha(number):
+def get_alpha(number, nb_exp=6):
     """The exponents used for primitive Gaussian functions of each element."""
+    assert type(number) == int and type(nb_exp) == int
     param_dict = {
         1: np.array([5.672, 1.505, 0.5308, 0.2204]),
         6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
@@ -41,7 +42,17 @@ def get_alpha(number):
     if number in param_dict:
         return param_dict[number]
     else:
-        raise NotImplementedError
+        # use MBIS initial exponential coefficients as suggested by GISA.
+        # The difference between this implentation and GISA is that Bohr radius is removed.
+        # This is because atomic unit is alwasy used in cucrrent implementation.
+        # The Bohr radius included in original implementation of GISA in
+        # https://github.com/rbenda/ISA_multipoles is a typo.
+        # (also see J. Chem. Phys. 156, 164107 (2022))
+        #
+        # For Li and  Cl, nb_exp = 6
+        return np.array(
+            [2 * number ** (1 - ((i - 1) / (nb_exp - 1))) for i in range(1, 1 + nb_exp)]
+        )
 
 
 def get_nprim(number):
@@ -118,7 +129,8 @@ class GaussianIterativeStockholderWPart(ISAWPart):
                 ]
             )
             biblio.cite(
-                "lillestolen2008", "the use of Iterative Stockholder partitioning"
+                "verstraelen2012a",
+                "the use of Gaussian Iterative Stockholder partitioning",
             )
 
     def get_rgrid(self, index):

@@ -27,6 +27,7 @@ import numpy as np
 
 from .cache import just_once
 from .stockholder import StockholderWPart
+from .log import log, biblio
 
 
 __all__ = ["ISAWPart", "IterativeStockholderWPart"]
@@ -153,17 +154,16 @@ class IterativeStockholderWPart(ISAWPart):
     linear = False
 
     def _init_log_scheme(self):
-        print("Initialized: %s" % self)
-        print(
-            [
-                ("Scheme", "Iterative Stockholder"),
-                ("Convergence threshold", "%.1e" % self._threshold),
-                ("Maximum iterations", self._maxiter),
-            ]
-        )
-        self.biblio.append(
-            ["lillestolen2008", "the use of Iterative Stockholder partitioning"]
-        )
+        if log.do_medium:
+            log("Initialized: %s" % self.__class__.__name__)
+            log.deflist(
+                [
+                    ("Scheme", "Iterative Stockholder"),
+                    ("Convergence threshold", "%.1e" % self._threshold),
+                    ("Maximum iterations", self._maxiter),
+                ]
+            )
+        biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")
 
     def get_rgrid(self, index):
         return self.get_grid(index).rgrid
