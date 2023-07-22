@@ -32,7 +32,7 @@ __all__ = ["GaussianIterativeStockholderWPart", "get_pro_a_k"]
 
 def get_alpha(number, nb_exp=6):
     """The exponents used for primitive Gaussian functions of each element."""
-    assert type(number) == int and type(nb_exp) == int
+    assert isinstance(number, (int, np.int_)) and isinstance(nb_exp, (int, np.int_))
     param_dict = {
         1: np.array([5.672, 1.505, 0.5308, 0.2204]),
         6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
@@ -50,8 +50,14 @@ def get_alpha(number, nb_exp=6):
         # (also see J. Chem. Phys. 156, 164107 (2022))
         #
         # For Li and  Cl, nb_exp = 6
+        # a0 = 0.529177
+        a0 = 1  # we use atomic unit
+        # TODO: fix me
         return np.array(
-            [2 * number ** (1 - ((i - 1) / (nb_exp - 1))) for i in range(1, 1 + nb_exp)]
+            [
+                2 * number ** (1 - ((i - 1) / (nb_exp - 1))) / a0
+                for i in range(1, 1 + nb_exp)
+            ]
         )
 
 
@@ -199,7 +205,13 @@ class GaussianIterativeStockholderWPart(ISAWPart):
     def _get_initial_propars(number):
         """Create initial parameters for proatom density functions."""
         nprim = get_nprim(number)
-        return np.ones(nprim, float) / nprim
+        # from https://github.com/rbenda/ISA_multipoles is a typo.
+        if number == 17:
+            return np.ones(nprim, float) * 17.5 / nprim
+        elif number == 8:
+            return np.ones(nprim, float) * 8.5 / nprim
+        else:
+            return np.ones(nprim, float) * (number + 0.5) / nprim
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         return self._constrained_least_squares(rho, propars, rgrid, alphas, threshold)

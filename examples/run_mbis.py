@@ -9,44 +9,98 @@ from horton_part import MBISWPart
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 from utils import load_fchk
 
+np.set_printoptions(precision=3, suppress=True, linewidth=np.inf)
+np.random.seed(44)
 log.set_level(0)
 
 
-# Load the Gaussian output from file from HORTON's test data directory.
-fn_fchk = load_fchk("water_sto3g_hf_g03")
+def main(name):
+    # Load the Gaussian output from file from HORTON's test data directory.
+    fn_fchk = load_fchk(name)
+    # Replace the previous line with any other fchk file, e.g. fn_fchk = 'yourfile.fchk'.
+    mol = load_one(fn_fchk)
 
-# Replace the previous line with any other fchk file, e.g. fn_fchk = 'yourfile.fchk'.
-mol = load_one(fn_fchk)
+    # Specify the integration grid
+    rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
+    uniform_grid = UniformInteger(120)
+    rgrid = rtf.transform_1d_grid(uniform_grid)
+    becke = BeckeWeights()
+    grid = MolGrid.from_preset(
+        mol.atnums, mol.atcoords, rgrid, "fine", becke, rotate=False, store=True
+    )
 
-# Specify the integration grid
-rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
-uniform_grid = UniformInteger(120)
-rgrid = rtf.transform_1d_grid(uniform_grid)
-becke = BeckeWeights()
-grid = MolGrid.from_preset(
-    mol.atnums, mol.atcoords, rgrid, "fine", becke, rotate=False, store=True
-)
+    # # Get the spin-summed density matrix
+    one_rdm = mol.one_rdms.get("post_scf", mol.one_rdms.get("scf"))
+    basis, coord_types = from_iodata(mol)
+    basis_grid = evaluate_basis(basis, grid.points, coord_type=coord_types)
+    rho = np.einsum("ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True)
 
-# # Get the spin-summed density matrix
-one_rdm = mol.one_rdms.get("post_scf", mol.one_rdms.get("scf"))
-basis, coord_types = from_iodata(mol)
-basis_grid = evaluate_basis(basis, grid.points, coord_type=coord_types)
-rho = np.einsum("ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True)
+    nelec = grid.integrate(rho)
+    print("nelec = {:.2f}".format(nelec))
 
-nelec = grid.integrate(rho)
-print("nelec = {:.2f}".format(nelec))
+    kwargs = {
+        "coordinates": mol.atcoords,
+        "numbers": mol.atnums,
+        "pseudo_numbers": mol.atnums,
+        "grid": grid,
+        "moldens": rho,
+        "lmax": 3,
+        "maxiter": 1000,
+    }
 
-kwargs = {
-    "coordinates": mol.atcoords,
-    "numbers": mol.atnums,
-    "pseudo_numbers": mol.atnums,
-    "grid": grid,
-    "moldens": rho,
-    "lmax": 3,
-    "maxiter": 1000,
-}
+    part = MBISWPart(**kwargs)
+    part.do_all()
 
-part = MBISWPart(**kwargs)
-part.do_all()
+    print("charges:")
+    print(part.cache["charges"])
+    print("cartesian multipoles:")
+    print(part.cache["cartesian_multipoles"])
 
-print(part.cache["charges"])
+
+if __name__ == "__main__":
+    for name in ["co", "clo-"]:
+        main(name)
+        print("#" * 80)
+
+# C5H12
+"""
+charges:
+[ 0.228 -0.47  -0.47  -0.47  -0.47   0.138  0.138  0.138  0.138  0.138  0.138  0.138  0.138  0.138  0.138  0.138  0.138]
+cartesian multipoles:
+[[ 0.228  0.     0.    -0.    -3.99   0.     0.    -3.99  -0.    -3.99   0.    -0.    -0.     0.    -0.24   0.    -0.    -0.    -0.    -0.   ]
+ [-0.47  -0.036 -0.036 -0.036 -5.221 -0.031 -0.031 -5.221 -0.031 -5.221 -0.174  0.011  0.011  0.011  0.309  0.011 -0.174  0.011  0.011 -0.174]
+ [-0.47   0.036  0.036 -0.036 -5.221 -0.031  0.031 -5.221  0.031 -5.221  0.174 -0.011  0.011 -0.011  0.309 -0.011  0.174  0.011 -0.011 -0.174]
+ [-0.47   0.036 -0.036  0.036 -5.221  0.031 -0.031 -5.221  0.031 -5.221  0.174  0.011 -0.011 -0.011  0.309 -0.011 -0.174 -0.011  0.011  0.174]
+ [-0.47  -0.036  0.036  0.036 -5.221  0.031  0.031 -5.221 -0.031 -5.221 -0.174 -0.011 -0.011  0.011  0.309  0.011  0.174 -0.011 -0.011  0.174]
+ [ 0.138  0.023 -0.033  0.023 -0.499  0.006 -0.    -0.495  0.006 -0.499 -0.005 -0.011  0.002 -0.     0.007  0.002 -0.023 -0.    -0.011 -0.005]
+ [ 0.138  0.023  0.023 -0.033 -0.499 -0.     0.006 -0.499  0.006 -0.495 -0.005  0.002 -0.011  0.002  0.007 -0.    -0.005 -0.011 -0.    -0.023]
+ [ 0.138 -0.033  0.023  0.023 -0.495  0.006  0.006 -0.499 -0.    -0.499 -0.023 -0.    -0.    -0.011  0.007 -0.011 -0.005  0.002  0.002 -0.005]
+ [ 0.138 -0.023 -0.023 -0.033 -0.499 -0.    -0.006 -0.499 -0.006 -0.495  0.005 -0.002 -0.011 -0.002  0.007  0.     0.005 -0.011  0.    -0.023]
+ [ 0.138  0.033 -0.023  0.023 -0.495  0.006 -0.006 -0.499  0.    -0.499  0.023  0.    -0.     0.011  0.007  0.011  0.005  0.002 -0.002 -0.005]
+ [ 0.138 -0.023  0.033  0.023 -0.499  0.006  0.    -0.495 -0.006 -0.499  0.005  0.011  0.002  0.     0.007 -0.002  0.023 -0.     0.011 -0.005]
+ [ 0.138 -0.023 -0.033 -0.023 -0.499 -0.006 -0.    -0.495 -0.006 -0.499  0.005 -0.011 -0.002  0.     0.007 -0.002 -0.023  0.    -0.011  0.005]
+ [ 0.138 -0.023  0.023  0.033 -0.499  0.     0.006 -0.499 -0.006 -0.495  0.005  0.002  0.011 -0.002  0.007  0.    -0.005  0.011 -0.     0.023]
+ [ 0.138  0.033  0.023 -0.023 -0.495 -0.006  0.006 -0.499  0.    -0.499  0.023 -0.     0.     0.011  0.007  0.011 -0.005 -0.002  0.002  0.005]
+ [ 0.138  0.023 -0.023  0.033 -0.499  0.    -0.006 -0.499  0.006 -0.495 -0.005 -0.002  0.011  0.002  0.007 -0.     0.005  0.011  0.     0.023]
+ [ 0.138 -0.033 -0.023 -0.023 -0.495 -0.006 -0.006 -0.499 -0.    -0.499 -0.023  0.     0.    -0.011  0.007 -0.011  0.005 -0.002 -0.002  0.005]
+ [ 0.138  0.023  0.033 -0.023 -0.499 -0.006  0.    -0.495  0.006 -0.499 -0.005  0.011 -0.002 -0.     0.007  0.002  0.023  0.     0.011  0.005]]
+"""
+
+# C6H6
+"""
+charges:
+[-0.139 -0.139 -0.137 -0.137 -0.139 -0.139  0.138  0.138  0.138  0.138  0.138  0.138]
+cartesian multipoles:
+[[-0.139 -0.042  0.009 -0.    -4.593 -0.028  0.    -4.72   0.    -4.491 -0.455  0.188 -0.     0.189 -0.    -0.231 -0.13   0.     0.046 -0.   ]
+ [-0.139 -0.015  0.041  0.    -4.712 -0.044 -0.    -4.602  0.    -4.492  0.186 -0.108  0.    -0.279  0.    -0.075  0.368  0.     0.224 -0.   ]
+ [-0.137 -0.029 -0.033  0.    -4.662  0.069 -0.    -4.643  0.    -4.489  0.119 -0.222 -0.    -0.301  0.    -0.156  0.012 -0.    -0.177 -0.   ]
+ [-0.137  0.029  0.033 -0.    -4.662  0.069 -0.    -4.643 -0.    -4.489 -0.119  0.222 -0.     0.301  0.     0.156 -0.012  0.     0.177  0.   ]
+ [-0.139  0.015 -0.041  0.    -4.712 -0.044 -0.    -4.602  0.    -4.492 -0.186  0.108  0.     0.279 -0.     0.075 -0.368 -0.    -0.224  0.   ]
+ [-0.139  0.042 -0.009  0.    -4.593 -0.028  0.    -4.72   0.    -4.491  0.455 -0.188  0.    -0.189 -0.     0.231  0.13   0.    -0.046  0.   ]
+ [ 0.138  0.05  -0.01  -0.    -0.513  0.007 -0.    -0.481 -0.    -0.507 -0.005  0.005 -0.     0.007 -0.    -0.003 -0.005  0.     0.001 -0.   ]
+ [ 0.138  0.016 -0.048 -0.    -0.483  0.01   0.    -0.51   0.    -0.507  0.007 -0.005 -0.    -0.007 -0.    -0.001  0.004 -0.     0.003 -0.   ]
+ [ 0.138  0.033  0.038 -0.    -0.495 -0.017  0.    -0.499  0.    -0.507  0.007 -0.005 -0.    -0.007  0.    -0.002  0.005 -0.    -0.002 -0.   ]
+ [ 0.138 -0.033 -0.038  0.    -0.495 -0.017  0.    -0.499 -0.    -0.507 -0.007  0.005  0.     0.007 -0.     0.002 -0.005  0.     0.002  0.   ]
+ [ 0.138 -0.016  0.048  0.    -0.483  0.01  -0.    -0.51  -0.    -0.507 -0.007  0.005  0.     0.007 -0.     0.001 -0.004  0.    -0.003  0.   ]
+ [ 0.138 -0.05   0.01  -0.    -0.513  0.007 -0.    -0.481  0.    -0.507  0.005 -0.005  0.    -0.007 -0.     0.003  0.005  0.    -0.001  0.   ]]
+"""

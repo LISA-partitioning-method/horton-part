@@ -180,6 +180,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 [get_pro_a_k(x[k], alphas[k], r) for k in range(nprim)]
             )
             pro = gauss_pros.sum(axis=0)
+            pro = np.clip(pro, 1e-100, np.inf)
 
             f = -rgrid.integrate(4 * np.pi * r**2, rho * np.log(pro))
             df = np.zeros((1, nprim), float)
@@ -211,6 +212,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             b=vector_constraint_eq,
             verbose=verbose,
             reltol=threshold,
+            options={"show_progress": log.do_medium},
         )
 
         optimized_res = opt_CVX["x"]
