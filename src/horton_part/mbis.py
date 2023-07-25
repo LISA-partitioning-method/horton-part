@@ -67,6 +67,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
             S = propars[2 * ishell + 1]
             terms[ishell] = N * S**3 * np.exp(-S * r) / (8 * np.pi)
         pro = terms.sum(axis=0)
+        pro = np.clip(pro, 1e-100, np.inf)
         # transform to partitions
         terms *= rho / pro
         # the partitions and the updated parameters
@@ -146,9 +147,6 @@ class MBISWPart(ISAWPart):
         rgrid = atgrid.rgrid
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
-        # spherical_average = np.clip(
-        #     atgrid.get_spherical_average(at_weights, dens), 1e-100, np.inf
-        # )
         spline = atgrid.spherical_average(at_weights * dens)
         spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
 
@@ -160,10 +158,12 @@ class MBISWPart(ISAWPart):
             spherical_average, my_propars.copy(), rgrid, self._threshold
         )
 
+        # avoid too large r
+        r = np.clip(rgrid.points, 1e-100, 1e10)
+
         # compute the new charge
-        pseudo_population = rgrid.integrate(
-            4 * np.pi * rgrid.points**2 * spherical_average
-        )
+        # 4 * np.pi * rgrid.points ** 2 * spherical_average
+        pseudo_population = rgrid.integrate(4 * np.pi * r**2 * spherical_average)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 

@@ -22,6 +22,7 @@
 
 
 import numpy as np
+from scipy.optimize import least_squares
 import quadprog
 from .iterstock import ISAWPart
 from .log import log, biblio
@@ -35,12 +36,26 @@ def get_alpha(number, nb_exp=6):
     assert isinstance(number, (int, np.int_)) and isinstance(nb_exp, (int, np.int_))
     param_dict = {
         1: np.array([5.672, 1.505, 0.5308, 0.2204]),
+        3: np.array([0.008, 0.042, 0.1214, 2.8398, 10.7499, 87.8413]),
         6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
         7: np.array([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]),
         8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
         # Even we use O atom data as Cl atom data, we can still obtain a reasonable result for LISA model for
         # ClO- molecule. This means it needs small exponential coefficients.
         # 17: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
+        17: np.array(
+            [
+                0.0955,
+                0.2188,
+                0.5903,
+                0.7801,
+                8.8711,
+                19.2626,
+                164.0007,
+                373.7075,
+                591.4187,
+            ]
+        ),
     }
     if number in param_dict:
         return param_dict[number]
@@ -78,6 +93,19 @@ def get_pro_a_k(D_k, alpha_k, r, nderiv=0):
         return -2 * alpha_k * r * f
     else:
         raise NotImplementedError
+
+
+def get_proatom_rho(r, prefactors, alphas):
+    """Get proatom density for atom `iatom`."""
+    nprim = len(prefactors)
+    # r = rgrid.radii
+    y = np.zeros(len(r), float)
+    d = np.zeros(len(r), float)
+    for k in range(nprim):
+        D_k, alpha_k = prefactors[k], alphas[k]
+        y += get_pro_a_k(D_k, alpha_k, r, 0)
+        d += get_pro_a_k(D_k, alpha_k, r, 1)
+    return y, d
 
 
 class GaussianIterativeStockholderWPart(ISAWPart):
@@ -217,7 +245,16 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             return np.ones(nprim, float) * (number + 0.5) / nprim
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
-        return self._constrained_least_squares(rho, propars, rgrid, alphas, threshold)
+        if self._obj_fn_type == 1:
+            return self._constrained_least_squares(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._obj_fn_type == 2:
+            return self._constrained_least_squares2(
+                rho, propars, rgrid, alphas, threshold
+            )
+        else:
+            raise NotImplementedError
 
     @staticmethod
     def _constrained_least_squares(rho, propars, rgrid, alphas, threshold):
@@ -285,3 +322,52 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
         )[0]
         return propars
+
+    @staticmethod
+    def _constrained_least_squares2(rho, propars, rgrid, alphas, threshold):
+        r"""
+        Optimize parameters for proatom density functions.
+
+        .. math::
+
+            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+
+            G = \frac{1}{2} c^T S c - c^T b
+
+            S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
+            = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
+
+            b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
+
+        Parameters
+        ----------
+        rho:
+            Atomic spherical-average density, i.e.,
+            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+        propars:
+            Parameters array.
+        rgrid:
+            Radial grid.
+        alphas:
+            Exponential coefficients of Gaussian primitive functions.
+        threshold:
+            Threshold for convergence.
+
+        Returns
+        -------
+
+        """
+
+        nprim = len(propars)
+        r = rgrid.points
+        weights = rgrid.weights
+        nelec = rgrid.integrate(4 * np.pi * r**2, rho)
+
+        def f(args):
+            rho_test, _ = get_proatom_rho(r, args, alphas)
+            return (rho_test - rho) * np.sqrt(4 * np.pi * weights) * r
+            # return rgrid.integrate(4 * np.pi * r**2, rho_test) - nelec
+
+        res = least_squares(f, x0=[nelec / nprim] * nprim, bounds=(1e-2, 120))
+        return res.x
