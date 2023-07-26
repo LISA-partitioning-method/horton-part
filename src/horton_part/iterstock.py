@@ -194,9 +194,12 @@ class IterativeStockholderWPart(ISAWPart):
         propars = self.cache.load("propars")
         propars[self._ranges[index] : self._ranges[index + 1]] = spherical_average
 
+        # avoid too large r
+        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
+
         # compute the new charge
         pseudo_population = atgrid.rgrid.integrate(
-            4 * np.pi * atgrid.rgrid.points**2 * spherical_average
+            4 * np.pi * r**2 * spherical_average
         )
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[index] = self.pseudo_numbers[index] - pseudo_population

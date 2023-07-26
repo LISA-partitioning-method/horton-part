@@ -22,7 +22,7 @@ def main(name):
 
     # Specify the integration grid
     rtf = ExpRTransform(5e-4, 2e1, 120 - 1)
-    uniform_grid = UniformInteger(120)
+    uniform_grid = UniformInteger(1200)
     rgrid = rtf.transform_1d_grid(uniform_grid)
     becke = BeckeWeights()
     grid = MolGrid.from_preset(

@@ -72,6 +72,30 @@ cartesian multipoles:
 
 # ClO^-
 """
+Comment: using O parameters as Cl atom proposed in the paper. (This is a bad idea, for Cl atom,
+a small exponential coefficient should be used for the more diffusion part.
+
+charges:
+[ 1.971 -2.999]
+cartesian multipoles:
+[[   1.971   -0.       0.      -1.025   -4.434    0.      -0.      -4.434   -0.      -4.174   -0.       0.      -0.972   -0.      -0.      -0.       0.      -0.972    0.      -2.383]
+ [  -2.999   -0.      -0.      -6.886  -10.8      0.       0.     -10.8      0.     -29.806   -0.      -0.     -19.466   -0.       0.      -0.      -0.     -19.466
+"""
+
+"""
+Comment: using C parameters as Cl atom proposed in the paper. (This is a bad idea, for Cl atom,
+a small exponential coefficient should be used for the more diffusion part.
+
+charges:
+[-0.506 -0.495]
+cartesian multipoles:
+[[ -0.506  -0.      0.      0.222 -10.8     0.     -0.    -10.8    -0.    -11.006   0.      0.      0.354  -0.     -0.     -0.      0.      0.354   0.      5.132]
+ [ -0.495  -0.     -0.      0.084  -4.383   0.      0.     -4.383   0.     -4.177  -0.     -0.      0.293  -0.     -0.     -0.     -0.      0.293  -0.     -0.914]]
+"""
+
+"""
+Comment: the result is computed with new parameters optimized as Toon's paper.
+
 charges:
 [-0.381 -0.62 ]
 cartesian multipoles:

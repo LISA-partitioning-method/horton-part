@@ -64,7 +64,10 @@ if __name__ == "__main__":
         main(name)
         print("#" * 80)
 
+# obj_func_type = 1 and 2, there is no difference
 # CO
+# obj_func_type = 1: nb_iterations = 20
+# obj_func_type = 2: nb_iterations = 128
 """
 charges:
 [ 0.199 -0.199]
@@ -74,7 +77,33 @@ cartesian multipoles:
 """
 
 # ClO^-
+# obj_func_type = 1: nb_iterations = 10
+# obj_func_type = 2: nb_iterations = 369
 """
+Comment: using O parameters as Cl atom proposed in the paper. (This is a bad idea, for Cl atom,
+a small exponential coefficient should be used for the more diffusion part.
+
+charges:
+[-0.404 -0.597]
+cartesian multipoles:
+[[ -0.404  -0.      0.     -0.128 -10.622   0.     -0.    -10.622   0.     -9.97   -0.      0.     -0.138  -0.     -0.     -0.      0.     -0.138   0.      2.023]
+ [ -0.597  -0.      0.      0.103  -4.56    0.      0.     -4.56    0.     -4.004  -0.     -0.      0.203  -0.     -0.     -0.     -0.      0.203  -0.     -0.268]]
+"""
+
+"""
+Comment: using C parameters as Cl atom proposed in the paper. (This is a bad idea, for Cl atom,
+a small exponential coefficient should be used for the more diffusion part.
+
+charges:
+[-0.401 -0.599]
+cartesian multipoles:
+[[ -0.401  -0.      0.     -0.151 -10.578   0.     -0.    -10.578   0.     -9.843  -0.      0.     -0.279  -0.     -0.     -0.      0.     -0.279   0.      1.449]
+ [ -0.599  -0.      0.      0.119  -4.604   0.      0.     -4.604   0.     -4.004  -0.     -0.      0.2    -0.     -0.     -0.     -0.      0.2    -0.     -0.281]]
+"""
+
+"""
+Comment: the result is computed with new parameters optimized as Toon's paper.
+
  charges:
 [-0.383 -0.617]
 cartesian multipoles:
@@ -83,6 +112,8 @@ cartesian multipoles:
 """
 
 # C5H12
+# obj_func_type = 1: nb_iterations = 399
+# obj_func_type = 2: nb_iterations = 400
 """
 charges:
 [ 0.597 -0.485 -0.485 -0.485 -0.485  0.111  0.111  0.111  0.111  0.111  0.111  0.111  0.111  0.111  0.111  0.111  0.111]
@@ -107,6 +138,8 @@ cartesian multipoles:
 """
 
 # C6H6
+# obj_func_type = 1: nb_iterations = 35
+# obj_func_type = 2: nb_iterations = 44
 """
 charges:
 [-0.106 -0.107 -0.107 -0.107 -0.107 -0.106  0.106  0.106  0.107  0.107  0.106  0.106]

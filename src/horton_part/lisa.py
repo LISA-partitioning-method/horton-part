@@ -91,6 +91,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         """
         nprim = len(propars)
         r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
         oldF = None
         for irep in range(1000):
             # compute the contributions to the pro-atom
@@ -98,6 +100,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 [get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)]
             )
             pro = terms.sum(axis=0)
+            pro = np.clip(pro, 1e-100, np.inf)
             newF = -rgrid.integrate(4 * np.pi * r**2, r**2 * rho * np.log(pro))
             # transform to partitions
             terms *= rho / pro
@@ -160,6 +163,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
 
         r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
         # N_a : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
         N_a = rgrid.integrate(4 * np.pi * r**2, rho)
         vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))

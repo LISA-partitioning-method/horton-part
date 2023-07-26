@@ -42,7 +42,10 @@ def get_alpha(number, nb_exp=6):
         8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
         # Even we use O atom data as Cl atom data, we can still obtain a reasonable result for LISA model for
         # ClO- molecule. This means it needs small exponential coefficients.
+        # use O atom data for Cl
         # 17: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
+        # use C atom data for Cl
+        # 17: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
         17: np.array(
             [
                 0.0955,
@@ -225,9 +228,12 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             spherical_average, propars.copy(), rgrid, alphas, self._threshold
         )
 
+        # avoid too large r
+        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
+
         # compute the new charge
         pseudo_population = atgrid.rgrid.integrate(
-            4 * np.pi * rgrid.points**2 * spherical_average
+            4 * np.pi * r**2 * spherical_average
         )
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
@@ -294,6 +300,8 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
         nprim = len(propars)
         r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
         gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
         S = (
             1
@@ -304,9 +312,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
         vec_b = np.zeros(nprim, float)
         for k in range(nprim):
-            vec_b[k] = rgrid.integrate(
-                4 * np.pi * rgrid.points**2, gauss_funcs[k], rho
-            )
+            vec_b[k] = rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
 
         # Construct linear equality or inequality constraints
         matrix_constraint = np.zeros([nprim, nprim + 1])
@@ -316,7 +322,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
         vector_constraint = np.zeros(nprim + 1)
         # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-        vector_constraint[0] = rgrid.integrate(4 * np.pi * rgrid.points**2, rho)
+        vector_constraint[0] = rgrid.integrate(4 * np.pi * r**2, rho)
 
         propars = quadprog.solve_qp(
             G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
@@ -361,6 +367,8 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
         nprim = len(propars)
         r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
         weights = rgrid.weights
         nelec = rgrid.integrate(4 * np.pi * r**2, rho)
 
