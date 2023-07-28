@@ -43,7 +43,7 @@ def main(name):
         "moldens": rho,
         "lmax": 3,
         "maxiter": 1000,
-        "obj_fn_type": 1,
+        "obj_fn_type": 0,
     }
 
     part = GaussianIterativeStockholderWPart(**kwargs)

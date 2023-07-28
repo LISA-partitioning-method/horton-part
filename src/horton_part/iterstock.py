@@ -187,15 +187,14 @@ class IterativeStockholderWPart(ISAWPart):
         atgrid = self.get_grid(index)
         dens = self.get_moldens(index)
         at_weights = self.cache.load("at_weights", index)
+        # avoid too large r
+        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
         spline = atgrid.spherical_average(at_weights * dens)
-        spherical_average = np.clip(spline(atgrid.rgrid.points), 1e-100, np.inf)
+        spherical_average = np.clip(spline(r), 1e-100, np.inf)
 
         # assign as new propars
         propars = self.cache.load("propars")
         propars[self._ranges[index] : self._ranges[index + 1]] = spherical_average
-
-        # avoid too large r
-        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
 
         # compute the new charge
         pseudo_population = atgrid.rgrid.integrate(

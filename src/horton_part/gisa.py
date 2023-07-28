@@ -24,6 +24,9 @@
 import numpy as np
 from scipy.optimize import least_squares
 import quadprog
+import cvxopt
+
+# from cvxopt.solvers import qp
 from .iterstock import ISAWPart
 from .log import log, biblio
 
@@ -217,7 +220,9 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
         spline = atgrid.spherical_average(at_weights * dens)
-        spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
+        # avoid too large r
+        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
+        spherical_average = np.clip(spline(r), 1e-100, np.inf)
 
         # assign as new propars
         propars = self.cache.load("propars")[
@@ -227,9 +232,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         propars[:] = self._opt_propars(
             spherical_average, propars.copy(), rgrid, alphas, self._threshold
         )
-
-        # avoid too large r
-        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
 
         # compute the new charge
         pseudo_population = atgrid.rgrid.integrate(
@@ -242,7 +244,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
     def _get_initial_propars(number):
         """Create initial parameters for proatom density functions."""
         nprim = get_nprim(number)
-        # from https://github.com/rbenda/ISA_multipoles is a typo.
+        # from https://github.com/rbenda/ISA_multipoles.
         if number == 17:
             return np.ones(nprim, float) * 17.5 / nprim
         elif number == 8:
@@ -252,18 +254,24 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._obj_fn_type == 1:
-            return self._constrained_least_squares(
+            return self._constrained_least_squares_quadprog(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._obj_fn_type == 2:
-            return self._constrained_least_squares2(
+            return self._constrained_least_squares(
                 rho, propars, rgrid, alphas, threshold
             )
+        elif self._obj_fn_type == 3:
+            return self._constrained_least_cvxopt(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._obj_fn_type == 0:
+            return self._solver_comparison(rho, propars, rgrid, alphas, threshold)
         else:
             raise NotImplementedError
 
     @staticmethod
-    def _constrained_least_squares(rho, propars, rgrid, alphas, threshold):
+    def _constrained_least_squares_quadprog(rho, propars, rgrid, alphas, threshold):
         r"""
         Optimize parameters for proatom density functions.
 
@@ -277,7 +285,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
             = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
 
-            b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
+            b = 2 * \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
 
         Parameters
         ----------
@@ -304,7 +312,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         r = np.clip(r, 1e-100, 1e10)
         gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
         S = (
-            1
+            2
             / np.pi**1.5
             * (alphas[:, None] * alphas[None, :]) ** 1.5
             / (alphas[:, None] + alphas[None, :]) ** 1.5
@@ -312,7 +320,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
         vec_b = np.zeros(nprim, float)
         for k in range(nprim):
-            vec_b[k] = rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
+            vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
 
         # Construct linear equality or inequality constraints
         matrix_constraint = np.zeros([nprim, nprim + 1])
@@ -324,13 +332,13 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
         vector_constraint[0] = rgrid.integrate(4 * np.pi * r**2, rho)
 
-        propars = quadprog.solve_qp(
+        propars_qp = quadprog.solve_qp(
             G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
         )[0]
-        return propars
+        return propars_qp
 
     @staticmethod
-    def _constrained_least_squares2(rho, propars, rgrid, alphas, threshold):
+    def _constrained_least_squares(rho, propars, rgrid, alphas, threshold, x0=None):
         r"""
         Optimize parameters for proatom density functions.
 
@@ -374,8 +382,76 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
         def f(args):
             rho_test, _ = get_proatom_rho(r, args, alphas)
-            return (rho_test - rho) * np.sqrt(4 * np.pi * weights) * r
-            # return rgrid.integrate(4 * np.pi * r**2, rho_test) - nelec
+            # This is integrand function corresponding to the difference of number of electrons.
+            obj_func = 4 * np.pi * np.abs(rho_test - rho) * weights * r**2
+            return obj_func
 
-        res = least_squares(f, x0=[nelec / nprim] * nprim, bounds=(1e-2, 120))
+        if x0 is None:
+            x0 = [nelec / nprim] * nprim
+        res = least_squares(
+            f,
+            x0=x0,
+            bounds=(0, np.inf),
+            verbose=2,
+        )
         return res.x
+
+    @staticmethod
+    def _constrained_least_cvxopt(rho, propars, rgrid, alphas, threshold):
+        nprim = len(propars)
+        r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
+        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
+        S = (
+            2
+            / np.pi**1.5
+            * (alphas[:, None] * alphas[None, :]) ** 1.5
+            / (alphas[:, None] + alphas[None, :]) ** 1.5
+        )
+        P = cvxopt.matrix(S)
+
+        vec_b = np.zeros((nprim, 1), float)
+        for k in range(nprim):
+            vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
+        q = -cvxopt.matrix(vec_b)
+
+        # Linear inequality constraints
+        G = cvxopt.matrix(0.0, (nprim, nprim))
+        G[:: nprim + 1] = -1.0
+        # G = -cvxopt.matrix(np.identity(nprim))
+        h = cvxopt.matrix(0.0, (nprim, 1))
+
+        # Linear equality constraints
+        A = cvxopt.matrix(1.0, (1, nprim))
+        Na = rgrid.integrate(4 * np.pi * r**2, rho)
+        b = cvxopt.matrix(Na, (1, 1))
+
+        # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
+        opt_CVX = cvxopt.solvers.qp(P, q, G, h, A, b)
+        new_propars = np.asarray(opt_CVX["x"]).flatten()
+        return new_propars
+
+    @staticmethod
+    def _solver_comparison(rho, propars, rgrid, alphas, threshold):
+        propars_qp = (
+            GaussianIterativeStockholderWPart._constrained_least_squares_quadprog(
+                rho, propars, rgrid, alphas, threshold
+            )
+        )
+        print("propars_qp:")
+        propars_qp = np.clip(propars_qp, 0, np.inf)
+        print(propars_qp)
+
+        propars_lsq = GaussianIterativeStockholderWPart._constrained_least_squares(
+            rho, propars, rgrid, alphas, threshold, x0=propars_qp
+        )
+        print("propars_lsq:")
+        print(propars_lsq)
+
+        propars_cvxopt = GaussianIterativeStockholderWPart._constrained_least_cvxopt(
+            rho, propars, rgrid, alphas, threshold
+        )
+        print("propars_cvxopt:")
+        print(propars_cvxopt)
+        return propars_cvxopt
