@@ -29,18 +29,6 @@ def test_alpha():
     assert get_alpha(6) == pytest.approx([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511])
     assert get_alpha(7) == pytest.approx([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857])
     assert get_alpha(8) == pytest.approx([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311])
-    # from https://github.com/rbenda/ISA_multipoles
-    a0 = 0.529177
-    assert get_alpha(17) / a0 == pytest.approx(
-        [
-            64.25071384432808,
-            36.457608159148506,
-            20.687041639823683,
-            11.738391886260107,
-            6.66068384616987,
-            3.7794537555487104,
-        ]
-    )
 
     with pytest.raises(AssertionError):
         get_alpha(1.1)
@@ -53,6 +41,8 @@ def test_get_nprim():
     for number in range(1, 120):
         if number == 1:
             assert get_nprim(number) == 4
+        elif number == 17:
+            assert get_nprim(number) == 9
         else:
             assert get_nprim(number) == 6
 

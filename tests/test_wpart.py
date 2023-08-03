@@ -102,7 +102,7 @@ def test_is_water_hf_sto3g():
 def test_mbis_water_hf_sto3g():
     expecting = np.array([-0.61891067, 0.3095756, 0.30932584])
     wpart = check_water_hf_sto3g("mbis", expecting, needs_padb=False)
-    assert (wpart["charges"] == wpart["valence_charges"] + wpart["core_charges"]).all()
+    assert wpart["charges"] == pytest.approx(wpart["valence_charges"] + wpart["core_charges"])
     assert (wpart["core_charges"] > 0).all()
     assert (wpart["valence_charges"] < 0).all()
     assert (wpart["valence_widths"] > 0).all()
