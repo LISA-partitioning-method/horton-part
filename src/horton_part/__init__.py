@@ -32,7 +32,6 @@ from .proatomdb import *
 from .stockholder import *
 from .gisa import *
 from .lisa import *
-from .context import *
 from .log import *
 from .moments import *
 

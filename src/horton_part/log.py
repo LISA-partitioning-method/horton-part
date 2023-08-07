@@ -37,8 +37,7 @@ import sys
 import resource
 import time
 import urllib
-
-from .context import context
+from importlib_resources import files
 
 try:
     from _version import __version__
@@ -736,10 +735,10 @@ class Biblio(object):
             log.blank()
 
 
-head_banner = """\
+head_banner = rf""" 
 ================================================================================
 P_A__R_T
-/ (..) \ Welcome to HORTON-PART %s!
+/ (..) \ Welcome to HORTON-PART {__version__}!
 \/ || \/
  |_''_|  HORTON-PART is a computational chemistry package that supports different
          partition schemes. It is based on the sub-module 'part' of HORTON2,
@@ -776,21 +775,18 @@ P_A__R_T
          computation. Useful numerical output may be written to a checkpoint
          file and is accessible through the Python scripting interface.
 
-================================================================================""" % (
-    __version__
-)
+================================================================================"""
 
-foot_banner = """
+
+foot_banner = rf"""
 ================================================================================
 P_A  R_T
 / )--( \ End of the HORTON-PART program.
 \|  \ |/
- |_||_|  Thank you for using HORTON-PART %s! See you soon!
-================================================================================""" % (
-    __version__
-)
+ |_||_|  Thank you for using HORTON-PART {__version__}! See you soon!
+================================================================================"""
 
 timer = TimerGroup()
-biblio = Biblio(context.get_fn("references.bib"))
+biblio = Biblio(files("horton_part.data").joinpath("references.bib"))
 log = ScreenLog("HORTON-PART", __version__, head_banner, foot_banner, timer, biblio)
 atexit.register(log.print_footer)
