@@ -102,3 +102,4 @@ ENV/
 # PyCharm
 .idea/
 _version.py
+examples/*.npz
