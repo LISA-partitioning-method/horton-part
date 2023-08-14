@@ -424,12 +424,13 @@ def parse_args(args=None):
         "--type",
         type=str,
         default="lisa",
+        choices=["gisa", "lisa", "mbis", "is"],
         help="Number of angular grid points. [default=%(default)s]",
     )
     parser.add_argument(
         "--obj_func_type",
         type=int,
-        default=1,
+        default=2,
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",
     )
 
