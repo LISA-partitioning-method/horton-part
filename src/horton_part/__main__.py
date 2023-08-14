@@ -49,6 +49,8 @@ from grid.becke import BeckeWeights
 from grid.molgrid import MolGrid
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
+from grid.basegrid import OneDGrid
+from grid.atomgrid import AtomGrid
 from iodata import load_one
 from horton_part import wpart_schemes, log
 import time
@@ -58,7 +60,7 @@ np.set_printoptions(precision=3, suppress=True, linewidth=width)
 np.random.seed(44)
 log.set_level(1)
 
-__all__ = ["prepare_input"]
+__all__ = ["prepare_input", "construct_molgrid_from_dict"]
 
 
 def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgrids):
@@ -125,7 +127,9 @@ def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids):
     becke._radii[54] = 3.5
     oned = GaussChebyshev(nrad)
     rgrid = BeckeRTransform(1e-4, 1.5).transform_1d_grid(oned)
-    grid = MolGrid.from_size(atnums, atcoords, rgrid, nang, becke, store=store_atgrids)
+    grid = MolGrid.from_size(
+        atnums, atcoords, rgrid, nang, becke, store=store_atgrids, rotate=0
+    )
     assert np.isfinite(grid.points).all()
     assert np.isfinite(grid.weights).all()
     assert (grid.weights >= 0).all()
@@ -225,6 +229,29 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
     return result
 
 
+def construct_molgrid_from_dict(data):
+    atcoords = data["atcoords"]
+    atnums = data["atnums"]
+    atcorenums = data["atcorenums"]
+    aim_weights = data["aim_weights"]
+    natom = len(atnums)
+
+    # build atomic grids
+    atgrids = []
+    for iatom in range(natom):
+        rgrid = OneDGrid(
+            points=data[f"atom{iatom}/rgrid/points"],
+            weights=data[f"atom{iatom}/rgrid/weights"],
+        )
+        shell_idxs = data[f"atom{iatom}/shell_idxs"]
+        sizes = shell_idxs[1:] - shell_idxs[:-1]
+        center = atcoords[iatom]
+        atgrid = AtomGrid(rgrid, sizes=sizes, center=atcoords[iatom], rotate=0)
+        atgrids.append(atgrid)
+
+    return MolGrid(atnums, atgrids, aim_weights=aim_weights, store=True)
+
+
 def main(args=None):
     """Command-line interface."""
     t_tot = 0.0
@@ -254,6 +281,7 @@ def main(args=None):
             "atcorenums": iodata.atcorenums,
             "points": grid.points,
             "weights": grid.weights,
+            "aim_weights": grid.aim_weights,
             "cellvecs": np.zeros((0, 3)),
             "nelec": iodata.mo.nelec,
         }
@@ -306,7 +334,7 @@ def main(args=None):
 
         data["part/charges"] = part.cache["charges"]
         data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
-        data["part/radial_moments"] = part.cache['radial_moments']
+        data["part/radial_moments"] = part.cache["radial_moments"]
         t3 = time.time()
         t_tot = t3 - t0
     else:
@@ -320,7 +348,8 @@ def main(args=None):
     print("*" * width)
     print(f"Loading file                              : {t1-t0:>10.2f} s")
     print(f"Build grid and compute moleuclar density  : {t2-t1:>10.2f} s")
-    print(f"partitioning                              : {t3-t2:>10.2f} s")
+    if not args.skip_part:
+        print(f"partitioning                              : {t3-t2:>10.2f} s")
     print(f"Total                                     : {t_tot:>10.2f} s")
     print("*" * width)
 
