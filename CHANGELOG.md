@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2023-08-15
+
+### Added
+
+- Add `part` script to run `lisa`, `gisa`, `mbis` and `isa` methods.
+
+## [Unreleased]
+
 ## [1.0.3] - 2023-06-29
 
 ### Added
