@@ -40,7 +40,7 @@ import urllib
 from importlib_resources import files
 
 try:
-    from _version import __version__
+    from horton_part._version import __version__
 except ImportError:
     __version__ = "0.0.0a-dev"
     __version_tuple__ = (0, 0, 0, "a-dev")
@@ -118,9 +118,8 @@ class ScreenLog(object):
 
     @level.setter
     def level(self, value):
-        assert 0<= value <= 5
+        assert 0 <= value <= 5
         self._level = value
-
 
     @property
     def do_warning(self):
@@ -149,7 +148,6 @@ class ScreenLog(object):
     @file.setter
     def file(self, value):
         self._file = sys.stdout if value is None else value
-
 
     def set_level(self, level):
         """Set the log level.
