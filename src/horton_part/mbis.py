@@ -61,6 +61,9 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
     r = np.clip(r, 1e-100, 1e10)
     terms = np.zeros((nshell, len(r)), float)
     oldpro = None
+    if log.do_medium:
+        log("            Iter.    Change    ")
+        log("            -----    ------    ")
     for irep in range(1000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
@@ -83,6 +86,10 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
         else:
             error = oldpro - pro
             change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+
+        if log.do_medium:
+            log(f"            {irep+1:<4}    {change:.3e}")
+
         if change < threshold:
             return propars
         oldpro = pro

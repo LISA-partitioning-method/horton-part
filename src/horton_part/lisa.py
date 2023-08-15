@@ -41,18 +41,20 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                     ("Scheme", "Linear Iterative Stockholder"),
                     ("Convergence threshold", "%.1e" % self._threshold),
                     ("Maximum iterations", self._maxiter),
+                    ("lmax", self._lmax),
+                    ("Solver", self._solver),
                 ]
             )
             biblio.cite(
-                "Robert2022, the use of Linear Iterative Stockholder partitioning"
+                "Benda2022", "the use of Linear Iterative Stockholder partitioning"
             )
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
-        if self._obj_fn_type == 1:
+        if self._solver == 1:
             return self._opt_propars_with_lisa_method(
                 rho, propars, rgrid, alphas, threshold
             )
-        elif self._obj_fn_type == 2:
+        elif self._solver == 2:
             return self._opt_propars_with_mbis_lagrangian(
                 rho, propars, rgrid, alphas, threshold
             )
@@ -94,6 +96,9 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         # avoid too large r
         r = np.clip(r, 1e-100, 1e10)
         oldF = None
+        if log.do_medium:
+            log("            Iter.    Change    ")
+            log("            -----    ------    ")
         for irep in range(1000):
             # compute the contributions to the pro-atom
             terms = np.array(
@@ -112,6 +117,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 change = 1e100
             else:
                 change = np.abs(oldF - newF)
+            if log.do_medium:
+                log(f"            {irep+1:<4}    {change:.3e}")
             if change < threshold:
                 return propars
             oldF = newF

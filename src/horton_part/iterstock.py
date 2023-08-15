@@ -161,6 +161,7 @@ class IterativeStockholderWPart(ISAWPart):
                     ("Scheme", "Iterative Stockholder"),
                     ("Convergence threshold", "%.1e" % self._threshold),
                     ("Maximum iterations", self._maxiter),
+                    ("lmax", self._lmax),
                 ]
             )
         biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")

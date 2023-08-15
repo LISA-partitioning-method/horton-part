@@ -43,10 +43,6 @@ dynamic = ['version']
 [project.optional-dependencies]
 dev = ["pre-commit"]
 tests = ['pytest', 'pytest-skip-slow']
-examples = [
-    # "qc-iodata@git+https://github.com/theochem/iodata",
-    # "gbasis@git+https://github.com/theochem/gbasis",
-    ]
 
 [project.urls]
 Homepage = 'https://github.com/yingxingcheng/horton-part'

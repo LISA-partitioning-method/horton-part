@@ -108,19 +108,48 @@ class ScreenLog(object):
         self._level = self.medium
         self._last_blank = False
         self.add_newline = False
-        if f is None:
-            _file = sys.stdout
-        else:
-            _file = f
-        self._file = _file
+        self._file = sys.stdout if f is None else f
 
     # The following properties can be used by the program to see if output of a given
     # priority should be printed.
-    do_warning = property(lambda self: self._level >= self.warning)
-    do_low = property(lambda self: self._level >= self.low)
-    do_medium = property(lambda self: self._level >= self.medium)
-    do_high = property(lambda self: self._level >= self.high)
-    do_debug = property(lambda self: self._level >= self.debug)
+    @property
+    def level(self):
+        return self._level
+
+    @level.setter
+    def level(self, value):
+        assert 0<= value <= 5
+        self._level = value
+
+
+    @property
+    def do_warning(self):
+        return self._level >= self.warning
+
+    @property
+    def do_low(self):
+        return self._level >= self.low
+
+    @property
+    def do_medium(self):
+        return self._level >= self.medium
+
+    @property
+    def do_high(self):
+        return self._level >= self.high
+
+    @property
+    def do_debug(self):
+        return self.level >= self.debug
+
+    @property
+    def file(self):
+        return self._file
+
+    @file.setter
+    def file(self, value):
+        self._file = sys.stdout if value is None else value
+
 
     def set_level(self, level):
         """Set the log level.
@@ -301,7 +330,7 @@ class ScreenLog(object):
         """Print the last screen output."""
         if self.do_warning and self._active:
             self.biblio.report()
-            self._print_basic_info()
+            # self._print_basic_info()
             self.timer._stop("Total")
             self.timer.report(self)
             print(self.foot_banner, file=self._file)

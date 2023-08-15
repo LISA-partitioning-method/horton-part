@@ -50,11 +50,8 @@ The following dependencies will be necessary for `horton-part` to build properly
 * quadprog>=0.1.11 : https://github.com/quadprog/quadprog
 * cvxopt>=1.3.1 : https://github.com/cvxopt/cvxopt
 * qc-grid : https://github.com/theochem/grid
-
-In order to use HORTON-PART, the following libraries with latest version should be installed manually.
-
-* qc-iodata : https://github.com/theochem/iodata (for running examples only)
-* gbasis : https://github.com/theochem/gbasis (for running examples only)
+* qc-iodata : https://github.com/theochem/iodata
+* gbasis : https://github.com/theochem/gbasis
 
 
 ## Installation
@@ -73,12 +70,6 @@ cd horton-part
 pip install .
 ```
 
-To run examples, one needs to add dependencies for `examples`:
-
-```bash
-pip install .[examples]
-```
-
 To run test, one needs to add tests dependencies for `tests`:
 
 ```bash
@@ -87,5 +78,5 @@ pip install .[tests]
 
 For developers, one could need all dependencies:
 ```bash
-pip install -e .[dev,tests,examples]
+pip install -e .[dev,tests]
 ```

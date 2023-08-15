@@ -58,7 +58,6 @@ import time
 width = 100
 np.set_printoptions(precision=3, suppress=True, linewidth=width)
 np.random.seed(44)
-log.set_level(1)
 
 __all__ = ["prepare_input", "construct_molgrid_from_dict"]
 
@@ -254,14 +253,22 @@ def construct_molgrid_from_dict(data):
 
 def main(args=None):
     """Command-line interface."""
-    t_tot = 0.0
     args = parse_args(args)
-    log("Loading file : ", args.fn_wfn)
+    log.set_level(args.verbose)
+    print("Loading file : ", args.fn_wfn)
     t0 = time.time()
     iodata = load_one(args.fn_wfn)
     t1 = time.time()
+    print("*" * width)
+    print(" Molecualr information ".center(width, " "))
+    print("*" * width)
+    print("atnums :")
+    print(iodata.atnums)
+    print("Coordinates [a.u.]: ")
+    print(iodata.atcoords)
 
     # grid and density
+    print(" " * width)
     print("*" * width)
     print(" Build grid and compute moleuclar density ".center(width, " "))
     print("*" * width)
@@ -310,13 +317,13 @@ def main(args=None):
             "pseudo_numbers": iodata.atcorenums,
             "grid": grid,
             "moldens": data["density"],
-            "lmax": 3,
-            "maxiter": 1000,
-            # "obj_fn_type": 2,
+            "lmax": args.lmax,
+            "maxiter": args.maxiter,
+            "threshold": args.threshold,
         }
 
         if args.type in ["gisa", "lisa"]:
-            kwargs["obj_fn_type"] = args.obj_func_type
+            kwargs["solver"] = args.solver
 
         part = wpart_schemes(args.type)(**kwargs)
         part.do_moments()
@@ -332,11 +339,18 @@ def main(args=None):
         print("radial moments:")
         print(part.cache["radial_moments"])
 
+        t3 = time.time()
+        t_tot = t3 - t0
+        data["part/type"] = args.type
+        data["part/lmax"] = args.lmax
+        data["part/maxiter"] = args.maxiter
+        data["part/threshold"] = args.threshold
+        data["part/solver"] = args.solver
+        data["part/time"] = t3 - t2
+        data["part/niter"] = part.cache["niter"]
         data["part/charges"] = part.cache["charges"]
         data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         data["part/radial_moments"] = part.cache["radial_moments"]
-        t3 = time.time()
-        t_tot = t3 - t0
     else:
         t_tot = t2 - t0
 
@@ -349,9 +363,10 @@ def main(args=None):
     print(f"Loading file                              : {t1-t0:>10.2f} s")
     print(f"Build grid and compute moleuclar density  : {t2-t1:>10.2f} s")
     if not args.skip_part:
-        print(f"partitioning                              : {t3-t2:>10.2f} s")
+        print(f"Partitioning                              : {t3-t2:>10.2f} s")
     print(f"Total                                     : {t_tot:>10.2f} s")
     print("*" * width)
+    print(" " * width)
 
 
 def parse_args(args=None):
@@ -364,6 +379,12 @@ def parse_args(args=None):
         help="The NPZ file in which the grid and the density will be stored.",
         type=str,
         default="results.npz",
+    )
+    parser.add_argument(
+        "--verbose",
+        type=int,
+        default=3,
+        help="The level for printing output information. [default=%(default)s]",
     )
     # for grid
     parser.add_argument(
@@ -428,7 +449,25 @@ def parse_args(args=None):
         help="Number of angular grid points. [default=%(default)s]",
     )
     parser.add_argument(
-        "--obj_func_type",
+        "--maxiter",
+        type=int,
+        default=1000,
+        help="The maximum iterations. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=1e-6,
+        help="The threshold of convergence. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--lmax",
+        type=int,
+        default=3,
+        help="The maximum angular momentum in multipole expansions. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--solver",
         type=int,
         default=2,
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",

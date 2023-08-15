@@ -186,26 +186,27 @@ class Part(JustOnceClass):
         raise NotImplementedError
 
     def _init_log_memory(self):
-        if log.do_medium:
-            # precompute arrays sizes for certain grids
-            nbyte_global = self.grid.size * 8
-            nbyte_locals = np.array(
-                [self.get_grid(i).size * 8 for i in range(self.natom)]
-            )
+        pass
+        # if log.do_medium:
+        #     # precompute arrays sizes for certain grids
+        #     nbyte_global = self.grid.size * 8
+        #     nbyte_locals = np.array(
+        #         [self.get_grid(i).size * 8 for i in range(self.natom)]
+        #     )
 
-            # compute and report usage
-            estimates = self.get_memory_estimates()
-            nbyte_total = 0
-            print("Coarse estimate of memory usage for the partitioning:")
-            print("                         Label  Memory[GB]")
-            print()
-            for label, nlocals, nglobal in estimates:
-                nbyte = np.dot(nlocals, nbyte_locals) + nglobal * nbyte_global
-                print("%30s  %10.3f" % (label, nbyte / 1024.0**3))
-                nbyte_total += nbyte
-            print("%30s  %10.3f" % ("Total", nbyte_total / 1024.0**3))
-            print("" + "~" * 100)
-            print()
+        #     # compute and report usage
+        #     estimates = self.get_memory_estimates()
+        #     nbyte_total = 0
+        #     print("Coarse estimate of memory usage for the partitioning:")
+        #     print("                         Label  Memory[GB]")
+        #     print()
+        #     for label, nlocals, nglobal in estimates:
+        #         nbyte = np.dot(nlocals, nbyte_locals) + nglobal * nbyte_global
+        #         print("%30s  %10.3f" % (label, nbyte / 1024.0**3))
+        #         nbyte_total += nbyte
+        #     print("%30s  %10.3f" % ("Total", nbyte_total / 1024.0**3))
+        #     print("" + "~" * 100)
+        #     print()
 
     def get_memory_estimates(self):
         return [
@@ -416,8 +417,8 @@ class WPart(Part):
             log("Performing a density-based AIM analysis with a wavefunction as input.")
             log.deflist(
                 [
-                    (" Molecular grid", self._grid.__class__.__name__),
-                    (" Using local grids", self._local),
+                    ("Molecular grid", self._grid.__class__.__name__),
+                    ("Using local grids", self._local),
                 ]
             )
 

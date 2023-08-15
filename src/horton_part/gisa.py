@@ -118,7 +118,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "gisa"
-    options = ["lmax", "threshold", "maxiter", "obj_fn_type"]
+    options = ["lmax", "threshold", "maxiter", "solver"]
     linear = False
 
     def __init__(
@@ -132,7 +132,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         lmax=3,
         threshold=1e-6,
         maxiter=500,
-        obj_fn_type=1,
+        solver=1,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -147,7 +147,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self._obj_fn_type = obj_fn_type
+        self._solver = solver
         ISAWPart.__init__(
             self,
             coordinates,
@@ -166,9 +166,11 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         if log.do_medium:
             log.deflist(
                 [
-                    ("Scheme", "Iterative Stockholder"),
+                    ("Scheme", "Gaussian Iterative Stockholder Analysis (GISA)"),
                     ("Convergence threshold", "%.1e" % self._threshold),
                     ("Maximum iterations", self._maxiter),
+                    ("lmax", self._lmax),
+                    ("Solver", self._solver),
                 ]
             )
             biblio.cite(
@@ -245,27 +247,29 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         """Create initial parameters for proatom density functions."""
         nprim = get_nprim(number)
         # from https://github.com/rbenda/ISA_multipoles.
-        if number == 17:
-            return np.ones(nprim, float) * 17.5 / nprim
-        elif number == 8:
-            return np.ones(nprim, float) * 8.5 / nprim
-        else:
-            return np.ones(nprim, float) * (number + 0.5) / nprim
+        # TODO: this should be fixed
+        # if number == 17:
+        #     return np.ones(nprim, float) * 17.5 / nprim
+        # elif number == 8:
+        #     return np.ones(nprim, float) * 8.5 / nprim
+        # else:
+        #     return np.ones(nprim, float) * (number + 0.5) / nprim
+        return np.ones(nprim, float) * 1
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
-        if self._obj_fn_type == 1:
+        if self._solver == 1:
             return self._constrained_least_squares_quadprog(
                 rho, propars, rgrid, alphas, threshold
             )
-        elif self._obj_fn_type == 2:
+        elif self._solver == 2:
             return self._constrained_least_squares(
                 rho, propars, rgrid, alphas, threshold
             )
-        elif self._obj_fn_type == 3:
+        elif self._solver == 3:
             return self._constrained_least_cvxopt(
                 rho, propars, rgrid, alphas, threshold
             )
-        elif self._obj_fn_type == 0:
+        elif self._solver == 0:
             return self._solver_comparison(rho, propars, rgrid, alphas, threshold)
         else:
             raise NotImplementedError
@@ -392,7 +396,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             f,
             x0=x0,
             bounds=(0, np.inf),
-            verbose=2,
+            verbose=2 if log.level >= 2 else log.level,
         )
         return res.x
 
@@ -428,7 +432,9 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         b = cvxopt.matrix(Na, (1, 1))
 
         # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
-        opt_CVX = cvxopt.solvers.qp(P, q, G, h, A, b)
+        opt_CVX = cvxopt.solvers.qp(
+            P, q, G, h, A, b, options={"show_progress": log.do_medium}
+        )
         new_propars = np.asarray(opt_CVX["x"]).flatten()
         return new_propars
 
