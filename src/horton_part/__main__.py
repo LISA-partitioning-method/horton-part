@@ -231,7 +231,7 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
 def construct_molgrid_from_dict(data):
     atcoords = data["atcoords"]
     atnums = data["atnums"]
-    atcorenums = data["atcorenums"]
+    # atcorenums = data["atcorenums"]
     aim_weights = data["aim_weights"]
     natom = len(atnums)
 
@@ -244,7 +244,7 @@ def construct_molgrid_from_dict(data):
         )
         shell_idxs = data[f"atom{iatom}/shell_idxs"]
         sizes = shell_idxs[1:] - shell_idxs[:-1]
-        center = atcoords[iatom]
+        # center = atcoords[iatom]
         atgrid = AtomGrid(rgrid, sizes=sizes, center=atcoords[iatom], rotate=0)
         atgrids.append(atgrid)
 
