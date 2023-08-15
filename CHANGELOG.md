@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2023-08-15
+
+### Fixed
+
+- Fix the Lagrange method of GISA and LISA, and use the difference between densities.
+
 ## [1.0.6] - 2023-08-15
 
 ### Added
