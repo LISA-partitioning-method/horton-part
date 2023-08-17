@@ -129,6 +129,7 @@ class ISAWPart(StockholderWPart):
 
             while True:
                 counter += 1
+                self.cache.dump("niter", counter, tags="o")
 
                 # Update the parameters that determine the pro-atoms.
                 old_propars = propars.copy()

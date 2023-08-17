@@ -58,6 +58,19 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             return self._opt_propars_with_mbis_lagrangian(
                 rho, propars, rgrid, alphas, threshold
             )
+        elif str(self._solver).startswith("12"):
+            num = str(self._solver)
+            nb = int(num[2:]) if len(num) > 2 else 3
+            if self.cache["niter"] <= nb:
+                return self._opt_propars_with_lisa_method(
+                    rho, propars, rgrid, alphas, threshold
+                )
+            else:
+                return self._opt_propars_with_mbis_lagrangian(
+                    rho, propars, rgrid, alphas, threshold
+                )
+        elif self._solver == 0:
+            return self._solver_comparison(rho, propars, rgrid, alphas, threshold)
         else:
             raise NotImplementedError
 
@@ -129,10 +142,57 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 return propars
             # oldF = newF
             oldpro = pro
-        if log.do_warning:
-            log("Not converge, but go ahead!")
+        print("Inner iteration is not converge, but go ahead!")
         # The initial values could lead to converged issues.
         # assert False
+        return propars
+        # return None
+
+    @staticmethod
+    def _opt_propars_with_mbis_lagrangian_one_step(
+        rho, propars, rgrid, alphas, threshold
+    ):
+        r"""
+        Optimize parameters for proatom density functions using MBIS Lagrange.
+
+        The parameters can be computed analytically in this way. which should give the same results
+        as the L-ISA algorithms.
+
+        .. math::
+
+            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+        Parameters
+        ----------
+        rho:
+            Atomic spherical-average density, i.e.,
+            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+        propars:
+            Parameters array.
+        rgrid:
+            Radial grid.
+        alphas:
+            Exponential coefficients of Gaussian primitive functions.
+        threshold:
+            Threshold for convergence.
+
+        Returns
+        -------
+
+        """
+        nprim = len(propars)
+        r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
+        # compute the contributions to the pro-atom
+        terms = np.array([get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)])
+        pro = terms.sum(axis=0)
+        pro = np.clip(pro, 1e-100, np.inf)
+        # transform to partitions
+        terms *= rho / pro
+        # the partitions and the updated parameters
+        for k in range(nprim):
+            propars[k] = rgrid.integrate(4 * np.pi * r**2, terms[k])
         return propars
 
     @staticmethod
@@ -243,3 +303,27 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
 
         new_propars = np.asarray(opt_CVX["x"]).flatten()
         return new_propars
+
+    @staticmethod
+    def _solver_comparison(rho, propars, rgrid, alphas, threshold):
+        propars_lisa = LinearIterativeStockholderWPart._opt_propars_with_lisa_method(
+            rho, propars, rgrid, alphas, threshold
+        )
+        propars_lisa = np.clip(propars_lisa, 0, np.inf)
+
+        propars_lagrangian = (
+            LinearIterativeStockholderWPart._opt_propars_with_mbis_lagrangian(
+                rho, propars, rgrid, alphas, threshold
+            )
+        )
+        propars_lagrangian = np.clip(propars_lagrangian, 0, np.inf)
+        print("propars_lisa:")
+        print(propars_lisa)
+        print(np.sum(propars_lisa))
+        print("propars_lagrangian:")
+        print(propars_lagrangian)
+        print(np.sum(propars_lagrangian))
+        print("*" * 80)
+        assert np.allclose(propars_lisa, propars_lagrangian, atol=1e-2)
+        return propars_lisa
+        # return propars_lagrangian
