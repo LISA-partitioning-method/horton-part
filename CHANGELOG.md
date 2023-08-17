@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2023-08-17
+
+### Added
+
+- Add `LISA-12` model.
+- Add comparision for `LISA-1` and `LSIA-2`.
+
 ## [1.0.7] - 2023-08-15
 
 ### Fixed
