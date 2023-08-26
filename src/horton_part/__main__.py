@@ -53,7 +53,6 @@ from grid.basegrid import OneDGrid
 from grid.atomgrid import AtomGrid
 from iodata import load_one
 from horton_part import wpart_schemes, log
-import time
 
 width = 100
 np.set_printoptions(precision=3, suppress=True, linewidth=width)
@@ -255,66 +254,72 @@ def main(args=None):
     """Command-line interface."""
     args = parse_args(args)
     log.set_level(args.verbose)
-    print("Loading file : ", args.fn_wfn)
-    t0 = time.time()
-    iodata = load_one(args.fn_wfn)
-    t1 = time.time()
-    print("*" * width)
-    print(" Molecualr information ".center(width, " "))
-    print("*" * width)
-    print("atnums :")
-    print(iodata.atnums)
-    print("Coordinates [a.u.]: ")
-    print(iodata.atcoords)
 
-    # grid and density
-    print(" " * width)
-    print("*" * width)
-    print(" Build grid and compute moleuclar density ".center(width, " "))
-    print("*" * width)
-    grid, data = prepare_input(
-        iodata,
-        args.nrad,
-        args.nang,
-        args.chunk_size,
-        args.gradient,
-        args.orbitals,
-        True,
-    )
-    data.update(
-        {
-            "atcoords": iodata.atcoords,
-            "atnums": iodata.atnums,
-            "atcorenums": iodata.atcorenums,
-            "points": grid.points,
-            "weights": grid.weights,
-            "aim_weights": grid.aim_weights,
-            "cellvecs": np.zeros((0, 3)),
-            "nelec": iodata.mo.nelec,
-        }
-    )
+    if not args.use_cache:
+        print("Loading file : ", args.fn_wfn)
+        iodata = load_one(args.fn_wfn)
+        print("*" * width)
+        print(" Molecualr information ".center(width, " "))
+        print("*" * width)
+        print("atnums :")
+        print(iodata.atnums)
+        print("Coordinates [a.u.]: ")
+        print(iodata.atcoords)
 
-    data["atom_idxs"] = grid._indices
-    for iatom in range(iodata.natom):
-        atgrid = grid.get_atomic_grid(iatom)
-        data[f"atom{iatom}/points"] = atgrid.points
-        data[f"atom{iatom}/weights"] = atgrid.weights
-        data[f"atom{iatom}/shell_idxs"] = atgrid._indices
-        data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
-        data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
-    t2 = time.time()
+        # grid and density
+        print(" " * width)
+        print("*" * width)
+        print(" Build grid and compute moleuclar density ".center(width, " "))
+        print("*" * width)
+        grid, data = prepare_input(
+            iodata,
+            args.nrad,
+            args.nang,
+            args.chunk_size,
+            args.gradient,
+            args.orbitals,
+            True,
+        )
+        data.update(
+            {
+                "atcoords": iodata.atcoords,
+                "atnums": iodata.atnums,
+                "atcorenums": iodata.atcorenums,
+                "points": grid.points,
+                "weights": grid.weights,
+                "aim_weights": grid.aim_weights,
+                "cellvecs": np.zeros((0, 3)),
+                "nelec": iodata.mo.nelec,
+            }
+        )
+
+        data["atom_idxs"] = grid._indices
+        for iatom in range(iodata.natom):
+            atgrid = grid.get_atomic_grid(iatom)
+            data[f"atom{iatom}/points"] = atgrid.points
+            data[f"atom{iatom}/weights"] = atgrid.weights
+            data[f"atom{iatom}/shell_idxs"] = atgrid._indices
+            data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
+            data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
+        print(" " * width)
+        print("*" * width)
+    else:
+        print("*" * width)
+        print(f"Reade grid and density data from {args.cache}")
+        print("*" * width)
+        data = np.load(args.cache)
+        grid = construct_molgrid_from_dict(data)
 
     # partitioning
-    # TODO: add setup to parse_args
     if not args.skip_part:
         print(" " * width)
         print("*" * width)
         print(" Partitioning ".center(width, " "))
         print("*" * width)
         kwargs = {
-            "coordinates": iodata.atcoords,
-            "numbers": iodata.atnums,
-            "pseudo_numbers": iodata.atcorenums,
+            "coordinates": data["atcoords"],
+            "numbers": data["atnums"],
+            "pseudo_numbers": data["atcorenums"],
             "grid": grid,
             "moldens": data["density"],
             "lmax": args.lmax,
@@ -326,7 +331,8 @@ def main(args=None):
             kwargs["solver"] = args.solver
 
         part = wpart_schemes(args.type)(**kwargs)
-        part.do_moments()
+        part.do_partitioning()
+        # part.do_moments()
 
         print(" " * width)
         print("*" * width)
@@ -334,46 +340,64 @@ def main(args=None):
         print("*" * width)
         print("charges:")
         print(part.cache["charges"])
-        print("cartesian multipoles:")
-        print(part.cache["cartesian_multipoles"])
-        print("radial moments:")
-        print(part.cache["radial_moments"])
+        # print("cartesian multipoles:")
+        # print(part.cache["cartesian_multipoles"])
+        # print("radial moments:")
+        # print(part.cache["radial_moments"])
 
-        t3 = time.time()
-        t_tot = t3 - t0
-        data["part/type"] = args.type
-        data["part/lmax"] = args.lmax
-        data["part/maxiter"] = args.maxiter
-        data["part/threshold"] = args.threshold
-        data["part/solver"] = args.solver
-        data["part/time"] = t3 - t2
-        data["part/niter"] = part.cache["niter"]
-        data["part/charges"] = part.cache["charges"]
-        data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
-        data["part/radial_moments"] = part.cache["radial_moments"]
+        print(" " * width)
+        print("*" * width)
+        print(" Time usage ".center(width, " "))
+        print("*" * width)
+        print(
+            f"Do Partitioning                              : {part.time_usage['do_partitioning']:>10.2f} s"
+        )
+        print(
+            f"  Update Weights                             : {part._cache['time_update_at_weights']:>10.2f} s"
+        )
+        print(
+            f"    Update Promolecule Density               : {part._cache['time_update_promolecule']:>10.2f} s"
+        )
+        print(
+            f"    Update AIM Weights                       : {part._cache['time_compute_at_weights']:>10.2f} s"
+        )
+        print(
+            f"  Update Atomic Parameters                   : {part._cache['time_update_propars_atoms']:>10.2f} s"
+        )
+        # print(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
+        print("*" * width)
+        print(" " * width)
+
+        part_data = {}
+        part_data["natom"] = np.len(data["atnums"])
+        part_data["atnums"] = data["atnums"]
+        part_data["atcorenums"] = data["atcorenums"]
+        part_data["type"] = args.type
+        part_data["lmax"] = args.lmax
+        part_data["maxiter"] = args.maxiter
+        part_data["threshold"] = args.threshold
+        part_data["solver"] = args.solver
+        part_data["time"] = part.time_usage["do_partitioning"]
+        part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
+        part_data["time_update_promolecule"] = part._cache["time_update_promolecule"]
+        part_data["time_compute_at_weights"] = part._cache["time_compute_at_weights"]
+        part_data["time_update_propars_atoms"] = part._cache[
+            "time_update_propars_atoms"
+        ]
+        part_data["niter"] = part.cache["niter"]
+        part_data["charges"] = part.cache["charges"]
+        # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
+        # part_data["part/radial_moments"] = part.cache["radial_moments"]
+        np.savez_compressed(args.output, **part_data)
     else:
-        t_tot = t2 - t0
-
-    np.savez_compressed(args.output, **data)
-
-    print(" " * width)
-    print("*" * width)
-    print(" Time usage ".center(width, " "))
-    print("*" * width)
-    print(f"Loading file                              : {t1-t0:>10.2f} s")
-    print(f"Build grid and compute moleuclar density  : {t2-t1:>10.2f} s")
-    if not args.skip_part:
-        print(f"Partitioning                              : {t3-t2:>10.2f} s")
-    print(f"Total                                     : {t_tot:>10.2f} s")
-    print("*" * width)
-    print(" " * width)
+        np.savez_compressed(args.output, **data)
 
 
 def parse_args(args=None):
     """Parse command-line arguments."""
     description = "Molecular density partitioning with HORTON3."
     parser = argparse.ArgumentParser(prog="part", description=description)
-    parser.add_argument("fn_wfn", help="The wavefunction file.")
+    parser.add_argument("--fn_wfn", type=str, help="The wavefunction file.")
     parser.add_argument(
         "--output",
         help="The NPZ file in which the grid and the density will be stored.",
@@ -471,6 +495,18 @@ def parse_args(args=None):
         type=int,
         default=2,
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--use_cache",
+        default=False,
+        action="store_true",
+        help="Use grid and density from previous calculations",
+    )
+    parser.add_argument(
+        "--cache",
+        help="The NPZ file in which the grid and the density will be stored.",
+        type=str,
+        default="results.npz",
     )
 
     return parser.parse_args(args=args)

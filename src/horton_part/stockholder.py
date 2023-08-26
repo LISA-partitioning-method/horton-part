@@ -24,6 +24,7 @@
 from __future__ import print_function
 
 import numpy as np
+import time
 
 from .base import WPart
 
@@ -113,10 +114,12 @@ class StockholderWPart(WPart):
 
         # update the promolecule density and store the proatoms in the at_weights
         # arrays for later.
+        t0 = time.time()
         for index in range(self.natom):
             grid = self.get_grid(index)
             at_weights = self.cache.load("at_weights", index, alloc=grid.size)[0]
             self.update_pro(index, at_weights, promoldens)
+        t1 = time.time()
 
         # Compute the atomic weights by taking the ratios between proatoms and
         # promolecules.
@@ -124,6 +127,13 @@ class StockholderWPart(WPart):
             at_weights = self.cache.load("at_weights", index)
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
+        t2 = time.time()
+
+        if "history_time_update_promolecule" not in self.time_usage:
+            self.time_usage["history_time_update_promolecule"] = []
+            self.time_usage["history_time_compute_at_weights"] = []
+        self.time_usage["history_time_update_promolecule"].append(t1 - t0)
+        self.time_usage["history_time_compute_at_weights"].append(t2 - t1)
 
     def do_prosplines(self):
         for index in range(self.natom):

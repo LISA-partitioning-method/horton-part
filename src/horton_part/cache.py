@@ -25,7 +25,7 @@
    See for example the density partitioning code in ``horton.part``.
 """
 
-
+import time
 import numpy as np
 
 
@@ -54,6 +54,7 @@ class JustOnceClass(object):
 
     def __init__(self):
         self._done_just_once = set([])
+        self.time_usage = {}
 
     def __clear__(self):
         self.clear()
@@ -70,8 +71,11 @@ def just_once(fn):
             )
         if fn.__name__ in instance._done_just_once:
             return
+        t0 = time.time()
         fn(instance)
+        t1 = time.time()
         instance._done_just_once.add(fn.__name__)
+        instance.time_usage[fn.__name__] = t1 - t0
 
     wrapper.__doc__ = fn.__doc__
     return wrapper

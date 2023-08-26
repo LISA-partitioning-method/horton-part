@@ -28,6 +28,7 @@ import numpy as np
 from .cache import just_once
 from .stockholder import StockholderWPart
 from .log import log, biblio
+import time
 
 
 __all__ = ["ISAWPart", "IterativeStockholderWPart"]
@@ -89,17 +90,25 @@ class ISAWPart(StockholderWPart):
     def _init_propars(self):
         self.history_propars = []
         self.history_charges = []
+        self.history_time_update_at_weights = []
+        self.history_time_update_propars_atoms = []
 
     def _update_propars(self):
         # Keep track of history
         self.history_propars.append(self.cache.load("propars").copy())
 
         # Update the partitioning based on the latest proatoms
+        t0 = time.time()
         self.update_at_weights()
+        t1 = time.time()
 
         # Update the proatoms
         for index in range(self.natom):
             self._update_propars_atom(index)
+        t2 = time.time()
+
+        self.history_time_update_at_weights.append(t1 - t0)
+        self.history_time_update_propars_atoms.append(t2 - t1)
 
         # Keep track of history
         self.history_charges.append(self.cache.load("charges").copy())
@@ -113,6 +122,46 @@ class ISAWPart(StockholderWPart):
         self.cache.dump("history_charges", np.array(self.history_charges), tags="o")
         self.cache.dump("populations", self.numbers - charges, tags="o")
         self.cache.dump("pseudo_populations", self.pseudo_numbers - charges, tags="o")
+        self.cache.dump(
+            "history_time_update_at_weights",
+            np.array(self.history_time_update_at_weights),
+            tags="o",
+        )
+        self.cache.dump(
+            "history_time_update_propars_atoms",
+            np.array(self.history_time_update_propars_atoms),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_update_at_weights",
+            np.sum(self.history_time_update_at_weights),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_update_propars_atoms",
+            np.sum(self.history_time_update_propars_atoms),
+            tags="o",
+        )
+        self.cache.dump(
+            "history_time_update_promolecule",
+            np.array(self.time_usage["history_time_update_promolecule"]),
+            tags="o",
+        )
+        self.cache.dump(
+            "history_time_compute_at_weights",
+            np.array(self.time_usage["history_time_compute_at_weights"]),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_update_promolecule",
+            np.sum(self.time_usage["history_time_update_promolecule"]),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_compute_at_weights",
+            np.sum(self.time_usage["history_time_compute_at_weights"]),
+            tags="o",
+        )
 
     @just_once
     def do_partitioning(self):

@@ -108,7 +108,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         r = rgrid.points
         # avoid too large r
         r = np.clip(r, 1e-100, 1e10)
-        # oldF = None
         oldpro = None
         if log.do_medium:
             log("            Iter.    Change    ")
@@ -120,7 +119,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             )
             pro = terms.sum(axis=0)
             pro = np.clip(pro, 1e-100, np.inf)
-            # newF = -rgrid.integrate(4 * np.pi * r**2, r**2 * rho * np.log(pro))
             # transform to partitions
             terms *= rho / pro
             # the partitions and the updated parameters
@@ -132,21 +130,13 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             else:
                 error = oldpro - pro
                 change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
-            # if oldF is None:
-            #     change = 1e100
-            # else:
-            #     change = np.abs(oldF - newF)
             if log.do_medium:
                 log(f"            {irep+1:<4}    {change:.3e}")
             if change < threshold:
                 return propars
-            # oldF = newF
             oldpro = pro
         print("Inner iteration is not converge, but go ahead!")
-        # The initial values could lead to converged issues.
-        # assert False
         return propars
-        # return None
 
     @staticmethod
     def _opt_propars_with_mbis_lagrangian_one_step(
