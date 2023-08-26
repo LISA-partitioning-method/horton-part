@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2023-08-26
+
+### Added
+
+- Time usae for each process during partitioning
+- Cache file for density and grids.
+
 ## [1.0.8] - 2023-08-17
 
 ### Added
