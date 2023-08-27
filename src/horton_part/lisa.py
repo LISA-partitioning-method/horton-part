@@ -26,6 +26,7 @@ import numpy as np
 import cvxopt
 from .log import log, biblio
 from .gisa import GaussianIterativeStockholderWPart, get_pro_a_k
+from scipy.optimize import minimize, LinearConstraint
 
 
 __all__ = ["LinearIterativeStockholderWPart"]
@@ -52,6 +53,14 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._solver == 1:
             return self._opt_propars_with_lisa_method(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._solver == 101:
+            return self._opt_propars_with_lisa_method_fast(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._solver == 102:
+            return self._opt_propars_with_lisa_method_scipy(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 2:
@@ -293,6 +302,122 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
 
         new_propars = np.asarray(opt_CVX["x"]).flatten()
         return new_propars
+
+    @staticmethod
+    def _opt_propars_with_lisa_method_fast(
+        rho, propars, rgrid, alphas, threshold, verbose=False
+    ):
+        nprim = len(propars)
+        matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
+        vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
+        matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
+
+        r = rgrid.points
+        weights = rgrid.weights
+        r = np.clip(r, 1e-100, 1e10)
+        N_a = rgrid.integrate(4 * np.pi * r**2, rho)
+        vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))
+
+        # Precomputed Gaussian functions
+        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
+        integrand_mult = 4 * np.pi * r**2 * weights
+
+        def F(x=None, z=None):
+            if x is None:
+                return 0, cvxopt.matrix(propars[:])
+
+            x = np.clip(x, 1e-6, None).flatten()
+            gauss_pros = gauss_funcs * x[:, None]
+            pro = gauss_pros.sum(axis=0)
+            pro = np.clip(pro, 1e-100, np.inf)
+
+            f = -rgrid.integrate(integrand_mult, rho * np.log(pro))
+
+            tmp_grad = integrand_mult * rho / pro
+            df = -np.sum(tmp_grad[None, :] * gauss_funcs, axis=1).reshape((1, nprim))
+            df = cvxopt.matrix(df)
+
+            if z is None:
+                return f, df
+
+            tmp_hess = tmp_grad / pro
+            hess = np.sum(
+                tmp_hess[None, None, :]
+                * gauss_funcs[:, None, :]
+                * gauss_funcs[None, :, :],
+                axis=-1,
+            )
+            hess = z[0] * cvxopt.matrix(hess)
+            return f, df, hess
+
+        opt_CVX = cvxopt.solvers.cp(
+            F,
+            G=matrix_constraint_ineq,
+            h=vector_constraint_ineq,
+            A=matrix_constraint_eq,
+            b=vector_constraint_eq,
+            verbose=verbose,
+            reltol=threshold,
+            options={"show_progress": log.do_medium},
+        )
+
+        optimized_res = opt_CVX["x"]
+        if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
+            log("Not all values are positive!")
+
+        if np.sum(optimized_res) - N_a >= 1e-8 and log.do_warning:
+            log("The sum of results is not equal to N_a!")
+
+        new_propars = np.asarray(opt_CVX["x"]).flatten()
+        return new_propars
+
+    @staticmethod
+    def _opt_propars_with_lisa_method_scipy(
+        rho, propars, rgrid, alphas, threshold, verbose=False
+    ):
+        nprim = len(propars)
+
+        r = rgrid.points
+        weights = rgrid.weights
+        r = np.clip(r, 1e-100, 1e10)
+        N_a = rgrid.integrate(4 * np.pi * r**2, rho)
+        constraint = LinearConstraint(np.ones((1, nprim)), N_a, N_a)
+
+        # Precomputed Gaussian functions
+        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
+        integrand_mult = 4 * np.pi * r**2 * weights * rho
+
+        def F(x=None):
+            gauss_pros = gauss_funcs * x[:, None]
+            pro = gauss_pros.sum(axis=0)
+            pro = np.clip(pro, 1e-100, np.inf)
+            f = -np.sum(integrand_mult * np.log(pro))
+            tmp_grad = integrand_mult / pro
+            df = -np.sum(tmp_grad[None, :] * gauss_funcs, axis=1)
+            return f, df
+
+        bounds = [(1e-6, 200)] * nprim
+        opt_res = minimize(
+            F,
+            x0=propars,
+            method="trust-constr",
+            jac=True,
+            bounds=bounds,
+            constraints=constraint,
+            hess="3-point",
+            options={"gtol": 1e-8, "maxiter": 5000},
+        )
+
+        if not opt_res.success:
+            raise RuntimeError("Convergence failure.")
+
+        optimized_res = opt_res["x"]
+        if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
+            log("Not all values are positive!")
+
+        if np.sum(optimized_res) - N_a >= 1e-8 and log.do_warning:
+            log("The sum of results is not equal to N_a!")
+        return optimized_res
 
     @staticmethod
     def _solver_comparison(rho, propars, rgrid, alphas, threshold):
