@@ -369,7 +369,7 @@ def main(args=None):
         print(" " * width)
 
         part_data = {}
-        part_data["natom"] = np.len(data["atnums"])
+        part_data["natom"] = len(data["atnums"])
         part_data["atnums"] = data["atnums"]
         part_data["atcorenums"] = data["atcorenums"]
         part_data["type"] = args.type
