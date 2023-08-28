@@ -56,15 +56,26 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 101:
+            # code optimization of LISA-1
             return self._opt_propars_with_lisa_method_fast(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 102:
+            # use `trust_constr` in SciPy with constraint explicitly
             return self._opt_propars_with_lisa_method_scipy(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._solver == 103:
+            # same as LISA-102 but with constraint implicitly
+            return self._opt_propars_with_lisa_method_scipy_no_constr(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 2:
             return self._opt_propars_with_mbis_lagrangian(
+                rho, propars, rgrid, alphas, threshold
+            )
+        elif self._solver == 201:
+            return self._opt_propars_with_mbis_lagrangian_damping(
                 rho, propars, rgrid, alphas, threshold
             )
         elif str(self._solver).startswith("12"):
@@ -141,6 +152,76 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
             if log.do_medium:
                 log(f"            {irep+1:<4}    {change:.3e}")
+            if change < threshold:
+                return propars
+            oldpro = pro
+        print("Inner iteration is not converge, but go ahead!")
+        return propars
+
+    @staticmethod
+    def _opt_propars_with_mbis_lagrangian_damping(
+        rho, propars, rgrid, alphas, threshold
+    ):
+        r"""
+        Optimize parameters for proatom density functions using MBIS Lagrange.
+
+        The parameters can be computed analytically in this way. which should give the same results
+        as the L-ISA algorithms.
+
+        .. math::
+
+            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+        Parameters
+        ----------
+        rho:
+            Atomic spherical-average density, i.e.,
+            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+        propars:
+            Parameters array.
+        rgrid:
+            Radial grid.
+        alphas:
+            Exponential coefficients of Gaussian primitive functions.
+        threshold:
+            Threshold for convergence.
+
+        Returns
+        -------
+
+        """
+        nprim = len(propars)
+        r = rgrid.points
+        # avoid too large r
+        r = np.clip(r, 1e-100, 1e10)
+        oldpro = None
+        oldprapars = propars.copy()
+        if log.do_medium:
+            log("            Iter.    Change    ")
+            log("            -----    ------    ")
+        for irep in range(1000):
+            # compute the contributions to the pro-atom
+            terms = np.array(
+                [get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)]
+            )
+            pro = terms.sum(axis=0)
+            pro = np.clip(pro, 1e-100, np.inf)
+            # transform to partitions
+            terms *= rho / pro
+            # the partitions and the updated parameters
+            for k in range(nprim):
+                propars[k] = rgrid.integrate(4 * np.pi * r**2, terms[k])
+            propars = propars + 0.9 * (-propars + oldprapars)
+            # check for convergence
+            if oldpro is None:
+                change = 1e100
+            else:
+                error = oldpro - pro
+                change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+
+            if log.do_medium:
+                log(f"            {irep+1:<4}    {change:.3e}")
+
             if change < threshold:
                 return propars
             oldpro = pro
@@ -416,6 +497,54 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             log("Not all values are positive!")
 
         if np.sum(optimized_res) - N_a >= 1e-8 and log.do_warning:
+            log("The sum of results is not equal to N_a!")
+        return optimized_res
+
+    @staticmethod
+    def _opt_propars_with_lisa_method_scipy_no_constr(
+        rho, propars, rgrid, alphas, threshold, verbose=False
+    ):
+        nprim = len(propars)
+
+        r = rgrid.points
+        weights = rgrid.weights
+        r = np.clip(r, 1e-100, 1e10)
+        N_a = rgrid.integrate(4 * np.pi * r**2, rho)
+        # constraint = LinearConstraint(np.ones((1, nprim)), N_a, N_a)
+
+        # Precomputed Gaussian functions
+        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
+        integrand_mult = 4 * np.pi * r**2 * weights * rho
+
+        def F(x=None):
+            gauss_pros = gauss_funcs * x[:, None]
+            pro = gauss_pros.sum(axis=0)
+            pro = np.clip(pro, 1e-100, np.inf)
+            f = -np.sum(integrand_mult * np.log(pro)) - (N_a - np.sum(x))
+            tmp_grad = integrand_mult / pro
+            df = -np.sum(tmp_grad[None, :] * gauss_funcs, axis=1) + 1
+            return f, df
+
+        bounds = [(1e-6, 200)] * nprim
+        opt_res = minimize(
+            F,
+            x0=propars,
+            method="trust-constr",
+            jac=True,
+            bounds=bounds,
+            constraints=None,
+            hess="3-point",
+            options={"gtol": 1e-8, "maxiter": 5000},
+        )
+
+        if not opt_res.success:
+            raise RuntimeError("Convergence failure.")
+
+        optimized_res = opt_res["x"]
+        if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
+            log("Not all values are positive!")
+
+        if np.sum(optimized_res) - N_a >= 1e-4 and log.do_warning:
             log("The sum of results is not equal to N_a!")
         return optimized_res
 
