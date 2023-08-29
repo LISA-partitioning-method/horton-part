@@ -356,13 +356,13 @@ def main(args=None):
             f"  Update Weights                             : {part._cache['time_update_at_weights']:>10.2f} s"
         )
         print(
-            f"    Update Promolecule Density               : {part._cache['time_update_promolecule']:>10.2f} s"
+            f"    Update Promolecule Density (N_atom**2)   : {part._cache['time_update_promolecule']:>10.2f} s"
         )
         print(
-            f"    Update AIM Weights                       : {part._cache['time_compute_at_weights']:>10.2f} s"
+            f"    Update AIM Weights (N_atom)              : {part._cache['time_compute_at_weights']:>10.2f} s"
         )
         print(
-            f"  Update Atomic Parameters                   : {part._cache['time_update_propars_atoms']:>10.2f} s"
+            f"  Update Atomic Parameters (iter*N_atom)     : {part._cache['time_update_propars_atoms']:>10.2f} s"
         )
         # print(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
         print("*" * width)
@@ -386,6 +386,10 @@ def main(args=None):
         ]
         part_data["niter"] = part.cache["niter"]
         part_data["charges"] = part.cache["charges"]
+        part_data["history_charges"] = part.cache["history_charges"]
+        part_data["history_propars"] = part.cache["history_propars"]
+        part_data["history_entropies"] = part.cache["history_entropies"]
+
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
         np.savez_compressed(args.output, **part_data)

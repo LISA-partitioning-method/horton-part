@@ -40,7 +40,11 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             log.deflist(
                 [
                     ("Scheme", "Linear Iterative Stockholder"),
-                    ("Convergence threshold", "%.1e" % self._threshold),
+                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                    (
+                        "Inner loop convergence threshold",
+                        "%.1e" % self._inner_threshold,
+                    ),
                     ("Maximum iterations", self._maxiter),
                     ("lmax", self._lmax),
                     ("Solver", self._solver),
@@ -52,12 +56,12 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._solver == 1:
-            return self._opt_propars_with_lisa_method(
+            return self._opt_propars_with_lisa_method_fast(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 101:
             # code optimization of LISA-1
-            return self._opt_propars_with_lisa_method_fast(
+            return self._opt_propars_with_lisa_method_slow(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 102:
@@ -82,17 +86,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             return self._opt_propars_with_mbis_lagrangian_damping(
                 rho, propars, rgrid, alphas, threshold
             )
-        elif str(self._solver).startswith("12"):
-            num = str(self._solver)
-            nb = int(num[2:]) if len(num) > 2 else 3
-            if self.cache["niter"] <= nb:
-                return self._opt_propars_with_lisa_method(
-                    rho, propars, rgrid, alphas, threshold
-                )
-            else:
-                return self._opt_propars_with_mbis_lagrangian(
-                    rho, propars, rgrid, alphas, threshold
-                )
         elif self._solver == 0:
             return self._solver_comparison(rho, propars, rgrid, alphas, threshold)
         else:
@@ -229,8 +222,10 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             oldpro = pro
 
         print("Inner iteration is not converge, run lisa-1!")
-        new_propars = LinearIterativeStockholderWPart._opt_propars_with_lisa_method(
-            rho, oldpropars, rgrid, alphas, threshold
+        new_propars = (
+            LinearIterativeStockholderWPart._opt_propars_with_lisa_method_fast(
+                rho, oldpropars, rgrid, alphas, threshold
+            )
         )
         return new_propars
 
@@ -305,54 +300,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         return propars
 
     @staticmethod
-    def _opt_propars_with_mbis_lagrangian_one_step(
-        rho, propars, rgrid, alphas, threshold
-    ):
-        r"""
-        Optimize parameters for proatom density functions using MBIS Lagrange.
-
-        The parameters can be computed analytically in this way. which should give the same results
-        as the L-ISA algorithms.
-
-        .. math::
-
-            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-        Parameters
-        ----------
-        rho:
-            Atomic spherical-average density, i.e.,
-            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-        propars:
-            Parameters array.
-        rgrid:
-            Radial grid.
-        alphas:
-            Exponential coefficients of Gaussian primitive functions.
-        threshold:
-            Threshold for convergence.
-
-        Returns
-        -------
-
-        """
-        nprim = len(propars)
-        r = rgrid.points
-        # avoid too large r
-        r = np.clip(r, 1e-100, 1e10)
-        # compute the contributions to the pro-atom
-        terms = np.array([get_pro_a_k(propars[k], alphas[k], r) for k in range(nprim)])
-        pro = terms.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
-        # transform to partitions
-        terms *= rho / pro
-        # the partitions and the updated parameters
-        for k in range(nprim):
-            propars[k] = rgrid.integrate(4 * np.pi * r**2, terms[k])
-        return propars
-
-    @staticmethod
-    def _opt_propars_with_lisa_method(
+    def _opt_propars_with_lisa_method_slow(
         rho, propars, rgrid, alphas, threshold, verbose=False
     ):
         r"""

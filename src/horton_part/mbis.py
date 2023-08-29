@@ -96,30 +96,6 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
     assert False
 
 
-def _opt_mbis_propars2(rho, propars, rgrid, threshold):
-    assert len(propars) % 2 == 0
-    nshell = len(propars) // 2
-    r = rgrid.points
-    r = np.clip(r, 1e-100, 1e10)
-    terms = np.zeros((nshell, len(r)), float)
-    # compute the contributions to the pro-atom
-    for ishell in range(nshell):
-        N = propars[2 * ishell]
-        S = propars[2 * ishell + 1]
-        terms[ishell] = N * S**3 * np.exp(-S * r) / (8 * np.pi)
-    pro = terms.sum(axis=0)
-    pro = np.clip(pro, 1e-100, np.inf)
-    # transform to partitions
-    terms *= rho / pro
-    # the partitions and the updated parameters
-    for ishell in range(nshell):
-        m0 = rgrid.integrate(4 * np.pi * r**2, terms[ishell])
-        m1 = rgrid.integrate(4 * np.pi * r**2, terms[ishell], r)
-        propars[2 * ishell] = m0
-        propars[2 * ishell + 1] = 3 * m0 / m1
-    return propars
-
-
 class MBISWPart(ISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
@@ -133,7 +109,11 @@ class MBISWPart(ISAWPart):
             log.deflist(
                 [
                     ("Scheme", "Minimal Basis Iterative Stockholder (MBIS)"),
-                    ("Convergence threshold", "%.1e" % self._threshold),
+                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                    (
+                        "Inner loop convergence threshold",
+                        "%.1e" % self._inner_threshold,
+                    ),
                     ("Maximum iterations", self._maxiter),
                 ]
             )
@@ -187,7 +167,7 @@ class MBISWPart(ISAWPart):
             self._ranges[iatom] : self._ranges[iatom + 1]
         ]
         my_propars[:] = _opt_mbis_propars(
-            spherical_average, my_propars.copy(), rgrid, self._threshold
+            spherical_average, my_propars.copy(), rgrid, self._inner_threshold
         )
 
         # avoid too large r

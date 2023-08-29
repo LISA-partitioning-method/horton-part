@@ -47,6 +47,7 @@ class ISAWPart(StockholderWPart):
         lmax=3,
         threshold=1e-6,
         maxiter=500,
+        inner_threshold=1e-8,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -62,6 +63,9 @@ class ISAWPart(StockholderWPart):
              Reduce the CPU cost at the expense of more memory consumption.
         """
         self._threshold = threshold
+        self._inner_threshold = (
+            inner_threshold if inner_threshold < threshold else threshold
+        )
         self._maxiter = maxiter
         StockholderWPart.__init__(
             self,
@@ -90,12 +94,22 @@ class ISAWPart(StockholderWPart):
     def _init_propars(self):
         self.history_propars = []
         self.history_charges = []
+        self.history_entropies = []
         self.history_time_update_at_weights = []
         self.history_time_update_propars_atoms = []
 
     def _update_propars(self):
         # Keep track of history
         self.history_propars.append(self.cache.load("propars").copy())
+        if "promoldens" in self.cache:
+            rho = self._moldens
+            rho_0 = self.cache.load("promoldens")
+            rho_0 = np.clip(rho_0, 1e-100, np.inf)
+            rho = np.clip(rho, 1e-100, np.inf)
+            entropy = self._grid.integrate(rho, np.log(rho) - np.log(rho_0))
+            if log.do_medium:
+                print(f"Entropy: {entropy:.8f}")
+            self.history_entropies.append(entropy)
 
         # Update the partitioning based on the latest proatoms
         t0 = time.time()
@@ -120,6 +134,7 @@ class ISAWPart(StockholderWPart):
         charges = self._cache.load("charges")
         self.cache.dump("history_propars", np.array(self.history_propars), tags="o")
         self.cache.dump("history_charges", np.array(self.history_charges), tags="o")
+        self.cache.dump("history_entropies", np.array(self.history_entropies), tags="o")
         self.cache.dump("populations", self.numbers - charges, tags="o")
         self.cache.dump("pseudo_populations", self.pseudo_numbers - charges, tags="o")
         self.cache.dump(
@@ -209,7 +224,11 @@ class IterativeStockholderWPart(ISAWPart):
             log.deflist(
                 [
                     ("Scheme", "Iterative Stockholder"),
-                    ("Convergence threshold", "%.1e" % self._threshold),
+                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                    (
+                        "Inner loop convergence threshold",
+                        "%.1e" % self._inner_threshold,
+                    ),
                     ("Maximum iterations", self._maxiter),
                     ("lmax", self._lmax),
                 ]

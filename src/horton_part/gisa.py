@@ -184,6 +184,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         lmax=3,
         threshold=1e-6,
         maxiter=500,
+        inner_threshold=1e-8,
         solver=1,
     ):
         """
@@ -212,6 +213,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             lmax,
             threshold,
             maxiter,
+            inner_threshold,
         )
 
     def _init_log_scheme(self):
@@ -219,7 +221,11 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             log.deflist(
                 [
                     ("Scheme", "Gaussian Iterative Stockholder Analysis (GISA)"),
-                    ("Convergence threshold", "%.1e" % self._threshold),
+                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                    (
+                        "Inner loop convergence threshold",
+                        "%.1e" % self._inner_threshold,
+                    ),
                     ("Maximum iterations", self._maxiter),
                     ("lmax", self._lmax),
                     ("Solver", self._solver),
@@ -284,7 +290,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         ]
         alphas = get_alpha(self.numbers[iatom])
         propars[:] = self._opt_propars(
-            spherical_average, propars.copy(), rgrid, alphas, self._threshold
+            spherical_average, propars.copy(), rgrid, alphas, self._inner_threshold
         )
 
         # compute the new charge
