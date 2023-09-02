@@ -21,30 +21,36 @@
 # --
 import numpy as np
 import pytest
-from horton_part.gisa import get_alpha, get_nprim, get_pro_a_k
+from horton_part.gisa import get_gauss_exponent, _get_nshell, get_gauss_function
 
 
 def test_alpha():
-    assert get_alpha(1) == pytest.approx([5.672, 1.505, 0.5308, 0.2204])
-    assert get_alpha(6) == pytest.approx([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511])
-    assert get_alpha(7) == pytest.approx([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857])
-    assert get_alpha(8) == pytest.approx([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311])
+    assert get_gauss_exponent(1) == pytest.approx([5.672, 1.505, 0.5308, 0.2204])
+    assert get_gauss_exponent(6) == pytest.approx(
+        [148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]
+    )
+    assert get_gauss_exponent(7) == pytest.approx(
+        [178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]
+    )
+    assert get_gauss_exponent(8) == pytest.approx(
+        [220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]
+    )
 
     with pytest.raises(AssertionError):
-        get_alpha(1.1)
+        get_gauss_exponent(1.1)
 
     with pytest.raises(AssertionError):
-        get_alpha(2, 1.1)
+        get_gauss_exponent(2, 1.1)
 
 
 def test_get_nprim():
     for number in range(1, 120):
         if number == 1:
-            assert get_nprim(number) == 4
+            assert _get_nshell(number) == 4
         elif number == 17:
-            assert get_nprim(number) == 9
+            assert _get_nshell(number) == 9
         else:
-            assert get_nprim(number) == 6
+            assert _get_nshell(number) == 6
 
 
 @pytest.mark.parametrize(
@@ -55,10 +61,10 @@ def test_get_nprim():
     ],
 )
 def test_get_pro_a_k(D_k, alpha_k, r, nderiv, expected_result):
-    result = get_pro_a_k(D_k, alpha_k, r, nderiv)
+    result = get_gauss_function(D_k, alpha_k, r, nderiv)
     assert np.isclose(result, expected_result)
 
 
 def test_get_pro_a_k_raises_notimplementederror():
     with pytest.raises(NotImplementedError):
-        get_pro_a_k(1.0, 2.0, 3.0, 2)
+        get_gauss_function(1.0, 2.0, 3.0, 2)

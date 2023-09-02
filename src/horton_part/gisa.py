@@ -31,10 +31,10 @@ from .iterstock import ISAWPart
 from .log import log, biblio
 
 
-__all__ = ["GaussianIterativeStockholderWPart", "get_pro_a_k"]
+__all__ = ["GaussianIterativeStockholderWPart", "get_gauss_function"]
 
 
-def get_alpha(number, nb_exp=6):
+def get_gauss_exponent(number, nb_exp=6):
     """The exponents used for primitive Gaussian functions of each element."""
     assert isinstance(number, (int, np.int_)) and isinstance(nb_exp, (int, np.int_))
     param_dict = {
@@ -137,12 +137,12 @@ def get_alpha(number, nb_exp=6):
         )
 
 
-def get_nprim(number):
+def _get_nshell(number):
     """The number of primitive Gaussian functions used for each element."""
-    return len(get_alpha(number))
+    return len(get_gauss_exponent(number))
 
 
-def get_pro_a_k(D_k, alpha_k, r, nderiv=0):
+def get_gauss_function(D_k, alpha_k, r, nderiv=0):
     """The primitive Gaussian function with exponent of `alpha_k`."""
     f = D_k * (alpha_k / np.pi) ** 1.5 * np.exp(-alpha_k * r**2)
     if nderiv == 0:
@@ -153,7 +153,7 @@ def get_pro_a_k(D_k, alpha_k, r, nderiv=0):
         raise NotImplementedError
 
 
-def get_proatom_rho(r, prefactors, alphas):
+def get_proatom_rho_gauss(r, prefactors, alphas):
     """Get proatom density for atom `iatom`."""
     nprim = len(prefactors)
     # r = rgrid.radii
@@ -161,8 +161,8 @@ def get_proatom_rho(r, prefactors, alphas):
     d = np.zeros(len(r), float)
     for k in range(nprim):
         D_k, alpha_k = prefactors[k], alphas[k]
-        y += get_pro_a_k(D_k, alpha_k, r, 0)
-        d += get_pro_a_k(D_k, alpha_k, r, 1)
+        y += get_gauss_function(D_k, alpha_k, r, 0)
+        d += get_gauss_function(D_k, alpha_k, r, 1)
     return y, d
 
 
@@ -249,11 +249,11 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         y = np.zeros(len(r), float)
         d = np.zeros(len(r), float)
         propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        alphas = get_alpha(self.numbers[iatom])
+        alphas = get_gauss_exponent(self.numbers[iatom])
         for k in range(self._nprims[iatom]):
             D_k, alpha_k = propars[k], alphas[k]
-            y += get_pro_a_k(D_k, alpha_k, r, 0)
-            d += get_pro_a_k(D_k, alpha_k, r, 1)
+            y += get_gauss_function(D_k, alpha_k, r, 0)
+            d += get_gauss_function(D_k, alpha_k, r, 1)
         return y, d
 
     def _init_propars(self):
@@ -261,7 +261,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         self._ranges = [0]
         self._nprims = []
         for iatom in range(self.natom):
-            nprim = get_nprim(self.numbers[iatom])
+            nprim = _get_nshell(self.numbers[iatom])
             self._ranges.append(self._ranges[-1] + nprim)
             self._nprims.append(nprim)
         ntotal = self._ranges[-1]
@@ -288,7 +288,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         propars = self.cache.load("propars")[
             self._ranges[iatom] : self._ranges[iatom + 1]
         ]
-        alphas = get_alpha(self.numbers[iatom])
+        alphas = get_gauss_exponent(self.numbers[iatom])
         propars[:] = self._opt_propars(
             spherical_average, propars.copy(), rgrid, alphas, self._inner_threshold
         )
@@ -378,212 +378,208 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         if number in param_dict:
             return param_dict[number]
         else:
-            nprim = get_nprim(number)
+            nprim = _get_nshell(number)
             # from https://github.com/rbenda/ISA_multipoles.
             return np.ones(nprim, float) * number / nprim
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._solver == 1:
-            return self._constrained_least_squares_quadprog(
+            return _constrained_least_squares_quadprog(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 2:
-            return self._constrained_least_squares(
-                rho, propars, rgrid, alphas, threshold
-            )
+            return _constrained_least_squares(rho, propars, rgrid, alphas, threshold)
         elif self._solver == 3:
-            return self._constrained_least_cvxopt(
-                rho, propars, rgrid, alphas, threshold
-            )
+            return _constrained_least_cvxopt(rho, propars, rgrid, alphas, threshold)
         elif self._solver == 0:
-            return self._solver_comparison(rho, propars, rgrid, alphas, threshold)
+            return _solver_comparison(rho, propars, rgrid, alphas, threshold)
         else:
             raise NotImplementedError
 
-    @staticmethod
-    def _constrained_least_squares_quadprog(rho, propars, rgrid, alphas, threshold):
-        r"""
-        Optimize parameters for proatom density functions.
 
-        .. math::
+def _constrained_least_squares_quadprog(rho, propars, rgrid, alphas, threshold):
+    r"""
+    Optimize parameters for proatom density functions.
 
-            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+    .. math::
 
-
-            G = \frac{1}{2} c^T S c - c^T b
-
-            S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
-            = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
-
-            b = 2 * \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
-
-        Parameters
-        ----------
-        rho:
-            Atomic spherical-average density, i.e.,
-            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-        propars:
-            Parameters array.
-        rgrid:
-            Radial grid.
-        alphas:
-            Exponential coefficients of Gaussian primitive functions.
-        threshold:
-            Threshold for convergence.
-
-        Returns
-        -------
-
-        """
-
-        nprim = len(propars)
-        r = rgrid.points
-        # avoid too large r
-        r = np.clip(r, 1e-100, 1e10)
-        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
-        S = (
-            2
-            / np.pi**1.5
-            * (alphas[:, None] * alphas[None, :]) ** 1.5
-            / (alphas[:, None] + alphas[None, :]) ** 1.5
-        )
-
-        vec_b = np.zeros(nprim, float)
-        for k in range(nprim):
-            vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
-
-        # Construct linear equality or inequality constraints
-        matrix_constraint = np.zeros([nprim, nprim + 1])
-        # First column : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k)= N_a
-        matrix_constraint[:, 0] = np.ones(nprim)
-        # Other K_a columns : correspond to the INEQUALITY constraints c_(a,k) >=0
-        matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
-        vector_constraint = np.zeros(nprim + 1)
-        # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-        vector_constraint[0] = rgrid.integrate(4 * np.pi * r**2, rho)
-
-        propars_qp = quadprog.solve_qp(
-            G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
-        )[0]
-        return propars_qp
-
-    @staticmethod
-    def _constrained_least_squares(rho, propars, rgrid, alphas, threshold, x0=None):
-        r"""
-        Optimize parameters for proatom density functions.
-
-        .. math::
-
-            N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
 
 
-            G = \frac{1}{2} c^T S c - c^T b
+        G = \frac{1}{2} c^T S c - c^T b
 
-            S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
-            = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
+        S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
+        = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
 
-            b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
+        b = 2 * \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
 
-        Parameters
-        ----------
-        rho:
-            Atomic spherical-average density, i.e.,
-            :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-        propars:
-            Parameters array.
-        rgrid:
-            Radial grid.
-        alphas:
-            Exponential coefficients of Gaussian primitive functions.
-        threshold:
-            Threshold for convergence.
+    Parameters
+    ----------
+    rho:
+        Atomic spherical-average density, i.e.,
+        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+    propars:
+        Parameters array.
+    rgrid:
+        Radial grid.
+    alphas:
+        Exponential coefficients of Gaussian primitive functions.
+    threshold:
+        Threshold for convergence.
 
-        Returns
-        -------
+    Returns
+    -------
 
-        """
+    """
 
-        nprim = len(propars)
-        r = rgrid.points
-        # avoid too large r
-        r = np.clip(r, 1e-100, 1e10)
-        weights = rgrid.weights
-        nelec = rgrid.integrate(4 * np.pi * r**2, rho)
+    nprim = len(propars)
+    r = rgrid.points
+    # avoid too large r
+    r = np.clip(r, 1e-100, 1e10)
+    gauss_funcs = np.array(
+        [get_gauss_function(1.0, alphas[k], r) for k in range(nprim)]
+    )
+    S = (
+        2
+        / np.pi**1.5
+        * (alphas[:, None] * alphas[None, :]) ** 1.5
+        / (alphas[:, None] + alphas[None, :]) ** 1.5
+    )
 
-        def f(args):
-            rho_test, _ = get_proatom_rho(r, args, alphas)
-            # This is integrand function corresponding to the difference of number of electrons.
-            obj_func = 4 * np.pi * np.abs(rho_test - rho) * weights * r**2
-            return obj_func
+    vec_b = np.zeros(nprim, float)
+    for k in range(nprim):
+        vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
 
-        if x0 is None:
-            x0 = [nelec / nprim] * nprim
-        res = least_squares(
-            f,
-            x0=x0,
-            bounds=(0, np.inf),
-            verbose=2 if log.level >= 2 else log.level,
-        )
-        return res.x
+    # Construct linear equality or inequality constraints
+    matrix_constraint = np.zeros([nprim, nprim + 1])
+    # First column : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k)= N_a
+    matrix_constraint[:, 0] = np.ones(nprim)
+    # Other K_a columns : correspond to the INEQUALITY constraints c_(a,k) >=0
+    matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
+    vector_constraint = np.zeros(nprim + 1)
+    # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
+    vector_constraint[0] = rgrid.integrate(4 * np.pi * r**2, rho)
 
-    @staticmethod
-    def _constrained_least_cvxopt(rho, propars, rgrid, alphas, threshold):
-        nprim = len(propars)
-        r = rgrid.points
-        # avoid too large r
-        r = np.clip(r, 1e-100, 1e10)
-        gauss_funcs = np.array([get_pro_a_k(1.0, alphas[k], r) for k in range(nprim)])
-        S = (
-            2
-            / np.pi**1.5
-            * (alphas[:, None] * alphas[None, :]) ** 1.5
-            / (alphas[:, None] + alphas[None, :]) ** 1.5
-        )
-        P = cvxopt.matrix(S)
+    propars_qp = quadprog.solve_qp(
+        G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
+    )[0]
+    return propars_qp
 
-        vec_b = np.zeros((nprim, 1), float)
-        for k in range(nprim):
-            vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
-        q = -cvxopt.matrix(vec_b)
 
-        # Linear inequality constraints
-        G = cvxopt.matrix(0.0, (nprim, nprim))
-        G[:: nprim + 1] = -1.0
-        # G = -cvxopt.matrix(np.identity(nprim))
-        h = cvxopt.matrix(0.0, (nprim, 1))
+def _constrained_least_squares(rho, propars, rgrid, alphas, threshold, x0=None):
+    r"""
+    Optimize parameters for proatom density functions.
 
-        # Linear equality constraints
-        A = cvxopt.matrix(1.0, (1, nprim))
-        Na = rgrid.integrate(4 * np.pi * r**2, rho)
-        b = cvxopt.matrix(Na, (1, 1))
+    .. math::
 
-        # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
-        opt_CVX = cvxopt.solvers.qp(
-            P, q, G, h, A, b, options={"show_progress": log.do_medium}
-        )
-        new_propars = np.asarray(opt_CVX["x"]).flatten()
-        return new_propars
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
 
-    @staticmethod
-    def _solver_comparison(rho, propars, rgrid, alphas, threshold):
-        propars_qp = (
-            GaussianIterativeStockholderWPart._constrained_least_squares_quadprog(
-                rho, propars, rgrid, alphas, threshold
-            )
-        )
-        print("propars_qp:")
-        propars_qp = np.clip(propars_qp, 0, np.inf)
-        print(propars_qp)
 
-        propars_lsq = GaussianIterativeStockholderWPart._constrained_least_squares(
-            rho, propars, rgrid, alphas, threshold, x0=propars_qp
-        )
-        print("propars_lsq:")
-        print(propars_lsq)
+        G = \frac{1}{2} c^T S c - c^T b
 
-        propars_cvxopt = GaussianIterativeStockholderWPart._constrained_least_cvxopt(
-            rho, propars, rgrid, alphas, threshold
-        )
-        print("propars_cvxopt:")
-        print(propars_cvxopt)
-        return propars_cvxopt
+        S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
+        = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
+
+        b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
+
+    Parameters
+    ----------
+    rho:
+        Atomic spherical-average density, i.e.,
+        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+    propars:
+        Parameters array.
+    rgrid:
+        Radial grid.
+    alphas:
+        Exponential coefficients of Gaussian primitive functions.
+    threshold:
+        Threshold for convergence.
+
+    Returns
+    -------
+
+    """
+
+    nprim = len(propars)
+    r = rgrid.points
+    # avoid too large r
+    r = np.clip(r, 1e-100, 1e10)
+    weights = rgrid.weights
+    nelec = rgrid.integrate(4 * np.pi * r**2, rho)
+
+    def f(args):
+        rho_test, _ = get_proatom_rho_gauss(r, args, alphas)
+        # This is integrand function corresponding to the difference of number of electrons.
+        obj_func = 4 * np.pi * np.abs(rho_test - rho) * weights * r**2
+        return obj_func
+
+    if x0 is None:
+        x0 = [nelec / nprim] * nprim
+    res = least_squares(
+        f,
+        x0=x0,
+        bounds=(0, np.inf),
+        verbose=2 if log.level >= 2 else log.level,
+    )
+    return res.x
+
+
+def _constrained_least_cvxopt(rho, propars, rgrid, alphas, threshold):
+    nprim = len(propars)
+    r = rgrid.points
+    # avoid too large r
+    r = np.clip(r, 1e-100, 1e10)
+    gauss_funcs = np.array(
+        [get_gauss_function(1.0, alphas[k], r) for k in range(nprim)]
+    )
+    S = (
+        2
+        / np.pi**1.5
+        * (alphas[:, None] * alphas[None, :]) ** 1.5
+        / (alphas[:, None] + alphas[None, :]) ** 1.5
+    )
+    P = cvxopt.matrix(S)
+
+    vec_b = np.zeros((nprim, 1), float)
+    for k in range(nprim):
+        vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
+    q = -cvxopt.matrix(vec_b)
+
+    # Linear inequality constraints
+    G = cvxopt.matrix(0.0, (nprim, nprim))
+    G[:: nprim + 1] = -1.0
+    # G = -cvxopt.matrix(np.identity(nprim))
+    h = cvxopt.matrix(0.0, (nprim, 1))
+
+    # Linear equality constraints
+    A = cvxopt.matrix(1.0, (1, nprim))
+    Na = rgrid.integrate(4 * np.pi * r**2, rho)
+    b = cvxopt.matrix(Na, (1, 1))
+
+    # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
+    opt_CVX = cvxopt.solvers.qp(
+        P, q, G, h, A, b, options={"show_progress": log.do_medium}
+    )
+    new_propars = np.asarray(opt_CVX["x"]).flatten()
+    return new_propars
+
+
+def _solver_comparison(rho, propars, rgrid, alphas, threshold):
+    propars_qp = _constrained_least_squares_quadprog(
+        rho, propars, rgrid, alphas, threshold
+    )
+    print("propars_qp:")
+    propars_qp = np.clip(propars_qp, 0, np.inf)
+    print(propars_qp)
+
+    propars_lsq = _constrained_least_squares(
+        rho, propars, rgrid, alphas, threshold, x0=propars_qp
+    )
+    print("propars_lsq:")
+    print(propars_lsq)
+
+    propars_cvxopt = _constrained_least_cvxopt(rho, propars, rgrid, alphas, threshold)
+    print("propars_cvxopt:")
+    print(propars_cvxopt)
+    return propars_cvxopt
