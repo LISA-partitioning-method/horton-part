@@ -36,7 +36,8 @@ dependencies = [
     "qc-grid@git+https://github.com/theochem/grid",
     "qc-iodata@git+https://github.com/theochem/iodata",
     "gbasis@git+https://github.com/theochem/gbasis",
-    "importlib_resources"
+    "importlib_resources",
+    "basis_set_exchange",
 ]
 dynamic = ['version']
 

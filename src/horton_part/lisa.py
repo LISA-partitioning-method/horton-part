@@ -317,7 +317,7 @@ def _opt_propars_with_mbis_lagrangian_damping(rho, propars, rgrid, alphas, thres
 
 
 def _opt_propars_with_lagrangian_diis(
-    rho, propars, rgrid, alphas, threshold, diis_size=8, start_diis_iter=0
+    rho, propars, rgrid, alphas, threshold, diis_size=10, start_diis_iter=0
 ):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.

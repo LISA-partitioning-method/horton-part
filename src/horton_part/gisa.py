@@ -25,6 +25,7 @@ import numpy as np
 from scipy.optimize import least_squares
 import quadprog
 import cvxopt
+import basis_set_exchange as bse
 
 # from cvxopt.solvers import qp
 from .iterstock import ISAWPart
@@ -36,7 +37,16 @@ __all__ = ["GaussianIterativeStockholderWPart", "get_gauss_function"]
 
 def get_gauss_exponent(number, nb_exp=6):
     """The exponents used for primitive Gaussian functions of each element."""
-    assert isinstance(number, (int, np.int_)) and isinstance(nb_exp, (int, np.int_))
+    # assert isinstance(number, (int, np.int_)) and isinstance(nb_exp, (int, np.int_))
+    bs = bse.get_basis("6-31G**")
+    shells = bs["elements"][f"{number}"]["electron_shells"]
+    exps = []
+    for shell in shells:
+        if 0 in shell["angular_momentum"]:
+            exps.extend(shell["exponents"])
+    exps = [float(x) for x in exps]
+    return sorted(exps, reverse=True)
+
     param_dict = {
         1: np.array([5.672, 1.505, 0.5308, 0.2204]),
         # Li: [60.3528 14.895   5.0545  1.9759  0.0971  0.0314]
@@ -303,6 +313,9 @@ class GaussianIterativeStockholderWPart(ISAWPart):
     @staticmethod
     def _get_initial_propars(number):
         """Create initial parameters for proatom density functions."""
+        nprim = _get_nshell(number)
+        return np.ones(nprim, float) * number / nprim
+
         param_dict = {
             1: [
                 0.04588955,
