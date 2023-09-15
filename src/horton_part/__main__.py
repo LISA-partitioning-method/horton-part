@@ -329,6 +329,8 @@ def main(args=None):
 
         if args.type in ["gisa", "lisa"]:
             kwargs["solver"] = args.solver
+            if args.solver in [202]:
+                kwargs["diis_size"] = args.diis_size
 
         part = wpart_schemes(args.type)(**kwargs)
         part.do_partitioning()
@@ -511,6 +513,12 @@ def parse_args(args=None):
         help="The NPZ file in which the grid and the density will be stored.",
         type=str,
         default="results.npz",
+    )
+    parser.add_argument(
+        "--diis_size",
+        type=int,
+        default=8,
+        help="The number of previous iterations info used in DIIS. [default=%(default)s]",
     )
 
     return parser.parse_args(args=args)
