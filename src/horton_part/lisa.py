@@ -35,21 +35,66 @@ __all__ = ["LinearIterativeStockholderWPart"]
 class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     name = "lisa"
 
+    def __init__(
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        spindens=None,
+        lmax=3,
+        threshold=1e-6,
+        maxiter=500,
+        inner_threshold=1e-8,
+        solver=1,
+        diis_size=8,
+    ):
+        """
+        **Optional arguments:** (that are not defined in ``WPart``)
+
+        threshold
+             The procedure is considered to be converged when the maximum
+             change of the charges between two iterations drops below this
+             threshold.
+
+        maxiter
+             The maximum number of iterations. If no convergence is reached
+             in the end, no warning is given.
+             Reduce the CPU cost at the expense of more memory consumption.
+        """
+        self.diis_size = diis_size
+        GaussianIterativeStockholderWPart.__init__(
+            self,
+            coordinates,
+            numbers,
+            pseudo_numbers,
+            grid,
+            moldens,
+            spindens,
+            lmax,
+            threshold,
+            maxiter,
+            inner_threshold,
+            solver,
+        )
+
     def _init_log_scheme(self):
         if log.do_medium:
-            log.deflist(
-                [
-                    ("Scheme", "Linear Iterative Stockholder"),
-                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
-                    (
-                        "Inner loop convergence threshold",
-                        "%.1e" % self._inner_threshold,
-                    ),
-                    ("Maximum iterations", self._maxiter),
-                    ("lmax", self._lmax),
-                    ("Solver", self._solver),
-                ]
-            )
+            info_list = [
+                ("Scheme", "Linear Iterative Stockholder"),
+                ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                (
+                    "Inner loop convergence threshold",
+                    "%.1e" % self._inner_threshold,
+                ),
+                ("Maximum iterations", self._maxiter),
+                ("lmax", self._lmax),
+                ("Solver", self._solver),
+            ]
+            if self._solver in [202]:
+                info_list.append(("DIIS size", self.diis_size))
+            log.deflist(info_list)
             biblio.cite(
                 "Benda2022", "the use of Linear Iterative Stockholder partitioning"
             )
@@ -88,9 +133,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             )
         elif self._solver == 202:
             return _opt_propars_with_lagrangian_diis(
-                rho, propars, rgrid, alphas, threshold
+                rho, propars, rgrid, alphas, threshold, diis_size=self.diis_size
             )
-        # this does not work
         elif self._solver == 203:
             return _opt_propars_with_lagrangian_newton(
                 rho, propars, rgrid, alphas, threshold
