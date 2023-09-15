@@ -91,10 +91,10 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 rho, propars, rgrid, alphas, threshold
             )
         # this does not work
-        # elif self._solver == 203:
-        #     return _opt_propars_with_lagrangian_newton(
-        #         rho, propars, rgrid, alphas, threshold
-        #     )
+        elif self._solver == 203:
+            return _opt_propars_with_lagrangian_newton(
+                rho, propars, rgrid, alphas, threshold
+            )
         elif self._solver == 204:
             return _opt_propars_with_non_linear_equations(
                 rho, propars, rgrid, alphas, threshold
@@ -419,83 +419,84 @@ def _opt_propars_with_lagrangian_diis(
     assert False
 
 
-# def _opt_propars_with_lagrangian_newton(rho, propars, rgrid, alphas, threshold):
-#     r"""
-#     Optimize parameters for proatom density functions using MBIS Lagrange.
-#
-#     The parameters can be computed analytically in this way. which should give the same results
-#     as the L-ISA algorithms.
-#
-#     .. math::
-#
-#         N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-#
-#     Parameters
-#     ----------
-#     rho:
-#         Atomic spherical-average density, i.e.,
-#         :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-#     propars:
-#         Parameters array.
-#     rgrid:
-#         Radial grid.
-#     alphas:
-#         Exponential coefficients of Gaussian primitive functions.
-#     threshold:
-#         Threshold for convergence.
-#
-#     Returns
-#     -------
-#
-#     """
-#     nprim = len(propars)
-#     r = rgrid.points
-#     # avoid too large r
-#     r = np.clip(r, 1e-100, 1e10)
-#     weights = rgrid.weights
-#     bs_funcs = np.array([get_gauss_function(1.0, alphas[k], r) for k in range(nprim)])
-#     int_weights = 4 * np.pi * r**2 * weights
-#
-#     oldpro = None
-#     if log.do_medium:
-#         log("            Iter.    Change    ")
-#         log("            -----    ------    ")
-#
-#     for irep in range(1000):
-#         # compute the contributions to the pro-atom
-#         shells = propars[:, None] * bs_funcs
-#         pro = shells.sum(axis=0)
-#         pro = np.clip(pro, 1e-100, np.inf)
-#         integrand = shells * rho / pro
-#
-#         # check for convergence
-#         if oldpro is None:
-#             change = 1e100
-#         else:
-#             error = oldpro - pro
-#             change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
-#         if log.do_medium:
-#             log(f"            {irep+1:<4}    {change:.3e}")
-#         if change < threshold:
-#             return propars
-#         oldpro = pro
-#
-#         print(propars)
-#         # update propars
-#         grad = np.einsum("kp, jp, p->jk", -integrand / pro, bs_funcs, int_weights)
-#         grad_kk = np.einsum("kp,p->k", bs_funcs * rho / pro, int_weights)
-#         np.fill_diagonal(grad, grad.diagonal() + grad_kk + np.ones((nprim,)))
-#
-#         print(grad)
-#
-#         f = np.einsum("kp,p->k", integrand, int_weights)
-#         delta = -np.linalg.pinv(grad, rcond=1e-10) @ f
-#         # delta = np.linalg.solve(grad, -f)
-#         print("delta:")
-#         print(delta)
-#         propars += delta
-#
-#     assert False
+def _opt_propars_with_lagrangian_newton(rho, propars, rgrid, alphas, threshold):
+    r"""
+    Optimize parameters for proatom density functions using MBIS Lagrange.
+
+    The parameters can be computed analytically in this way. which should give the same results
+    as the L-ISA algorithms.
+
+    .. math::
+
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+    Parameters
+    ----------
+    rho:
+        Atomic spherical-average density, i.e.,
+        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+    propars:
+        Parameters array.
+    rgrid:
+        Radial grid.
+    alphas:
+        Exponential coefficients of Gaussian primitive functions.
+    threshold:
+        Threshold for convergence.
+
+    Returns
+    -------
+
+    """
+    nprim = len(propars)
+    r = rgrid.points
+    # avoid too large r
+    r = np.clip(r, 1e-100, 1e10)
+    weights = rgrid.weights
+    bs_funcs = np.array([get_gauss_function(1.0, alphas[k], r) for k in range(nprim)])
+    int_weights = 4 * np.pi * r**2 * weights
+
+    if log.do_medium:
+        log("            Iter.    Change    ")
+        log("            -----    ------    ")
+
+    oldpro = None
+    change = 1e100
+    for irep in range(2000):
+        # compute the contributions to the pro-atom
+        shells = propars[:, None] * bs_funcs
+        pro = shells.sum(axis=0)
+        pro = np.clip(pro, 1e-100, np.inf)
+        integrand = shells * rho / pro
+
+        # check for convergence
+        if oldpro is None:
+            change = 1e100
+        else:
+            error = oldpro - pro
+            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+        if log.do_medium:
+            log(f"            {irep+1:<4}    {change:.3e}")
+        if change < threshold:
+            return propars
+
+        # update propars
+        grad = np.einsum("kp, jp, p->kj", -integrand / pro, bs_funcs, int_weights)
+        grad_kk = np.einsum("kp,p->k", bs_funcs * rho / pro, int_weights)
+        np.fill_diagonal(grad, grad.diagonal() + grad_kk + np.ones((nprim,)))
+        h = propars - np.einsum("kp,p->k", integrand, int_weights)
+        res = np.linalg.lstsq(grad, -h, rcond=None)
+        delta = res[0]
+        propars += delta
+
+        oldpro = pro
+
+    print("Warning: inner loop not converged")
+    # if change < 1e-6:
+    #     return propars
+    # else:
+    #     assert False
+    return propars
 
 
 def _opt_propars_with_non_linear_equations(rho, propars, rgrid, alphas, threshold):
