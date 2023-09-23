@@ -329,7 +329,7 @@ def main(args=None):
 
         if args.type in ["gisa", "lisa"]:
             kwargs["solver"] = args.solver
-            if args.solver in [202]:
+            if args.solver > 200:
                 kwargs["diis_size"] = args.diis_size
 
         part = wpart_schemes(args.type)(**kwargs)
