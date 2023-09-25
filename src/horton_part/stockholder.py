@@ -26,7 +26,7 @@ from __future__ import print_function
 import numpy as np
 import time
 
-from .base import WPart
+from .base import WPart, just_once
 
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
 
@@ -40,12 +40,35 @@ def eval_spline_grid(spline, grid, center):
 
 
 class StockholderWPart(WPart):
+    @just_once
+    def compute_local_grids(self):
+        self.local_grids = []
+        self.atom_in_local_grid = []
+        self.points_in_atom = []
+        # TODO: the radius should be basis function dependent.
+        for index in range(self.natom):
+            local_grid = self.grid.get_localgrid(
+                center=self.coordinates[index], radius=8.0
+            )
+            self.local_grids.append(local_grid)
+            begin, end = self.grid.indices[index], self.grid.indices[index + 1]
+            in_atm = (begin <= local_grid.indices) & (local_grid.indices < end)
+            self.atom_in_local_grid.append(in_atm)
+            self.points_in_atom.append(local_grid.indices[in_atm] - begin)
+
     def update_pro(self, index, proatdens, promoldens):
-        # work = self.grid.zeros()
-        work = np.zeros((self.grid.size,))
-        self.eval_proatom(index, work, self.grid)
-        promoldens += work
-        proatdens[:] = self.to_atomic_grid(index, work)
+        # work = np.zeros((self.grid.size,))
+        # self.eval_proatom(index, work, self.grid)
+        # promoldens += work
+        # proatdens[:] = self.to_atomic_grid(index, work)
+
+        self.compute_local_grids()
+        local_grid = self.local_grids[index]
+        work = np.zeros((local_grid.size,))
+        self.eval_proatom(index, work, local_grid)
+        promoldens[local_grid.indices] += work
+        promoldens += 1e-100
+        proatdens[self.points_in_atom[index]] = work[self.atom_in_local_grid[index]]
 
     def get_rgrid(self, index):
         raise NotImplementedError
@@ -116,8 +139,8 @@ class StockholderWPart(WPart):
         # arrays for later.
         t0 = time.time()
         for index in range(self.natom):
-            grid = self.get_grid(index)
-            at_weights = self.cache.load("at_weights", index, alloc=grid.size)[0]
+            atmgrid = self.get_grid(index)
+            at_weights = self.cache.load("at_weights", index, alloc=atmgrid.size)[0]
             self.update_pro(index, at_weights, promoldens)
         t1 = time.time()
 

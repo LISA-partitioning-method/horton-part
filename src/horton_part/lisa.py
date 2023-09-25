@@ -24,7 +24,7 @@
 from __future__ import division, print_function
 import numpy as np
 import cvxopt
-from scipy.linalg import solve, eigh, LinAlgWarning, LinAlgError
+from scipy.linalg import solve, LinAlgWarning, LinAlgError, eigvals
 from scipy.optimize import minimize, LinearConstraint, fsolve, fixed_point
 import warnings
 from .log import log, biblio
@@ -34,7 +34,22 @@ from .gisa import GaussianIterativeStockholderWPart, get_gauss_function
 warnings.filterwarnings("ignore", category=LinAlgWarning)
 
 
-__all__ = ["LinearIterativeStockholderWPart"]
+__all__ = [
+    "LinearIterativeStockholderWPart",
+    "opt_propars_fixed_points_sc",
+    "opt_propars_fixed_points_plus_lisa1",
+    "opt_propars_fixed_points_sc_damping",
+    "opt_propars_fixed_points_diis",
+    "opt_propars_fixed_points_diis2",
+    "opt_propars_fixed_points_fslove",
+    "opt_propars_fixed_points",
+    "opt_propars_fixed_points_newton",
+    "opt_propars_fixed_point_trust_constr",
+    "opt_propars_minimization_trust_constr",
+    "opt_propars_minimization_fast",
+    "opt_propars_minimization_slow",
+    "opt_propars_minimization_no_constr",
+]
 
 
 class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
@@ -106,56 +121,50 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._solver == 1:
-            return _opt_propars_with_lisa_method_fast(
-                rho, propars, rgrid, alphas, threshold
-            )
+            return opt_propars_minimization_fast(rho, propars, rgrid, alphas, threshold)
         elif self._solver == 101:
             # code optimization of LISA-1
-            return _opt_propars_with_lisa_method_slow(
-                rho, propars, rgrid, alphas, threshold
-            )
+            return opt_propars_minimization_slow(rho, propars, rgrid, alphas, threshold)
         elif self._solver == 102:
             # use `trust_constr` in SciPy with constraint explicitly
-            return _opt_propars_with_lisa_method_scipy(
+            return opt_propars_minimization_trust_constr(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 103:
             # same as LISA-102 but with constraint implicitly
-            return _opt_propars_with_lisa_method_scipy_no_constr(
+            return opt_propars_minimization_no_constr(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 2:
-            return _opt_propars_with_mbis_lagrangian(
-                rho, propars, rgrid, alphas, threshold
-            )
+            return opt_propars_fixed_points_sc(rho, propars, rgrid, alphas, threshold)
         elif self._solver == 21:
-            return _opt_propars_with_mbis_lagrangian_with_lisa(
+            return opt_propars_fixed_points_plus_lisa1(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 201:
-            return _opt_propars_with_mbis_lagrangian_damping(
+            return opt_propars_fixed_points_sc_damping(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 202:
-            return _opt_propars_with_lagrangian_diis(
+            return opt_propars_fixed_points_diis(
                 rho, propars, rgrid, alphas, threshold, diis_size=self.diis_size
             )
         elif self._solver == 203:
-            return _opt_propars_with_lagrangian_newton(
+            return opt_propars_fixed_points_newton(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 204:
-            return _opt_propars_with_non_linear_equations(
+            return opt_propars_fixed_points_fslove(
                 rho, propars, rgrid, alphas, threshold
             )
         elif self._solver == 205:
-            return _opt_propars_with_fix_points(rho, propars, rgrid, alphas, threshold)
+            return opt_propars_fixed_points(rho, propars, rgrid, alphas, threshold)
         elif self._solver == 206:
-            return _opt_propars_with_lagrangian_diis_2(
+            return opt_propars_fixed_points_diis2(
                 rho, propars, rgrid, alphas, threshold, diis_size=self.diis_size
             )
         elif self._solver == 207:
-            return _opt_propars_with_fix_point_trust_constr(
+            return opt_propars_fixed_point_trust_constr(
                 rho, propars, rgrid, alphas, threshold
             )
         # elif str(self._solver).startswith("202"):
@@ -174,9 +183,9 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             raise NotImplementedError
 
 
-def _opt_propars_with_mbis_lagrangian(rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_sc(rho, propars, rgrid, alphas, threshold):
     r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
+    Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
 
     The parameters can be computed analytically in this way. which should give the same results
     as the L-ISA algorithms.
@@ -239,7 +248,7 @@ def _opt_propars_with_mbis_lagrangian(rho, propars, rgrid, alphas, threshold):
     raise RuntimeError("Error: Inner iteration is not converge!")
 
 
-def _opt_propars_with_mbis_lagrangian_with_lisa(rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_plus_lisa1(rho, propars, rgrid, alphas, threshold):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -302,15 +311,15 @@ def _opt_propars_with_mbis_lagrangian_with_lisa(rho, propars, rgrid, alphas, thr
         oldpro = pro
 
     print("Inner iteration is not converge, run lisa-1!")
-    new_propars = _opt_propars_with_lisa_method_fast(
+    new_propars = opt_propars_minimization_fast(
         rho, oldpropars, rgrid, alphas, threshold
     )
     return new_propars
 
 
-def _opt_propars_with_mbis_lagrangian_damping(rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_sc_damping(rho, propars, rgrid, alphas, threshold):
     r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
+    Optimize parameters for proatom density functions using SC with damping
 
     The parameters can be computed analytically in this way. which should give the same results
     as the L-ISA algorithms.
@@ -375,9 +384,7 @@ def _opt_propars_with_mbis_lagrangian_damping(rho, propars, rgrid, alphas, thres
     raise RuntimeError("Inner iteration is not converge!")
 
 
-def _opt_propars_with_lagrangian_diis(
-    rho, propars, rgrid, alphas, threshold, diis_size=8
-):
+def opt_propars_fixed_points_diis(rho, propars, rgrid, alphas, threshold, diis_size=8):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -471,7 +478,8 @@ def _opt_propars_with_lagrangian_diis(
             # Solve Pulay equation for coeff with numpy
             # Use solve from Scipy, which prints warning info
             try:
-                w, v = eigh(B)
+                # w, v = eigh(B)
+                w = eigvals(B)
                 if np.any(abs(w) < 1e-30):
                     warnings.warn(
                         "Linear dependence found in DIIS error vectors. Turn off DIIS"
@@ -512,9 +520,7 @@ def _opt_propars_with_lagrangian_diis(
     raise RuntimeError("Error: inner iteration is not converge!")
 
 
-def _opt_propars_with_lagrangian_diis_2(
-    rho, propars, rgrid, alphas, threshold, diis_size=8
-):
+def opt_propars_fixed_points_diis2(rho, propars, rgrid, alphas, threshold, diis_size=8):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -613,7 +619,7 @@ def _opt_propars_with_lagrangian_diis_2(
     raise RuntimeError("Error: inner iteration is not converge!")
 
 
-def _opt_propars_with_fix_points(rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points(rho, propars, rgrid, alphas, threshold):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -664,7 +670,7 @@ def _opt_propars_with_fix_points(rho, propars, rgrid, alphas, threshold):
     return new_propars
 
 
-def _opt_propars_with_lagrangian_newton(rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_newton(rho, propars, rgrid, alphas, threshold):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -738,7 +744,7 @@ def _opt_propars_with_lagrangian_newton(rho, propars, rgrid, alphas, threshold):
     raise RuntimeError("Inner loop: Newton does not converge!")
 
 
-def _opt_propars_with_non_linear_equations(rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_fslove(rho, propars, rgrid, alphas, threshold):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -807,7 +813,7 @@ def _opt_propars_with_non_linear_equations(rho, propars, rgrid, alphas, threshol
         return solution
 
 
-def _opt_propars_with_fix_point_trust_constr(
+def opt_propars_fixed_point_trust_constr(
     rho, propars, rgrid, alphas, threshold, verbose=False
 ):
     # TODO: not robust
@@ -854,7 +860,7 @@ def _opt_propars_with_fix_point_trust_constr(
     return optimized_res
 
 
-def _opt_propars_with_lisa_method_slow(
+def opt_propars_minimization_slow(
     rho, propars, rgrid, alphas, threshold, verbose=False
 ):
     r"""
@@ -963,7 +969,7 @@ def _opt_propars_with_lisa_method_slow(
     return new_propars
 
 
-def _opt_propars_with_lisa_method_fast(
+def opt_propars_minimization_fast(
     rho, propars, rgrid, alphas, threshold, verbose=False
 ):
     nprim = len(propars)
@@ -1031,7 +1037,7 @@ def _opt_propars_with_lisa_method_fast(
     return new_propars
 
 
-def _opt_propars_with_lisa_method_scipy(
+def opt_propars_minimization_trust_constr(
     rho, propars, rgrid, alphas, threshold, verbose=False
 ):
     nprim = len(propars)
@@ -1081,7 +1087,7 @@ def _opt_propars_with_lisa_method_scipy(
     return optimized_res
 
 
-def _opt_propars_with_lisa_method_scipy_no_constr(
+def opt_propars_minimization_no_constr(
     rho, propars, rgrid, alphas, threshold, verbose=False
 ):
     nprim = len(propars)
@@ -1132,12 +1138,10 @@ def _opt_propars_with_lisa_method_scipy_no_constr(
 
 
 def _solver_comparison(rho, propars, rgrid, alphas, threshold):
-    propars_lisa = _opt_propars_with_lisa_method_fast(
-        rho, propars, rgrid, alphas, threshold
-    )
+    propars_lisa = opt_propars_minimization_fast(rho, propars, rgrid, alphas, threshold)
     propars_lisa = np.clip(propars_lisa, 0, np.inf)
 
-    propars_lagrangian = _opt_propars_with_mbis_lagrangian(
+    propars_lagrangian = opt_propars_fixed_points_sc(
         rho, propars, rgrid, alphas, threshold
     )
     propars_lagrangian = np.clip(propars_lagrangian, 0, np.inf)
