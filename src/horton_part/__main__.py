@@ -329,6 +329,7 @@ def main(args=None):
 
         if args.type in ["gisa", "lisa"]:
             kwargs["solver"] = args.solver
+            kwargs["basis_func_type"] = args.func_type
             if args.solver > 200:
                 kwargs["diis_size"] = args.diis_size
 
@@ -477,6 +478,13 @@ def parse_args(args=None):
         default="lisa",
         choices=["gisa", "lisa", "mbis", "is"],
         help="Number of angular grid points. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--func_type",
+        type=str,
+        default="gauss",
+        choices=["gauss", "exp"],
+        help="The type of basis functions. [default=%(default)s]",
     )
     parser.add_argument(
         "--maxiter",
