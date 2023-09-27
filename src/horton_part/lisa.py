@@ -331,7 +331,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             exponents = self.bs_helper.load_exponent(self.numbers[a])
             indices = self.local_grids[a].indices
             for i, exp in enumerate(exponents):
-                g_ai = self.cache.load("proshells", a, i, alloc=len(indices))[0]
+                g_ai = self.cache.load("pro-shell", a, i, alloc=len(indices))[0]
                 tmp = self.bs_helper.compute_proshell_dens(
                     1.0, exp, self.radial_dists[a], 0
                 )
@@ -354,19 +354,14 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 # 2. load old propars
                 propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
                 alphas = self.bs_helper.load_exponent(self.numbers[iatom])
-                assert len(propars) == len(alphas)
 
                 # 3. compute basis functions on molecule grid
                 new_propars = []
                 local_grid = self.local_grids[iatom]
                 indices = local_grid.indices
                 for k, (pop, alpha) in enumerate(zip(propars.copy(), alphas)):
-                    # r = self.radial_dists[iatom]
-                    # rho0_ak = self.bs_helper.compute_proshell_dens(propar, alpha, r, 0)
-                    # rho0_ak = proshells[ishell, indices] * pop
-                    g_ak = self.cache.load(("proshells", iatom, k))
+                    g_ak = self.cache.load(("pro-shell", iatom, k))
                     rho0_ak = g_ak * pop
-                    # rho0_ak = np.clip(rho0_ak, 1e-100, np.inf)
                     new_propars.append(
                         local_grid.integrate(rho[indices] * rho0_ak / old_rho0[indices])
                     )
