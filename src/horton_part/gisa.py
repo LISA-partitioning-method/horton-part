@@ -121,6 +121,14 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         alphas = self.bs_helper.load_exponent(self.numbers[iatom])
         return self.bs_helper.compute_proatom_dens(propars, alphas, rgrid.points, 1)
 
+    def eval_proatom(self, index, output, grid):
+        propars = self.cache.load("propars")
+        populations = propars[self._ranges[index] : self._ranges[index + 1]]
+        exponents = self.bs_helper.load_exponent(self.numbers[index])
+        output[:] = self.bs_helper.compute_proatom_dens(
+            populations, exponents, self.radial_dists[index], 0
+        )
+
     def _init_propars(self):
         ISAWPart._init_propars(self)
         self._ranges = [0]

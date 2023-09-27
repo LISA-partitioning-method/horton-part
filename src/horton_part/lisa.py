@@ -27,8 +27,10 @@ import cvxopt
 from scipy.linalg import solve, LinAlgWarning, LinAlgError, eigvals
 from scipy.optimize import minimize, LinearConstraint, fsolve, fixed_point
 import warnings
+import time
 from .log import log, biblio
 from .gisa import GaussianIterativeStockholderWPart
+from .cache import just_once
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -70,6 +72,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         solver=1,
         diis_size=8,
         basis_func_type="gauss",
+        use_global_method=False,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -85,6 +88,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
              Reduce the CPU cost at the expense of more memory consumption.
         """
         self.diis_size = diis_size
+        self.use_global_method = use_global_method
         GaussianIterativeStockholderWPart.__init__(
             self,
             coordinates,
@@ -121,6 +125,286 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             biblio.cite(
                 "Benda2022", "the use of Linear Iterative Stockholder partitioning"
             )
+
+    @just_once
+    def do_partitioning(self):
+        if not self.use_global_method:
+            return GaussianIterativeStockholderWPart.do_partitioning(self)
+        else:
+            new = any(("at_weights", i) not in self.cache for i in range(self.natom))
+            new |= "niter" not in self.cache
+            if new:
+                self._init_propars()
+                t0 = time.time()
+                if self._solver == 1:
+                    new_propars = self._update_propars_lisa1_globally()
+                elif self._solver == 2:
+                    new_propars = self._update_propars_lisa2_globally()
+                else:
+                    raise NotImplementedError
+
+                t1 = time.time()
+                print(f"Time usage for partitioning: {t1-t0:.2f} s")
+                propars = self.cache.load("propars")
+                propars[:] = new_propars
+
+                self.update_at_weights()
+                # compute the new charge
+                charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+                for iatom in range(self.natom):
+                    at_weights = self.cache.load("at_weights", iatom)
+                    dens = self.get_moldens(iatom)
+                    atgrid = self.get_grid(iatom)
+                    spline = atgrid.spherical_average(at_weights * dens)
+                    r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
+                    spherical_average = np.clip(spline(r), 1e-100, np.inf)
+                    pseudo_population = atgrid.rgrid.integrate(
+                        4 * np.pi * r**2 * spherical_average
+                    )
+                    charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+    @just_once
+    def eval_proshells(self):
+        self.compute_local_grids()
+        nshell = len(self.cache.load("propars"))
+        proshells = self.cache.load("proshells", alloc=(nshell, self.grid.size))[0]
+        proshells[:] = 0.0
+        centers = self.cache.load("proshell_centers", alloc=(nshell, 3))[0]
+
+        ishell = 0
+        for a in range(self.natom):
+            exponents = self.bs_helper.load_exponent(self.numbers[a])
+            centers[a] = self.coordinates[a, :]
+            for exp in exponents:
+                g_ai = self.bs_helper.compute_proshell_dens(
+                    1.0, exp, self.radial_dists[a], 0
+                )
+                g_ai = np.clip(g_ai, 1e-100, np.inf)
+                proshells[ishell, self.local_grids[a].indices] = g_ai
+
+                ishell += 1
+
+        rho = self._moldens
+        rho_x_proshells = self.cache.load(
+            "rho*proshells", alloc=(nshell, self.grid.size)
+        )[0]
+        rho_x_proshells[:] = rho[None, :] * proshells[:, :]
+
+    def compute_promol_dens(self, propars):
+        self.eval_proshells()
+        rho0 = np.einsum("np,n->p", self.cache.load("proshells"), propars)
+        rho0 = np.clip(rho0, 1e-100, np.inf)
+        return rho0
+
+    def _update_propars_lisa1_globally(self):
+        rho = self._moldens
+        propars = self.cache.load("propars")
+
+        npar = len(propars)
+        matrix_constraint_ineq = -cvxopt.matrix(np.identity(npar))
+        vector_constraint_ineq = cvxopt.matrix(0.0, (npar, 1))
+        matrix_constraint_eq = cvxopt.matrix(1.0, (1, npar))
+
+        N_mol = self.grid.integrate(rho)
+        vector_constraint_eq = cvxopt.matrix(N_mol, (1, 1))
+
+        def F(x=None, z=None):
+            if x is None:
+                return 0, cvxopt.matrix(propars[:])
+
+            x = np.clip(x, 1e-6, None).flatten()
+            rho0 = self.compute_promol_dens(x)
+
+            if z is None:
+                f, df = self._working_matrix(rho, rho0, x, 1)
+                df = df.reshape((1, npar))
+                return f, cvxopt.matrix(df)
+
+            f, df, hess = self._working_matrix(rho, rho0, x, 2)
+            df = df.reshape((1, npar))
+            hess = z[0] * cvxopt.matrix(hess)
+            return f, cvxopt.matrix(df), hess
+
+        opt_CVX = cvxopt.solvers.cp(
+            F,
+            G=matrix_constraint_ineq,
+            h=vector_constraint_ineq,
+            A=matrix_constraint_eq,
+            b=vector_constraint_eq,
+            verbose=True,
+            reltol=1e-6,
+            options={"show_progress": log.do_medium},
+        )
+
+        optimized_res = opt_CVX["x"]
+        if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
+            log("Not all values are positive!")
+
+        if np.sum(optimized_res) - N_mol >= 1e-8 and log.do_warning:
+            log("The sum of results is not equal to N_a!")
+
+        return np.asarray(opt_CVX["x"]).flatten()
+
+    def _working_matrix(self, rho, rho0, propars, nderiv=0):
+        f = -self.grid.integrate(rho * np.log(rho0))
+        if nderiv == 0:
+            return f
+
+        proshells = self.cache.load("proshells")
+        rho_x_proshells = self.cache.load("rho*proshells")
+        centers = self.cache.load("proshell_centers")
+        df = np.zeros_like(propars)
+        hess = np.zeros((len(propars), len(propars)))
+        npars = len(propars)
+        for i in range(npars):
+            # g_ai = proshells[i, :]
+            # df_integrand = rho * g_ai / rho0
+            df_integrand = rho_x_proshells[i, :] / rho0
+            df[i] = -self.grid.integrate(df_integrand)
+            if nderiv > 1:
+                for j in range(i, npars):
+                    if np.linalg.norm(centers[i] - centers[j]) > 16:
+                        hess[i, j] = 0
+                    else:
+                        g_bj = proshells[j, :]
+                        hess_integrand = df_integrand * g_bj / rho0
+                        hess[i, j] = self.grid.integrate(hess_integrand)
+                    hess[j, i] = hess[i, j]
+
+        if nderiv == 1:
+            return f, df
+        elif nderiv == 2:
+            return f, df, hess
+        else:
+            raise NotImplementedError
+
+        # collect funcs
+        # gauss_funcs = []
+        # centers = []
+        # for a in range(self.natom):
+        #     a_propars = propars[self._ranges[a] : self._ranges[a + 1]]
+        #     a_exps = self.bs_helper.load_exponent(self.numbers[a])
+
+        #     for a_pop, a_exp in zip(a_propars.copy(), a_exps):
+        #         r_a = self.radial_dists[a]
+        #         g_ai = self.bs_helper.compute_proshell_dens(1.0, a_exp, r_a, 0)
+        #         g_ai = np.clip(g_ai, 1e-100, np.inf)
+        #         gauss_funcs.append(g_ai)
+        #         centers.append(a)
+
+        # df = np.zeros_like(propars)
+        # hess = np.zeros((len(propars), len(propars)))
+        # npars = len(propars)
+        # for i in range(npars):
+        #     grid_i = self.local_grids[centers[i]]
+        #     indices_i = grid_i.indices
+        #     g_ai = gauss_funcs[i]
+        #     df[i] = -grid_i.integrate(rho[indices_i] * g_ai / rho0[indices_i])
+
+        #     if nderiv > 1:
+        #         for j in range(npars):
+        #             grid_j = self.local_grids[centers[j]]
+        #             indices_j = grid_j.indices
+        #             g_bj = gauss_funcs[j]
+        #             ij, ind_i, ind_j = np.intersect1d(
+        #                 indices_i, indices_j, return_indices=True
+        #             )
+        #             if len(ij) == 0:
+        #                 hess[i, j] = 0
+        #             else:
+        #                 hess[i, j] = np.einsum(
+        #                     "i,i",
+        #                     grid_i.weights[ind_i],
+        #                     rho[ij] * g_ai[ind_i] * g_bj[ind_j] / rho0[ij] ** 2,
+        #                 )
+        # if nderiv == 1:
+        #     return f, df
+        # elif nderiv == 2:
+        #     return f, df, hess
+        # else:
+        #     raise NotImplementedError
+
+    @just_once
+    def eval_proshells_lisa2(self):
+        self.compute_local_grids()
+        for a in range(self.natom):
+            exponents = self.bs_helper.load_exponent(self.numbers[a])
+            indices = self.local_grids[a].indices
+            for i, exp in enumerate(exponents):
+                g_ai = self.cache.load("proshells", a, i, alloc=len(indices))[0]
+                tmp = self.bs_helper.compute_proshell_dens(
+                    1.0, exp, self.radial_dists[a], 0
+                )
+                g_ai[:] = np.clip(tmp, 1e-100, np.inf)
+
+    def _update_propars_lisa2_globally(self):
+        # 1. load molecular and pro-molecule density from cache
+        rho = self._moldens
+        self.eval_proshells_lisa2()
+        all_propars = self.cache.load("propars")
+        old_propars = all_propars.copy()
+
+        print("Iteration       Change")
+
+        counter = 0
+        while True:
+            old_rho0 = self.compute_promol_dens(old_propars)
+            ishell = 0
+            for iatom in range(self.natom):
+                # 2. load old propars
+                propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+                alphas = self.bs_helper.load_exponent(self.numbers[iatom])
+                assert len(propars) == len(alphas)
+
+                # 3. compute basis functions on molecule grid
+                new_propars = []
+                local_grid = self.local_grids[iatom]
+                indices = local_grid.indices
+                for k, (pop, alpha) in enumerate(zip(propars.copy(), alphas)):
+                    # r = self.radial_dists[iatom]
+                    # rho0_ak = self.bs_helper.compute_proshell_dens(propar, alpha, r, 0)
+                    # rho0_ak = proshells[ishell, indices] * pop
+                    g_ak = self.cache.load(("proshells", iatom, k))
+                    rho0_ak = g_ak * pop
+                    # rho0_ak = np.clip(rho0_ak, 1e-100, np.inf)
+                    new_propars.append(
+                        local_grid.integrate(rho[indices] * rho0_ak / old_rho0[indices])
+                    )
+                    ishell += 1
+
+                # 4. get new propars using fixed-points
+                propars[:] = np.asarray(new_propars)
+
+            rho0 = self.compute_promol_dens(all_propars)
+            change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
+            if counter % 10 == 0:
+                print("%9i   %10.5e" % (counter, change))
+            if change < self._threshold:
+                print("%9i   %10.5e" % (counter, change))
+                break
+            old_propars = all_propars.copy()
+            counter += 1
+        return all_propars
+
+        # # compute the new charge
+        # at_weights = self.cache.load("at_weights", iatom)
+        # dens = self.get_moldens(iatom)
+        # atgrid = self.get_grid(iatom)
+        # spline = atgrid.spherical_average(at_weights * dens)
+        # r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
+        # spherical_average = np.clip(spline(r), 1e-100, np.inf)
+        # pseudo_population = atgrid.rgrid.integrate(
+        #     4 * np.pi * r**2 * spherical_average
+        # )
+        # charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+        # charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+    def _finalize_propars(self):
+        if not self.use_global_method:
+            return GaussianIterativeStockholderWPart._finalize_propars(self)
+        else:
+            self._cache.load("charges")
+            pass
 
     def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
         if self._solver == 1:

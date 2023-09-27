@@ -330,8 +330,10 @@ def main(args=None):
         if args.type in ["gisa", "lisa"]:
             kwargs["solver"] = args.solver
             kwargs["basis_func_type"] = args.func_type
-            if args.solver > 200:
-                kwargs["diis_size"] = args.diis_size
+            if args.type in ["lisa"]:
+                kwargs["use_global_method"] = args.use_global_method
+                if args.solver > 200:
+                    kwargs["diis_size"] = args.diis_size
 
         part = wpart_schemes(args.type)(**kwargs)
         part.do_partitioning()
@@ -348,28 +350,29 @@ def main(args=None):
         # print("radial moments:")
         # print(part.cache["radial_moments"])
 
-        print(" " * width)
-        print("*" * width)
-        print(" Time usage ".center(width, " "))
-        print("*" * width)
-        print(
-            f"Do Partitioning                              : {part.time_usage['do_partitioning']:>10.2f} s"
-        )
-        print(
-            f"  Update Weights                             : {part._cache['time_update_at_weights']:>10.2f} s"
-        )
-        print(
-            f"    Update Promolecule Density (N_atom**2)   : {part._cache['time_update_promolecule']:>10.2f} s"
-        )
-        print(
-            f"    Update AIM Weights (N_atom)              : {part._cache['time_compute_at_weights']:>10.2f} s"
-        )
-        print(
-            f"  Update Atomic Parameters (iter*N_atom)     : {part._cache['time_update_propars_atoms']:>10.2f} s"
-        )
-        # print(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
-        print("*" * width)
-        print(" " * width)
+        if not (args.type in ["lisa"] and args.use_global_method):
+            print(" " * width)
+            print("*" * width)
+            print(" Time usage ".center(width, " "))
+            print("*" * width)
+            print(
+                f"Do Partitioning                              : {part.time_usage['do_partitioning']:>10.2f} s"
+            )
+            print(
+                f"  Update Weights                             : {part._cache['time_update_at_weights']:>10.2f} s"
+            )
+            print(
+                f"    Update Promolecule Density (N_atom**2)   : {part._cache['time_update_promolecule']:>10.2f} s"
+            )
+            print(
+                f"    Update AIM Weights (N_atom)              : {part._cache['time_compute_at_weights']:>10.2f} s"
+            )
+            print(
+                f"  Update Atomic Parameters (iter*N_atom)     : {part._cache['time_update_propars_atoms']:>10.2f} s"
+            )
+            # print(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
+            print("*" * width)
+            print(" " * width)
 
         part_data = {}
         part_data["natom"] = len(data["atnums"])
@@ -380,18 +383,24 @@ def main(args=None):
         part_data["maxiter"] = args.maxiter
         part_data["threshold"] = args.threshold
         part_data["solver"] = args.solver
-        part_data["time"] = part.time_usage["do_partitioning"]
-        part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
-        part_data["time_update_promolecule"] = part._cache["time_update_promolecule"]
-        part_data["time_compute_at_weights"] = part._cache["time_compute_at_weights"]
-        part_data["time_update_propars_atoms"] = part._cache[
-            "time_update_propars_atoms"
-        ]
-        part_data["niter"] = part.cache["niter"]
         part_data["charges"] = part.cache["charges"]
-        part_data["history_charges"] = part.cache["history_charges"]
-        part_data["history_propars"] = part.cache["history_propars"]
-        part_data["history_entropies"] = part.cache["history_entropies"]
+
+        if not (args.type in ["lisa"] and args.use_global_method):
+            part_data["time"] = part.time_usage["do_partitioning"]
+            part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
+            part_data["time_update_promolecule"] = part._cache[
+                "time_update_promolecule"
+            ]
+            part_data["time_compute_at_weights"] = part._cache[
+                "time_compute_at_weights"
+            ]
+            part_data["time_update_propars_atoms"] = part._cache[
+                "time_update_propars_atoms"
+            ]
+            part_data["niter"] = part.cache["niter"]
+            part_data["history_charges"] = part.cache["history_charges"]
+            part_data["history_propars"] = part.cache["history_propars"]
+            part_data["history_entropies"] = part.cache["history_entropies"]
 
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
@@ -527,6 +536,12 @@ def parse_args(args=None):
         type=int,
         default=8,
         help="The number of previous iterations info used in DIIS. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--use_global_method",
+        default=False,
+        action="store_true",
+        help="Whether use global method",
     )
 
     return parser.parse_args(args=args)

@@ -45,6 +45,7 @@ class StockholderWPart(WPart):
         self.local_grids = []
         self.atom_in_local_grid = []
         self.points_in_atom = []
+        self.radial_dists = []
         # TODO: the radius should be basis function dependent.
         for index in range(self.natom):
             local_grid = self.grid.get_localgrid(
@@ -55,6 +56,8 @@ class StockholderWPart(WPart):
             in_atm = (begin <= local_grid.indices) & (local_grid.indices < end)
             self.atom_in_local_grid.append(in_atm)
             self.points_in_atom.append(local_grid.indices[in_atm] - begin)
+            r = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
+            self.radial_dists.append(r)
 
     def update_pro(self, index, proatdens, promoldens):
         # work = np.zeros((self.grid.size,))
