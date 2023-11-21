@@ -120,9 +120,22 @@ class MBISWPart(ISAWPart):
             biblio.cite("verstraelen2016", "the use of MBIS partitioning")
 
     def get_rgrid(self, iatom):
+        """Get radial grid for `iatom` atom."""
         return self.get_grid(iatom).rgrid
 
     def get_proatom_rho(self, iatom, propars=None):
+        """Get pro-atom density for atom `iatom`.
+
+        If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
+
+        Parameters
+        ----------
+        iatom: int
+            The index of atom `iatom`.
+        propars: np.array
+            The pro-atom parameters.
+
+        """
         if propars is None:
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
@@ -138,6 +151,21 @@ class MBISWPart(ISAWPart):
         return y, d
 
     def eval_proatom(self, index, output, grid):
+        """Evaluate function on a local grid.
+
+        The size of the local grid is specified by the radius of the sphere where the local grid is considered.
+        For example, when the radius is `np.inf`, the grid corresponds to the whole molecular grid.
+
+        Parameters
+        ----------
+        index: int
+            The index of an atom in the molecule.
+        output: np.array
+            The size of `output` should be the same as the size of the local grid.
+        grid: np.array
+            The local grid.
+
+        """
         propars = self.cache.load("propars")
         r = self.radial_dists[index]
         y = np.zeros(len(r), float)

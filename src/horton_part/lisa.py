@@ -253,11 +253,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             A=matrix_constraint_eq,
             b=vector_constraint_eq,
             verbose=True,
-            # reltol=self._threshold,
             options={
                 "show_progress": log.do_medium,
-                # "reltol": self._threshold,
-                # "abstol": 1e-6,
                 "feastol": self._threshold,
             },
         )
@@ -289,10 +286,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             df[i] = -self.grid.integrate(df_integrand)
             if nderiv > 1:
                 for j in range(i, npars):
-                    if (
-                        np.linalg.norm(centers[i] - centers[j])
-                        > self.local_grid_radius()
-                    ):
+                    if np.linalg.norm(centers[i] - centers[j]) > self.local_grid_radius:
                         hess[i, j] = 0
                     else:
                         g_bj = proshells[j, :]

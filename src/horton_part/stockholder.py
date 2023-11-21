@@ -41,6 +41,18 @@ def eval_spline_grid(spline, grid, center):
 
 class StockholderWPart(WPart):
     def local_grid_radius(self):
+        """
+        Get the radius of the local grid sphere.
+
+        This property returns the radius of the sphere within which local grids are considered.
+        The local grid radius is used in [global methods]. It's a key parameter in [some process].
+
+        Returns
+        -------
+        float
+            The radius of the local grid sphere.
+
+        """
         return np.inf
 
     @just_once
@@ -51,13 +63,19 @@ class StockholderWPart(WPart):
         self.radial_dists = []
         # TODO: the radius should be basis function dependent.
         for index in range(self.natom):
+            # Find the local grid included in a sphere whose radius is specified by user.
             local_grid = self.grid.get_localgrid(
-                center=self.coordinates[index], radius=self.local_grid_radius()
+                center=self.coordinates[index], radius=self.local_grid_radius
             )
             self.local_grids.append(local_grid)
+            # Find indices of points belonging to atom `index`.
             begin, end = self.grid.indices[index], self.grid.indices[index + 1]
+            # Find all points belonging to atom `index` in the local grid.
             in_atm = (begin <= local_grid.indices) & (local_grid.indices < end)
+            # The indices of points corresponding to the current atom, starting from `begin` to `end`.
+            # This is because the local grids could also include grids from other atom.
             self.atom_in_local_grid.append(in_atm)
+            # Reindex indices for each atom, starting from 0 to `end` - `begin`.
             self.points_in_atom.append(local_grid.indices[in_atm] - begin)
             r = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
             self.radial_dists.append(r)

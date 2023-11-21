@@ -30,6 +30,7 @@ from .mbis import *
 from .mulliken import *
 from .proatomdb import *
 from .stockholder import *
+from .isa import *
 from .gisa import *
 from .lisa import *
 from .log import *

@@ -27,11 +27,11 @@ import numpy as np
 
 from .cache import just_once
 from .stockholder import StockholderWPart
-from .log import log, biblio
+from .log import log
 import time
 
 
-__all__ = ["ISAWPart", "IterativeStockholderWPart"]
+__all__ = ["ISAWPart"]
 
 
 class ISAWPart(StockholderWPart):
@@ -62,6 +62,13 @@ class ISAWPart(StockholderWPart):
              The maximum number of iterations. If no convergence is reached
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
+
+        inner_threshold
+            The threshold for inner local optimization problem.
+
+        local_grid_radius
+            The radius of the sphere where the local grids are considered.
+
         """
         self._threshold = threshold
         self._inner_threshold = (
@@ -81,7 +88,27 @@ class ISAWPart(StockholderWPart):
             lmax,
         )
 
+    @property
     def local_grid_radius(self):
+        """
+        Get the radius of the local grid sphere.
+
+        This property returns the radius of the sphere within which local grids are considered.
+        The local grid radius is used in [global methods]. It's a key parameter in [some process].
+
+        Returns
+        -------
+        float
+            The radius of the local grid sphere.
+
+        Raises
+        ------
+        ValueError
+            If the local grid radius is not set or out of an expected range.
+        """
+        if self._local_grid_radius is None or self._local_grid_radius < 0:
+            raise ValueError("Local grid radius is not properly set.")
+
         return self._local_grid_radius
 
     def compute_change(self, propars1, propars2):
@@ -97,6 +124,7 @@ class ISAWPart(StockholderWPart):
         return np.sqrt(msd)
 
     def _init_propars(self):
+        """Initial pro-atom parameters and cache lists."""
         self.history_propars = []
         self.history_charges = []
         self.history_entropies = []
@@ -104,6 +132,7 @@ class ISAWPart(StockholderWPart):
         self.history_time_update_propars_atoms = []
 
     def _update_propars(self):
+        """Update pro-atom parameters."""
         # Keep track of history
         self.history_propars.append(self.cache.load("propars").copy())
         if "promoldens" in self.cache:
@@ -133,9 +162,11 @@ class ISAWPart(StockholderWPart):
         self.history_charges.append(self.cache.load("charges").copy())
 
     def _update_propars_atom(self, index):
+        """Update pro-atom parameters for each atom."""
         raise NotImplementedError
 
     def _finalize_propars(self):
+        """Restore the pro-atom parameters."""
         charges = self._cache.load("charges")
         self.cache.dump("history_propars", np.array(self.history_propars), tags="o")
         self.cache.dump("history_charges", np.array(self.history_charges), tags="o")
@@ -185,6 +216,7 @@ class ISAWPart(StockholderWPart):
 
     @just_once
     def do_partitioning(self):
+        """Do partitioning"""
         # Perform one general check in the beginning to avoid recomputation
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache
@@ -214,66 +246,3 @@ class ISAWPart(StockholderWPart):
             self._finalize_propars()
             self.cache.dump("niter", counter, tags="o")
             self.cache.dump("change", change, tags="o")
-
-
-class IterativeStockholderWPart(ISAWPart):
-    """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
-
-    name = "is"
-    options = ["lmax", "threshold", "maxiter"]
-    linear = False
-
-    def _init_log_scheme(self):
-        if log.do_medium:
-            log("Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    ("Scheme", "Iterative Stockholder"),
-                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
-                    (
-                        "Inner loop convergence threshold",
-                        "%.1e" % self._inner_threshold,
-                    ),
-                    ("Maximum iterations", self._maxiter),
-                    ("lmax", self._lmax),
-                ]
-            )
-        biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")
-
-    def get_rgrid(self, index):
-        return self.get_grid(index).rgrid
-
-    def get_proatom_rho(self, index, propars=None):
-        if propars is None:
-            propars = self.cache.load("propars")
-        return propars[self._ranges[index] : self._ranges[index + 1]], None
-
-    def _init_propars(self):
-        ISAWPart._init_propars(self)
-        self._ranges = [0]
-        for index in range(self.natom):
-            npoint = self.get_rgrid(index).size
-            self._ranges.append(self._ranges[-1] + npoint)
-        ntotal = self._ranges[-1]
-        return self.cache.load("propars", alloc=ntotal, tags="o")[0]
-
-    def _update_propars_atom(self, index):
-        # compute spherical average
-        atgrid = self.get_grid(index)
-        dens = self.get_moldens(index)
-        at_weights = self.cache.load("at_weights", index)
-        # avoid too large r
-        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
-        spline = atgrid.spherical_average(at_weights * dens)
-        spherical_average = np.clip(spline(r), 1e-100, np.inf)
-
-        # assign as new propars
-        propars = self.cache.load("propars")
-        propars[self._ranges[index] : self._ranges[index + 1]] = spherical_average
-
-        # compute the new charge
-        pseudo_population = atgrid.rgrid.integrate(
-            4 * np.pi * r**2 * spherical_average
-        )
-        charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
-        charges[index] = self.pseudo_numbers[index] - pseudo_population
