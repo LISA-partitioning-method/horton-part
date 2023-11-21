@@ -48,6 +48,7 @@ class ISAWPart(StockholderWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
+        local_grid_radius=8.0,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -67,6 +68,7 @@ class ISAWPart(StockholderWPart):
             inner_threshold if inner_threshold < threshold else threshold
         )
         self._maxiter = maxiter
+        self._local_grid_radius = local_grid_radius
         StockholderWPart.__init__(
             self,
             coordinates,
@@ -78,6 +80,9 @@ class ISAWPart(StockholderWPart):
             local,
             lmax,
         )
+
+    def local_grid_radius(self):
+        return self._local_grid_radius
 
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""

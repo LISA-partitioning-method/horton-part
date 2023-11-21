@@ -137,6 +137,19 @@ class MBISWPart(ISAWPart):
             d -= S * f
         return y, d
 
+    def eval_proatom(self, index, output, grid):
+        propars = self.cache.load("propars")
+        r = self.radial_dists[index]
+        y = np.zeros(len(r), float)
+        # d = np.zeros(len(r), float)
+        my_propars = propars[self._ranges[index] : self._ranges[index + 1]]
+        for ishell in range(self._nshells[index]):
+            N, S = my_propars[2 * ishell : 2 * ishell + 2]
+            f = N * S**3 * np.exp(-S * r) / (8 * np.pi)
+            y += f
+            # d -= S * f
+        output[:] = y
+
     def _init_propars(self):
         ISAWPart._init_propars(self)
         self._ranges = [0]

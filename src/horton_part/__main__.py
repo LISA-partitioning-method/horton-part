@@ -325,6 +325,7 @@ def main(args=None):
             "lmax": args.lmax,
             "maxiter": args.maxiter,
             "threshold": args.threshold,
+            "local_grid_radius": args.local_grid_radius,
         }
 
         if args.type in ["gisa", "lisa"]:
@@ -542,6 +543,12 @@ def parse_args(args=None):
         default=False,
         action="store_true",
         help="Whether use global method",
+    )
+    parser.add_argument(
+        "--local_grid_radius",
+        type=float,
+        default=np.inf,
+        help="The radius for local atomic grid [default=%(default)s]",
     )
 
     return parser.parse_args(args=args)

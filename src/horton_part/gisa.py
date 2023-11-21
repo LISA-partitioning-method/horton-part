@@ -54,6 +54,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
+        local_grid_radius=8.0,
         solver=1,
         basis_func_type="gauss",
     ):
@@ -86,6 +87,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             threshold,
             maxiter,
             inner_threshold,
+            local_grid_radius,
         )
 
     def _init_log_scheme(self):

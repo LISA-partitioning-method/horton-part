@@ -40,6 +40,9 @@ def eval_spline_grid(spline, grid, center):
 
 
 class StockholderWPart(WPart):
+    def local_grid_radius(self):
+        return np.inf
+
     @just_once
     def compute_local_grids(self):
         self.local_grids = []
@@ -49,7 +52,7 @@ class StockholderWPart(WPart):
         # TODO: the radius should be basis function dependent.
         for index in range(self.natom):
             local_grid = self.grid.get_localgrid(
-                center=self.coordinates[index], radius=8.0
+                center=self.coordinates[index], radius=self.local_grid_radius()
             )
             self.local_grids.append(local_grid)
             begin, end = self.grid.indices[index], self.grid.indices[index + 1]
