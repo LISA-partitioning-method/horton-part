@@ -624,7 +624,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             return opt_propars_fixed_points_sc(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver in [202]:
+        elif self._solver in [202, 206]:
             return opt_propars_fixed_points_diis(
                 bs_funcs, rho, propars, points, weights, threshold, self.diis_size
             )
