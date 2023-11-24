@@ -30,9 +30,10 @@ import cvxopt
 from .iterstock import ISAWPart
 from .log import log, biblio
 from .basis import BasisFuncHelper
+from .cache import just_once
 
 
-__all__ = ["GaussianIterativeStockholderWPart"]
+__all__ = ["GaussianIterativeStockholderWPart", "calc_proatom_dens"]
 
 
 class GaussianIterativeStockholderWPart(ISAWPart):
@@ -172,6 +173,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             propars[
                 self._ranges[iatom] : self._ranges[iatom + 1]
             ] = self.bs_helper.load_initial_propars(self.numbers[iatom])
+        self.compute_integral()
         return propars
 
     def _update_propars_atom(self, iatom):
@@ -182,48 +184,83 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         at_weights = self.cache.load("at_weights", iatom)
         spline = atgrid.spherical_average(at_weights * dens)
         # avoid too large r
-        r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
-        spherical_average = np.clip(spline(r), 1e-100, np.inf)
+        points = np.clip(atgrid.rgrid.points, 1e-20, 1e10)
+        spherical_average = np.clip(spline(points), 1e-20, np.inf)
 
         # assign as new propars
         propars = self.cache.load("propars")[
             self._ranges[iatom] : self._ranges[iatom + 1]
         ]
         alphas = self.bs_helper.load_exponent(self.numbers[iatom])
+        bs_funcs = self.cache.load("bs_funcs", iatom)
+
+        # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
-            spherical_average, propars.copy(), rgrid, alphas, self._inner_threshold
+            bs_funcs,
+            spherical_average,
+            propars.copy(),
+            points,
+            rgrid.weights,
+            alphas,
+            self._inner_threshold,
         )
 
         # compute the new charge
         pseudo_population = atgrid.rgrid.integrate(
-            4 * np.pi * r**2 * spherical_average
+            4 * np.pi * points**2 * spherical_average
         )
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
-    def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
+    def _opt_propars(self, bs_funcs, rho, propars, points, weights, alphas, threshold):
         if self._solver == 1:
             return _constrained_least_squares_quadprog(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 2:
             return _constrained_least_squares(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 3:
             return _constrained_least_cvxopt(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 0:
             return _solver_comparison(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         else:
             raise NotImplementedError
 
+    @just_once
+    def compute_integral(self):
+        for a in range(self.natom):
+            rgrid = self.get_rgrid(a)
+            r = rgrid.points
+            # weights = rgrid.weights
+            r = np.clip(r, 1e-20, 1e10)
+
+            nprim = self._ranges[a + 1] - self._ranges[a]
+            alphas = self.bs_helper.load_exponent(self.numbers[a])
+
+            bs_funcs = self.cache.load("bs_funcs", a, alloc=(nprim, r.size))[0]
+            bs_funcs[:, :] = np.array(
+                [
+                    self.bs_helper.compute_proshell_dens(1.0, alphas[k], r)
+                    for k in range(nprim)
+                ]
+            )
+
+
+def calc_proatom_dens(propars, bs_funcs, threshold=1e-20):
+    shells = propars[:, None] * bs_funcs
+    pro = shells.sum(axis=0)
+    pro = np.clip(pro, threshold, np.inf)
+    return pro
+
 
 def _constrained_least_squares_quadprog(
-    bs_helper, rho, propars, rgrid, alphas, threshold
+    bs_funcs, rho, propars, points, weights, alphas, threshold
 ):
     r"""
     Optimize parameters for proatom density functions.
@@ -260,12 +297,7 @@ def _constrained_least_squares_quadprog(
     """
 
     nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
+    r = points
     S = (
         2
         / np.pi**1.5
@@ -275,7 +307,9 @@ def _constrained_least_squares_quadprog(
 
     vec_b = np.zeros(nprim, float)
     for k in range(nprim):
-        vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
+        vec_b[k] = 2 * np.einsum(
+            "i,i,i->", 4 * np.pi * r**2 * weights, bs_funcs[k], rho
+        )
 
     # Construct linear equality or inequality constraints
     matrix_constraint = np.zeros([nprim, nprim + 1])
@@ -285,7 +319,7 @@ def _constrained_least_squares_quadprog(
     matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
     vector_constraint = np.zeros(nprim + 1)
     # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-    vector_constraint[0] = rgrid.integrate(4 * np.pi * r**2, rho)
+    vector_constraint[0] = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
 
     propars_qp = quadprog.solve_qp(
         G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
@@ -294,7 +328,7 @@ def _constrained_least_squares_quadprog(
 
 
 def _constrained_least_squares(
-    bs_helper, rho, propars, rgrid, alphas, threshold, x0=None
+    bs_funcs, rho, propars, points, weights, alphas, threshold
 ):
     r"""
     Optimize parameters for proatom density functions.
@@ -330,38 +364,28 @@ def _constrained_least_squares(
 
     """
 
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    weights = rgrid.weights
-    nelec = rgrid.integrate(4 * np.pi * r**2, rho)
-
-    def f(args):
-        rho_test = bs_helper.compute_proatom_dens(args, alphas, r, 0)
+    def f(propars):
+        # rho_test = bs_helper.compute_proatom_dens(args, alphas, r, 0)
+        pro = calc_proatom_dens(propars, bs_funcs)
         # This is integrand function corresponding to the difference of number of electrons.
-        obj_func = 4 * np.pi * np.abs(rho_test - rho) * weights * r**2
-        return obj_func
+        return 4 * np.pi * weights * points**2 * np.abs(pro - rho)
 
-    if x0 is None:
-        x0 = [nelec / nprim] * nprim
     res = least_squares(
         f,
-        x0=x0,
+        x0=propars,
         bounds=(0, np.inf),
         verbose=2 if log.level >= 2 else log.level,
+        gtol=threshold,
     )
     return res.x
 
 
-def _constrained_least_cvxopt(bs_helper, rho, propars, rgrid, alphas, threshold):
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
+def _constrained_least_cvxopt(
+    bs_funcs, rho, propars, points, weights, alphas, threshold
+):
+    nprim, npt = bs_funcs.shape
+    r = points
+
     S = (
         2
         / np.pi**1.5
@@ -372,43 +396,53 @@ def _constrained_least_cvxopt(bs_helper, rho, propars, rgrid, alphas, threshold)
 
     vec_b = np.zeros((nprim, 1), float)
     for k in range(nprim):
-        vec_b[k] = 2 * rgrid.integrate(4 * np.pi * r**2, gauss_funcs[k], rho)
+        vec_b[k] = 2 * np.einsum(
+            "i,i->", 4 * np.pi * r**2 * weights * bs_funcs[k], rho
+        )
     q = -cvxopt.matrix(vec_b)
 
     # Linear inequality constraints
     G = cvxopt.matrix(0.0, (nprim, nprim))
     G[:: nprim + 1] = -1.0
-    # G = -cvxopt.matrix(np.identity(nprim))
     h = cvxopt.matrix(0.0, (nprim, 1))
 
     # Linear equality constraints
     A = cvxopt.matrix(1.0, (1, nprim))
-    Na = rgrid.integrate(4 * np.pi * r**2, rho)
+    Na = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
     b = cvxopt.matrix(Na, (1, 1))
 
     # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
     opt_CVX = cvxopt.solvers.qp(
-        P, q, G, h, A, b, options={"show_progress": log.do_medium}
+        P,
+        q,
+        G,
+        h,
+        A,
+        b,
+        initvals=propars,
+        options={"show_progress": log.do_medium, "feastol": threshold},
     )
     new_propars = np.asarray(opt_CVX["x"]).flatten()
     return new_propars
 
 
-def _solver_comparison(rho, propars, rgrid, alphas, threshold):
+def _solver_comparison(bs_funcs, rho, propars, points, weights, alphas, threshold):
     propars_qp = _constrained_least_squares_quadprog(
-        rho, propars, rgrid, alphas, threshold
+        bs_funcs, rho, propars, points, weights, alphas, threshold
     )
     print("propars_qp:")
     propars_qp = np.clip(propars_qp, 0, np.inf)
     print(propars_qp)
 
     propars_lsq = _constrained_least_squares(
-        rho, propars, rgrid, alphas, threshold, x0=propars_qp
+        bs_funcs, rho, propars, points, weights, alphas, threshold, x0=propars_qp
     )
     print("propars_lsq:")
     print(propars_lsq)
 
-    propars_cvxopt = _constrained_least_cvxopt(rho, propars, rgrid, alphas, threshold)
+    propars_cvxopt = _constrained_least_cvxopt(
+        bs_funcs, rho, propars, points, weights, alphas, threshold
+    )
     print("propars_cvxopt:")
     print(propars_cvxopt)
     return propars_cvxopt

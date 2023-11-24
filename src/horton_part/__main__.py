@@ -335,6 +335,8 @@ def main(args=None):
                 kwargs["use_global_method"] = args.use_global_method
                 if args.solver > 200:
                     kwargs["diis_size"] = args.diis_size
+            if args.type in ["lisa"]:
+                kwargs["allow_negative_params"] = args.allow_negative_params
 
         part = wpart_schemes(args.type)(**kwargs)
         part.do_partitioning()
@@ -543,6 +545,12 @@ def parse_args(args=None):
         default=False,
         action="store_true",
         help="Whether use global method",
+    )
+    parser.add_argument(
+        "--allow_negative_params",
+        default=False,
+        action="store_true",
+        help="Whether negative parameters are allowed",
     )
     parser.add_argument(
         "--local_grid_radius",

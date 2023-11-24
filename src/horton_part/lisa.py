@@ -24,21 +24,20 @@
 from __future__ import division, print_function
 import numpy as np
 import cvxopt
-from scipy.linalg import solve, LinAlgWarning, LinAlgError, eigvals, eigh
+from scipy.linalg import solve, LinAlgWarning, eigh
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import SparseEfficiencyWarning
 from scipy.optimize import (
     minimize,
     LinearConstraint,
     fsolve,
-    fixed_point,
     root,
     SR1,
 )
 import warnings
 import time
 from .log import log, biblio
-from .gisa import GaussianIterativeStockholderWPart
+from .gisa import GaussianIterativeStockholderWPart, calc_proatom_dens
 from .cache import just_once
 
 # Suppress specific warning
@@ -49,14 +48,9 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 __all__ = [
     "LinearIterativeStockholderWPart",
     "opt_propars_fixed_points_sc",
-    "opt_propars_fixed_points_plus_lisa1",
-    "opt_propars_fixed_points_new_diis",
     "opt_propars_fixed_points_diis",
-    "opt_propars_fixed_points_diis2",
     "opt_propars_fixed_points_fslove",
-    "opt_propars_fixed_points",
     "opt_propars_fixed_points_newton",
-    "opt_propars_fixed_point_trust_constr",
     "opt_propars_minimization_trust_constr",
     "opt_propars_minimization_fast",
     "opt_propars_minimization_slow",
@@ -84,6 +78,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         diis_size=8,
         basis_func_type="gauss",
         use_global_method=False,
+        allow_negative_params=False,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -100,6 +95,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         """
         self.diis_size = diis_size
         self.use_global_method = use_global_method
+        self.allow_negative_params = allow_negative_params
         GaussianIterativeStockholderWPart.__init__(
             self,
             coordinates,
@@ -132,7 +128,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 )
                 info_list.append(("Using global ISA", False))
             else:
-                info_list.append("Using global ISA", True)
+                info_list.append(("Using global ISA", True))
 
             info_list.extend(
                 [
@@ -141,9 +137,10 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                     ("Solver", self._solver),
                     ("Basis function type", self.func_type),
                     ("Local grid radius", self._local_grid_radius),
+                    ("Allow negative parameters", self.allow_negative_params),
                 ]
             )
-            if self._solver in [201, 202]:
+            if self._solver in [201, 202, 206]:
                 info_list.append(("DIIS size", self.diis_size))
             log.deflist(info_list)
             biblio.cite(
@@ -161,17 +158,19 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 self._init_propars()
                 t0 = time.time()
                 if self._solver == 1:
-                    new_propars = self._update_propars_lisa1_globally()
-                elif self._solver == 101:
-                    new_propars = self._update_propars_lisa3_globally(
-                        gtol=self._threshold
+                    new_propars = self._update_propars_lisa_1_globally()
+                elif self._solver == 3:
+                    new_propars = self._update_propars_lisa_3_globally(
+                        gtol=self._threshold, allow_neg_pars=self.allow_negative_params
                     )
                 elif self._solver == 104:
-                    new_propars = self._update_propars_lisa1_globally(
-                        allow_neg_pars=True
+                    new_propars = self._update_propars_lisa_1_globally(
+                        allow_neg_pars=self.allow_negative_params
                     )
                 elif self._solver == 2:
-                    new_propars = self._update_propars_lisa2_globally()
+                    new_propars = self._update_propars_lisa_201_globally()
+                elif self._solver == 206:
+                    new_propars = self._update_propars_lisa_206_globally(self.diis_size)
                 else:
                     raise NotImplementedError
 
@@ -228,7 +227,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         # 1e-100 is not valid for method where negative parameters are allowed.
         return np.clip(rho0, 1e-20, np.inf)
 
-    def _update_propars_lisa1_globally(self, allow_neg_pars=False):
+    def _update_propars_lisa_1_globally(self, allow_neg_pars=False):
         rho = self._moldens
         propars = self.cache.load("propars")
 
@@ -245,7 +244,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         N_mol = self.grid.integrate(rho)
         vector_constraint_eq = cvxopt.matrix(N_mol, (1, 1))
 
-        def F(x=None, z=None):
+        def obj_func(x=None, z=None):
             if x is None:
                 return 0, cvxopt.matrix(propars[:])
 
@@ -266,7 +265,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             return f, cvxopt.matrix(df), hess
 
         opt_CVX = cvxopt.solvers.cp(
-            F,
+            obj_func,
             G=matrix_constraint_ineq,
             h=vector_constraint_ineq,
             A=matrix_constraint_eq,
@@ -357,7 +356,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 f"nderiv value of {nderiv} is not supported. Only 0, 1, or 2 are valid."
             )
 
-    def _update_propars_lisa3_globally(self, gtol, maxiter=1000, allow_neg_pars=True):
+    def _update_propars_lisa_3_globally(self, gtol, maxiter=1000, allow_neg_pars=True):
         """Optimize the promodel using the trust-constr minimizer from SciPy."""
         rho = self._moldens
         rho = np.clip(rho, 1e-20, np.inf)
@@ -384,7 +383,18 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         else:
             bounds = None
             constraint = LinearConstraint(np.ones((1, npar)), pop, pop)
-            hess = None
+            hess = SR1()
+
+        rho0_history = []
+
+        def callback(_current_pars, opt_result):
+            rho0 = self.compute_promol_dens(_current_pars)
+            rho0_history.append(rho0)
+
+            if len(rho0_history) >= 2:
+                pre_rho0 = rho0_history[-2]
+                change = np.sqrt(self.grid.integrate((rho0 - pre_rho0) ** 2))
+                return change < self._threshold and opt_result["status"]
 
         optresult = minimize(
             cost_grad,
@@ -394,7 +404,8 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             hess=hess,
             bounds=bounds,
             constraints=constraint,
-            options={"gtol": gtol, "maxiter": maxiter, "verbose": 3},
+            callback=callback,
+            options={"gtol": gtol, "maxiter": maxiter, "verbose": 5},
         )
 
         # Check for convergence.
@@ -410,7 +421,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         return optresult.x
 
     @just_once
-    def eval_proshells_lisa2(self):
+    def eval_proshells_lisa_201(self):
         self.compute_local_grids()
         for a in range(self.natom):
             exponents = self.bs_helper.load_exponent(self.numbers[a])
@@ -420,12 +431,12 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 tmp = self.bs_helper.compute_proshell_dens(
                     1.0, exp, self.radial_dists[a], 0
                 )
-                g_ai[:] = np.clip(tmp, 1e-100, np.inf)
+                g_ai[:] = np.clip(tmp, 1e-20, np.inf)
 
-    def _update_propars_lisa2_globally(self):
+    def _update_propars_lisa_201_globally(self):
         # 1. load molecular and pro-molecule density from cache
         rho = self._moldens
-        self.eval_proshells_lisa2()
+        self.eval_proshells_lisa_201()
         all_propars = self.cache.load("propars")
         old_propars = all_propars.copy()
 
@@ -479,6 +490,103 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         # charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         # charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
+    def _update_propars_lisa_206_globally(self, diis_size=8):
+        # 1. load molecular and pro-molecule density from cache
+        rho = self._moldens
+        self.eval_proshells_lisa_201()
+        all_propars = self.cache.load("propars")
+
+        print("Iteration       Change")
+
+        history_diis = []
+        history_propars = []
+        start_diis_iter = diis_size + 1
+
+        for counter in range(1000):
+            old_rho0 = self.compute_promol_dens(all_propars)
+            all_fun_vals = np.zeros_like(all_propars)
+            ishell = 0
+            for iatom in range(self.natom):
+                # 2. load old propars
+                propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+                alphas = self.bs_helper.load_exponent(self.numbers[iatom])
+
+                # 3. compute basis functions on molecule grid
+                fun_val = []
+                local_grid = self.local_grids[iatom]
+                indices = local_grid.indices
+                for k, (pop, alpha) in enumerate(zip(propars.copy(), alphas)):
+                    g_ak = self.cache.load(("pro-shell", iatom, k))
+                    rho0_ak = g_ak * pop
+
+                    sick = old_rho0[indices] < 1e-18
+                    integrand = rho[indices] * rho0_ak / old_rho0[indices]
+                    integrand[sick] = 0.0
+
+                    fun_val.append(local_grid.integrate(integrand))
+                    ishell += 1
+
+                # 4. get new propars using fixed-points
+                # new_propars[:] = np.asarray(fun_val)
+                all_fun_vals[
+                    self._ranges[iatom] : self._ranges[iatom + 1]
+                ] = np.asarray(fun_val)
+
+            history_propars.append(all_propars)
+
+            # Build DIIS Residual
+            diis_r = all_propars - all_fun_vals
+            rho0 = self.compute_promol_dens(all_fun_vals)
+            change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
+
+            # Compute drms
+            drms = np.linalg.norm(diis_r)
+
+            if log.do_medium:
+                log(f"           {counter:<4}    {drms:.6E}")
+
+            if change < self._threshold:
+                return all_propars
+
+            # if drms < self._threshold:
+            #     return all_propars
+
+            # Append trail & residual vectors to lists
+            if counter >= start_diis_iter - diis_size:
+                history_propars.append(all_fun_vals)
+                history_diis.append(diis_r)
+
+            if counter >= start_diis_iter:
+                # TODO: this doesn't work for global DIIS
+                # Build B matrix
+                propars_prev = history_propars[-diis_size:]
+                diis_prev = history_diis[-diis_size:]
+
+                B_dim = len(propars_prev) + 1
+                B = np.zeros((B_dim, B_dim))
+                B[-1, :] = B[:, -1] = -1
+                tmp = np.einsum("ip,jp->ij", diis_prev, diis_prev)
+                B[:-1, :-1] = (tmp + tmp.T) / 2
+                B[-1, -1] = 0
+
+                # Build RHS of Pulay equation
+                rhs = np.zeros(B_dim)
+                rhs[-1] = -1
+                coeff = spsolve(B, rhs)
+                all_propars = np.einsum(
+                    "i, ip->p", coeff[:-1], np.asarray(propars_prev)
+                )
+
+                if (np.isnan(all_propars)).any():
+                    all_propars = all_fun_vals
+            else:
+                all_propars = all_fun_vals
+
+            if not np.all(all_propars >= -1e-10).all():
+                log("negative c_ak found!")
+
+        raise RuntimeError("Error: inner iteration is not converge!")
+
     def _finalize_propars(self):
         if not self.use_global_method:
             return GaussianIterativeStockholderWPart._finalize_propars(self)
@@ -486,99 +594,55 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             self._cache.load("charges")
             pass
 
-    def _opt_propars(self, rho, propars, rgrid, alphas, threshold):
-        if self._solver == 1:
+    def _opt_propars(self, bs_funcs, rho, propars, points, weights, alphas, threshold):
+        if self._solver in [1, 101]:
             return opt_propars_minimization_fast(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
-            )
-        elif self._solver == 101:
-            # code optimization of LISA-1
-            return opt_propars_minimization_slow(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                alphas,
+                threshold,
+                allow_neg_params=self.allow_negative_params,
             )
         elif self._solver == 102:
             # use `trust_constr` in SciPy with constraint explicitly
             return opt_propars_minimization_trust_constr(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 103:
             # same as LISA-102 but with constraint implicitly
             return opt_propars_minimization_no_constr(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 104:
-            # code optimization of LISA-1 with allowing negative parameters
-            return opt_propars_minimization_slow_negative_paras(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+            return opt_propars_minimization_fast(
+                bs_funcs, rho, propars, points, weights, alphas, threshold, True
             )
-        elif self._solver == 2:
+        elif self._solver in [2, 201]:
             return opt_propars_fixed_points_sc(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver == 21:
-            return opt_propars_fixed_points_plus_lisa1(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
-            )
-        elif self._solver == 201:
-            return opt_propars_fixed_points_new_diis(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold, self.diis_size
-            )
-            # return opt_propars_fixed_points_root(
-            #     self.bs_helper, rho, propars, rgrid, alphas, threshold, self.diis_size
-            # )
-        elif self._solver == 202:
+        elif self._solver in [202]:
             return opt_propars_fixed_points_diis(
-                self.bs_helper,
-                rho,
-                propars,
-                rgrid,
-                alphas,
-                threshold,
-                diis_size=self.diis_size,
+                bs_funcs, rho, propars, points, weights, threshold, self.diis_size
             )
         elif self._solver == 203:
             return opt_propars_fixed_points_newton(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 204:
             return opt_propars_fixed_points_fslove(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
+                bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver == 205:
-            return opt_propars_fixed_points(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
-            )
-        elif self._solver == 206:
-            return opt_propars_fixed_points_diis2(
-                self.bs_helper,
-                rho,
-                propars,
-                rgrid,
-                alphas,
-                threshold,
-                diis_size=self.diis_size,
-            )
-        elif self._solver == 207:
-            return opt_propars_fixed_point_trust_constr(
-                self.bs_helper, rho, propars, rgrid, alphas, threshold
-            )
-        # elif str(self._solver).startswith("202"):
-        #     solver = str(self._solver)
-        #     diis_size = solver.lstrip("202")
-        #     if len(diis_size) == 0:
-        #         diis_size = 8
-        #     else:
-        #         diis_size = int(diis_size)
-        #     return _opt_propars_with_lagrangian_diis(
-        #         rho, propars, rgrid, alphas, threshold, diis_size=diis_size
-        #     )
-        elif self._solver == 0:
-            return _solver_comparison(rho, propars, rgrid, alphas, threshold)
         else:
             raise NotImplementedError
 
 
-def opt_propars_fixed_points_sc(bs_helper, rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_sc(
+    bs_funcs, rho, propars, points, weights, alphas, threshold
+):
     r"""
     Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
 
@@ -607,117 +671,36 @@ def opt_propars_fixed_points_sc(bs_helper, rho, propars, rgrid, alphas, threshol
     -------
 
     """
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
     oldpro = None
     if log.do_medium:
         log("            Iter.    Change    ")
         log("            -----    ------    ")
     for irep in range(int(1e10)):
         # compute the contributions to the pro-atom
-        terms = np.array(
-            [
-                bs_helper.compute_proshell_dens(propars[k], alphas[k], r)
-                for k in range(nprim)
-            ]
-        )
-        if not np.all(terms >= 0.0).all():
+        if not np.all(bs_funcs >= 0.0).all():
             raise RuntimeError("Error: negative pro-shell density found!")
-        pro = terms.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
+        pro_shells = propars[:, None] * bs_funcs
+        pro = pro_shells.sum(axis=0)
+        pro = np.clip(pro, 1e-20, np.inf)
         # transform to partitions
-        terms *= rho / pro
+        pro_shells *= rho / pro
         # the partitions and the updated parameters
-        for k in range(nprim):
-            propars[k] = rgrid.integrate(4 * np.pi * r**2, terms[k])
+        propars[:] = np.einsum("p,ip->i", 4 * np.pi * points**2 * weights, pro_shells)
+
         # check for convergence
         if oldpro is None:
             change = 1e100
         else:
             error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+            change = np.sqrt(
+                np.einsum("i,i,i->", 4 * np.pi * points**2 * weights, error, error)
+            )
         if log.do_medium:
             log(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             return propars
         oldpro = pro
     raise RuntimeError("Error: Inner iteration is not converge!")
-
-
-def opt_propars_fixed_points_plus_lisa1(
-    bs_helper, rho, propars, rgrid, alphas, threshold
-):
-    r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-    Parameters
-    ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
-
-    Returns
-    -------
-
-    """
-    oldpropars = propars.copy()
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    oldpro = None
-    if log.do_medium:
-        log("            Iter.    Change    ")
-        log("            -----    ------    ")
-    for irep in range(1000):
-        # compute the contributions to the pro-atom
-        terms = np.array(
-            [
-                bs_helper.compute_proshell_dens(propars[k], alphas[k], r)
-                for k in range(nprim)
-            ]
-        )
-        pro = terms.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
-        # transform to partitions
-        terms *= rho / pro
-        # the partitions and the updated parameters
-        for k in range(nprim):
-            propars[k] = rgrid.integrate(4 * np.pi * r**2, terms[k])
-        # check for convergence
-        if oldpro is None:
-            change = 1e100
-        else:
-            error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
-        if log.do_medium:
-            log(f"            {irep+1:<4}    {change:.3e}")
-        if change < threshold:
-            return propars
-        oldpro = pro
-
-    print("Inner iteration is not converge, run lisa-1!")
-    new_propars = opt_propars_minimization_fast(
-        rho, oldpropars, rgrid, alphas, threshold
-    )
-    return new_propars
 
 
 def diis(c_values, r_values, max_history):
@@ -785,101 +768,8 @@ def diis(c_values, r_values, max_history):
     return c_new, turn_off_diis
 
 
-def opt_propars_fixed_points_new_diis(
-    bs_helper, rho, propars, rgrid, alphas, threshold, diis_size
-):
-    r"""
-    Optimize parameters for proatom density functions using SC with damping
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-    Parameters
-    ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
-
-    Returns
-    -------
-
-    """
-    nprim = len(propars)
-    r = rgrid.points
-    weights = rgrid.weights
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    # history_diis = []
-    history_residues = []
-    history_c_tilde = []
-    # history_c = []
-    turn_off_diis = False
-
-    oldpro = None
-    if log.do_medium:
-        log("            Iter.    Change    ")
-        log("            -----    ------    ")
-    for irep in range(int(1e10)):
-        # compute the contributions to the pro-atom
-        shells = propars[:, None] * bs_funcs
-        if not np.all(shells >= -1e-10).all():
-            warnings.warn("Negative pro-shell density found!")
-        pro = shells.sum(axis=0)
-        if log.do_debug and not np.all(pro >= -1e-10) and pro[1:] > pro[:-1]:
-            raise RuntimeError("Negative pro-atom density found!")
-        pro = np.clip(pro, 1e-100, np.inf)
-
-        # check for convergence
-        if oldpro is None:
-            change = 1e100
-        else:
-            error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
-        if log.do_medium:
-            log(f"            {irep+1:<4}    {change:.3e}")
-        if change < threshold:
-            return propars
-
-        propars_tilde = np.einsum(
-            "ip,p->i", shells * rho / pro, 4 * np.pi * r**2 * weights
-        )
-        residues = propars_tilde - propars
-        history_residues.append(residues)
-        history_c_tilde.append(propars_tilde)
-
-        # run DIIS
-        if irep > 0 and not turn_off_diis:
-            propars, turn_off_diis = diis(
-                history_c_tilde, history_residues, max_history=diis_size
-            )
-        else:
-            propars = propars_tilde
-
-        if not np.all(propars >= -1e-10).all():
-            # raise RuntimeError("Error: negative propars found!")
-            warnings.warn("Negative propars found!")
-        # history_c.append(propars)
-        oldpro = pro
-    raise RuntimeError("Inner iteration is not converge!")
-
-
 def opt_propars_fixed_points_root(
-    bs_helper, rho, propars, rgrid, alphas, threshold, diis_size
+    bs_funcs, rho, propars, points, weights, alphas, threshold
 ):
     r"""
     Optimize parameters for proatom density functions using SC with damping
@@ -909,15 +799,8 @@ def opt_propars_fixed_points_root(
     -------
 
     """
-    nprim = len(propars)
-    r = rgrid.points
-    weights = rgrid.weights
-    r = np.clip(r, 1e-100, 1e10)
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
 
-    def func(x):
+    def obj_func(x):
         shells = x[:, None] * bs_funcs
         pro = shells.sum(axis=0)
         if not np.all(shells >= -1e-10).all():
@@ -927,7 +810,7 @@ def opt_propars_fixed_points_root(
             raise RuntimeError("Negative pro-atom density found!")
         pro = np.clip(pro, 1e-100, np.inf)
         integrand = bs_funcs * rho / pro
-        int_weights = 4 * np.pi * r**2 * weights
+        int_weights = 4 * np.pi * points**2 * weights
         f = 1 - np.einsum("kp,p->k", integrand, int_weights)
         return f
         # # Note: f_grad is symmetric matrix
@@ -935,7 +818,7 @@ def opt_propars_fixed_points_root(
         # return f, f_grad
 
     # res = root(func, propars, jac=True, tol=threshold)
-    res = root(func, propars, jac=True, tol=threshold, method="anderson")
+    res = root(obj_func, propars, jac=True, tol=threshold, method="anderson")
     assert res.success
     return res.x
     # res2 = opt_propars_fixed_points_sc(bs_helper, rho, res.x, rgrid, alphas, threshold)
@@ -943,7 +826,7 @@ def opt_propars_fixed_points_root(
 
 
 def opt_propars_fixed_points_diis(
-    bs_helper, rho, propars, rgrid, alphas, threshold, diis_size=8
+    bs_funcs, rho, propars, points, weights, threshold, diis_size=8
 ):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
@@ -973,155 +856,6 @@ def opt_propars_fixed_points_diis(
     -------
 
     """
-    nprim = len(propars)
-    r = rgrid.points
-    weights = rgrid.weights
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-
-    history_diis = []
-    history_pros = []
-    history_shells = []
-    start_diis_iter = diis_size
-
-    oldpro = None
-    if log.do_medium:
-        log("            Iter.    dRMS      ")
-        log("            -----    ------    ")
-
-    turn_off_diis = False
-    for irep in range(1000):
-        # compute the contributions to the pro-atom
-        shells = propars[:, None] * bs_funcs
-        pro = shells.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
-
-        # Build DIIS Residual
-        diis_r = pro if irep == 0 else pro - oldpro
-
-        # Append trail & residual vectors to lists
-        if irep >= start_diis_iter - diis_size:
-            history_shells.append(shells)
-            history_pros.append(pro)
-            history_diis.append(diis_r)
-
-        # Compute drms
-        drms = np.sqrt(rgrid.integrate(4 * np.pi * r**2, diis_r, diis_r))
-        if log.do_medium:
-            log(f"           {irep:<4}    {drms:.6E}")
-
-        if drms < threshold:
-            # check N_a
-            N_a = rgrid.integrate(4 * np.pi * r**2, rho)
-            assert np.isclose(N_a, np.sum(propars), rtol=1e-5)
-            if not np.all(propars >= -1e-10).all():
-                raise RuntimeError("Error: negative propars found!")
-            return propars
-
-        if not turn_off_diis and irep >= start_diis_iter:
-            # Build B matrix
-            shells_prev = history_shells[-diis_size:]
-            pros_prev = history_pros[-diis_size:]
-            diss_prev = history_diis[-diis_size:]
-
-            B_dim = len(pros_prev) + 1
-            B = np.zeros((B_dim, B_dim))
-            B[-1, :] = B[:, -1] = -1
-            B[:-1, :-1] = np.einsum("ip,jp->ij", diss_prev, diss_prev)
-            B[-1, -1] = 0
-
-            # Build RHS of Pulay equation
-            rhs = np.zeros(B_dim)
-            rhs[-1] = -1
-
-            # Solve Pulay equation for coeff with numpy
-            # Use solve from Scipy, which prints warning info
-            try:
-                # w, v = eigh(B)
-                w = eigvals(B)
-                if np.any(abs(w) < 1e-30):
-                    warnings.warn(
-                        "Linear dependence found in DIIS error vectors. Turn off DIIS"
-                    )
-                    turn_off_diis = True
-                    # return to LISA-2, use purely self-consistent method.
-                else:
-                    coeff = solve(B, rhs, assume_a="sym")
-                    if log.do_debug:
-                        assert np.isclose(np.sum(coeff[:-1]), 1)
-
-                    # Build DIIS pro and shells
-                    shells = np.einsum(
-                        "i, inp->np", coeff[:-1], np.asarray(shells_prev)
-                    )
-                    pro = np.einsum("i, ip->p", coeff[:-1], np.asarray(pros_prev))
-                    # if not np.all(shells >= -1e-10):
-                    #     raise RuntimeError("Error: negative pro-shell density found!")
-                    # The pro is linear combination of the previous pro-atoms densities, so if the coefficients are not
-                    # correct then the pro is invalid.
-                    if log.do_debug and not np.all(pro >= -1e-10):
-                        warnings.warn("Negative pro-atom density found!")
-                    # clip negative part
-                    shells = np.clip(shells, 1e-20, np.inf)
-                    pro = np.clip(pro, 1e-20, np.inf)
-            except LinAlgError:
-                turn_off_diis = True
-
-        # compute new poppars from DIIS pro or fix-point
-        propars[:] = np.einsum(
-            "ip,p->i", shells * rho / pro, 4 * np.pi * r**2 * weights
-        )
-        oldpro = pro
-
-        if log.do_debug:
-            print("propars:", propars)
-
-    raise RuntimeError("Error: inner iteration is not converge!")
-
-
-def opt_propars_fixed_points_diis2(
-    bs_helper, rho, propars, rgrid, alphas, threshold, diis_size=8
-):
-    r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-    Parameters
-    ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
-
-    Returns
-    -------
-
-    """
-    nprim = len(propars)
-    r = rgrid.points
-    weights = rgrid.weights
-    # avoid too large r
-    r = np.clip(r, 1e-20, 1e10)
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-
     history_diis = []
     history_propars = []
     start_diis_iter = diis_size + 1
@@ -1130,14 +864,14 @@ def opt_propars_fixed_points_diis2(
         log("            Iter.    dRMS      ")
         log("            -----    ------    ")
 
-    turn_off_diis = False
     for irep in range(1000):
         # compute the contributions to the pro-atom
         shells = propars[:, None] * bs_funcs
         pro = shells.sum(axis=0)
         pro = np.clip(pro, 1e-20, np.inf)
+        calc_proatom_dens(propars, bs_funcs)
         integrands = shells * rho / pro
-        fun_val = np.einsum("ip,p->i", integrands, 4 * np.pi * r**2 * weights)
+        fun_val = np.einsum("ip,p->i", integrands, 4 * np.pi * points**2 * weights)
         # print(fun_val)
 
         # Build DIIS Residual
@@ -1155,7 +889,7 @@ def opt_propars_fixed_points_diis2(
             history_propars.append(fun_val)
             history_diis.append(diis_r)
 
-        if irep >= start_diis_iter and not turn_off_diis:
+        if irep >= start_diis_iter:
             # Build B matrix
             propars_prev = history_propars[-diis_size:]
             diis_prev = history_diis[-diis_size:]
@@ -1166,55 +900,27 @@ def opt_propars_fixed_points_diis2(
             tmp = np.einsum("ip,jp->ij", diis_prev, diis_prev)
             B[:-1, :-1] = (tmp + tmp.T) / 2
             B[-1, -1] = 0
-            # B = csr_matrix(B)
 
             # Build RHS of Pulay equation
             rhs = np.zeros(B_dim)
             rhs[-1] = -1
             coeff = spsolve(B, rhs)
             propars = np.einsum("i, ip->p", coeff[:-1], np.asarray(propars_prev))
-
-            # w, v = eigsh(B)
-            # # w, v = eigh(B)
-            # creteria = threshold**2 * 0.1
-            # if np.any(abs(w) < creteria):
-            #     if log.do_debug:
-            #         log("Linear dependence found in DIIS error vectors.")
-            #     idx = abs(w) > creteria
-            #     if np.sum(idx) == 2:
-            #         propars = fun_val
-            #         turn_off_diis = True
-            #         if log.do_debug:
-            #             log("Turn off DIIS")
-            #         continue
-            #     else:
-            #         coeff = np.dot(v[:, idx] * (1.0 / w[idx]), np.dot(v[:, idx].T, rhs))
-            # else:
-            #     # coeff = np.dot(v * (1.0 / w), np.dot(v.T, rhs))
-            #     coeff = spsolve(B, rhs)
-            #     # try:
-            #     #     coeff = np.linalg.solve(B, rhs)
-            #     # except np.linalg.linalg.LinAlgError:
-            #     #     log("Diis singular, eigh(B)")
-            #     #     propars = fun_val
-            #     #     turn_off_diis = True
-            #     #     continue
-            # propars = np.einsum("i, ip->p", coeff[:-1], np.asarray(propars_prev))
         else:
             propars = fun_val
 
         if not np.all(propars >= -1e-10).all():
             if (np.isnan(propars)).any():
-                # raise RuntimeError("Found NAN in propars.")
                 propars = fun_val
-                # turn_off_diis = True
                 pass
-            log("negative c_ak found!")
+            warnings.warn("negative c_ak found!")
 
     raise RuntimeError("Error: inner iteration is not converge!")
 
 
-def opt_propars_fixed_points(bs_helper, rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_newton(
+    bs_funcs, rho, propars, points, weights, alphas, threshold
+):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -1243,68 +949,7 @@ def opt_propars_fixed_points(bs_helper, rho, propars, rgrid, alphas, threshold):
     -------
 
     """
-    nprim = len(propars)
-    r = rgrid.points
-    weights = rgrid.weights
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-
-    def f(x0):
-        shells = x0[:, None] * bs_funcs
-        pro = shells.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
-        integrands = shells * rho / pro
-        return np.einsum("ip,p->i", integrands, 4 * np.pi * r**2 * weights)
-
-    new_propars = fixed_point(
-        f, propars, maxiter=int(1e10), method="iteration", xtol=threshold
-    )
-    # new_propars = fixed_point(f, propars, maxiter=10000, xtol=1e-6)
-    # print("propars", new_propars)
-    return new_propars
-
-
-def opt_propars_fixed_points_newton(bs_helper, rho, propars, rgrid, alphas, threshold):
-    r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-    Parameters
-    ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
-
-    Returns
-    -------
-
-    """
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    weights = rgrid.weights
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    int_weights = 4 * np.pi * r**2 * weights
+    int_weights = 4 * np.pi * points**2 * weights
 
     if log.do_medium:
         log("            Iter.    Change    ")
@@ -1316,7 +961,8 @@ def opt_propars_fixed_points_newton(bs_helper, rho, propars, rgrid, alphas, thre
         # compute the contributions to the pro-atom
         shells = propars[:, None] * bs_funcs
         if not np.all(shells >= -1e-5).all():
-            raise RuntimeError("Error: negative pro-shell density found!")
+            # raise RuntimeError("Error: negative pro-shell density found!")
+            warnings.warn("Negative pro-shell density found!")
         pro = shells.sum(axis=0)
         if not np.all(pro >= -1e-10).all():
             raise RuntimeError("Error: negative pro-atom density found!")
@@ -1326,7 +972,7 @@ def opt_propars_fixed_points_newton(bs_helper, rho, propars, rgrid, alphas, thre
         # check for convergence
         if oldpro is not None:
             error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+            change = np.sqrt(np.einsum("i,i,i->", int_weights, error, error))
         if log.do_medium:
             log(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
@@ -1339,11 +985,13 @@ def opt_propars_fixed_points_newton(bs_helper, rho, propars, rgrid, alphas, thre
         propars += delta
         oldpro = pro
         if not np.all(propars >= -1e-10):
-            raise RuntimeError("Error: negative propars found!")
+            warnings.warn("Negative propars found!")
     raise RuntimeError("Inner loop: Newton does not converge!")
 
 
-def opt_propars_fixed_points_fslove(bs_helper, rho, propars, rgrid, alphas, threshold):
+def opt_propars_fixed_points_fslove(
+    bs_funcs, rho, propars, points, weights, alphas, threshold
+):
     r"""
     Optimize parameters for proatom density functions using MBIS Lagrange.
 
@@ -1372,33 +1020,25 @@ def opt_propars_fixed_points_fslove(bs_helper, rho, propars, rgrid, alphas, thre
     -------
 
     """
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    weights = rgrid.weights
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    int_weights = 4 * np.pi * r**2 * weights
+    int_weights = 4 * np.pi * points**2 * weights
 
-    def func(vars):
+    def obj_func(vars):
         shells = vars[:, None] * bs_funcs
         pro = shells.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
+        pro = np.clip(pro, 1e-20, np.inf)
         return 1 - np.einsum("kp,p->k", bs_funcs * rho / pro, int_weights)
 
     def fprime(vars):
         shells = vars[:, None] * bs_funcs
         pro = shells.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
+        pro = np.clip(pro, 1e-20, np.inf)
         integrand = bs_funcs * rho / pro
         grad = np.einsum("kp, jp, p->kj", integrand / pro, bs_funcs, int_weights)
         return grad
 
     # TODO: xtol is relative error not absolute
     solution, infodict, iter, msg = fsolve(
-        func, propars, fprime=fprime, xtol=threshold, maxfev=1000, full_output=True
+        obj_func, propars, fprime=fprime, xtol=threshold, maxfev=1000, full_output=True
     )
     if log.do_medium:
         print(f"iter: {iter}")
@@ -1408,63 +1048,14 @@ def opt_propars_fixed_points_fslove(bs_helper, rho, propars, rgrid, alphas, thre
     # solution = fsolve(func, propars, xtol=threshold)
 
     if not np.all(solution >= -1e-10):
-        print("New propars", solution)
-        raise RuntimeError("Error: negative propars found!")
+        warnings.warn("Negative propars found!")
+        return solution
     else:
         return solution
 
 
-def opt_propars_fixed_point_trust_constr(
-    bs_helper, rho, propars, rgrid, alphas, threshold, verbose=False
-):
-    # TODO: not robust
-    nprim = len(propars)
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    weights = rgrid.weights
-    bs_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    int_weights = 4 * np.pi * r**2 * weights
-
-    def F(vars):
-        shells = vars[:, None] * bs_funcs
-        pro = shells.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
-        c_expr = 1 - np.einsum("kp,p->k", bs_funcs * rho / pro, int_weights)
-        func = np.linalg.norm(c_expr) ** 2
-
-        c_grad = np.einsum(
-            "kp, jp, p->kj", bs_funcs * rho / pro**2, bs_funcs, int_weights
-        )
-        grad = 2 * c_grad @ c_expr
-        return func, grad
-
-    bounds = [(-1e-10, 1000)] * nprim
-    opt_res = minimize(
-        F,
-        x0=propars,
-        method="trust-constr",
-        jac=True,
-        bounds=bounds,
-        constraints=None,
-        hess="3-point",
-        options={"gtol": 1e-12, "maxiter": 50000},
-    )
-
-    if not opt_res.success:
-        raise RuntimeError("Convergence failure.")
-
-    optimized_res = opt_res["x"]
-    if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
-        log("Not all values are positive!")
-
-    return optimized_res
-
-
 def opt_propars_minimization_slow(
-    bs_helper, rho, propars, rgrid, alphas, threshold, verbose=False
+    bs_funcs, rho, propars, points, weights, alphas, threshold, verbose=False
 ):
     r"""
     Optimize parameters for proatom density functions.
@@ -1503,19 +1094,12 @@ def opt_propars_minimization_slow(
     # Ax = b with x=(c_(a,k))_{k=1..Ka} ; A = (1...1) and b = Na = (Na)
     matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
 
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
+    r = points
     # N_a : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-    N_a = rgrid.integrate(4 * np.pi * r**2, rho)
+    N_a = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
     vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))
 
-    # Use optimized x to calculate Gaussian functions
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-
-    def F(x=None, z=None):
+    def obj_func(x=None, z=None):
         # x is the optimized coefficients
         if x is None:
             # For the initial step, this should be propars
@@ -1524,16 +1108,20 @@ def opt_propars_minimization_slow(
         x = np.clip(x, 1e-6, None)  # Replace values < 1e-6 with 1e-6
 
         # Use optimized to calculate density from each Gaussian function.
-        gauss_pros = np.array(
-            [bs_helper.compute_proshell_dens(x[k], alphas[k], r) for k in range(nprim)]
-        )
+        x = np.clip(x, 1e-6, None).flatten()
+        gauss_pros = bs_funcs * x[:, None]
+        # gauss_pros = np.array(
+        #     [bs_helper.compute_proshell_dens(x[k], alphas[k], r) for k in range(nprim)]
+        # )
         pro = gauss_pros.sum(axis=0)
         pro = np.clip(pro, 1e-100, np.inf)
 
-        f = -rgrid.integrate(4 * np.pi * r**2, rho * np.log(pro))
+        f = -np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho * np.log(pro))
         df = np.zeros((1, nprim), float)
         for i in range(nprim):
-            df[0, i] = -rgrid.integrate(4 * np.pi * r**2 * rho * gauss_funcs[i] / pro)
+            df[0, i] = -np.einsum(
+                "i,i->", 4 * np.pi * r**2 * weights, rho * bs_funcs[i] / pro
+            )
         df = cvxopt.matrix(df)
 
         if z is None:
@@ -1542,127 +1130,19 @@ def opt_propars_minimization_slow(
         hess = np.zeros((nprim, nprim), float)
         for i in range(nprim):
             for j in range(i, nprim):
-                hess[i, j] = rgrid.integrate(
-                    4 * np.pi * r**2,
-                    rho * gauss_funcs[i] * gauss_funcs[j] / pro**2,
+                hess[i, j] = np.einsum(
+                    "i,i->",
+                    4 * np.pi * r**2 * weights,
+                    rho * bs_funcs[i] * bs_funcs[j] / pro**2,
                 )
                 hess[j, i] = hess[i, j]
         hess = z[0] * cvxopt.matrix(hess)
         return f, df, hess
 
     opt_CVX = cvxopt.solvers.cp(
-        F,
+        obj_func,
         G=matrix_constraint_ineq,
         h=vector_constraint_ineq,
-        A=matrix_constraint_eq,
-        b=vector_constraint_eq,
-        verbose=verbose,
-        # reltol=threshold,
-        options={"show_progress": log.do_medium, "feastol": threshold},
-    )
-
-    optimized_res = opt_CVX["x"]
-    if not (np.asarray(optimized_res) > 0).all() and log.do_warning:
-        log("Not all values are positive!")
-
-    if np.sum(optimized_res) - N_a >= 1e-8 and log.do_warning:
-        log("The sum of results is not equal to N_a!")
-
-    new_propars = np.asarray(opt_CVX["x"]).flatten()
-    return new_propars
-
-
-def opt_propars_minimization_slow_negative_paras(
-    bs_helper, rho, propars, rgrid, alphas, threshold, verbose=False
-):
-    r"""
-    Optimize parameters for proatom density functions.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-    Parameters
-    ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
-
-    Returns
-    -------
-
-    """
-    # Conversion of the identity matrix into CVXOPT format :
-    # G = matrix_constraint_ineq
-    nprim = len(propars)
-    # matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
-
-    # h = vector_constraint_ineq
-    # vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
-
-    # Linear equality constraints :
-    # Ax = b with x=(c_(a,k))_{k=1..Ka} ; A = (1...1) and b = Na = (Na)
-    matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
-
-    r = rgrid.points
-    # avoid too large r
-    r = np.clip(r, 1e-100, 1e10)
-    # N_a : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-    N_a = rgrid.integrate(4 * np.pi * r**2, rho)
-    vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))
-
-    # Use optimized x to calculate Gaussian functions
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-
-    def F(x=None, z=None):
-        # x is the optimized coefficients
-        if x is None:
-            # For the initial step, this should be propars
-            return 0, cvxopt.matrix(propars[:])
-
-        # x = np.clip(x, 1e-6, None)  # Replace values < 1e-6 with 1e-6
-
-        # Use optimized to calculate density from each Gaussian function.
-        gauss_pros = np.array(
-            [bs_helper.compute_proshell_dens(x[k], alphas[k], r) for k in range(nprim)]
-        )
-        pro = gauss_pros.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
-
-        f = -rgrid.integrate(4 * np.pi * r**2, rho * np.log(pro))
-        df = np.zeros((1, nprim), float)
-        for i in range(nprim):
-            df[0, i] = -rgrid.integrate(4 * np.pi * r**2 * rho * gauss_funcs[i] / pro)
-        df = cvxopt.matrix(df)
-
-        if z is None:
-            return f, df
-
-        hess = np.zeros((nprim, nprim), float)
-        for i in range(nprim):
-            for j in range(i, nprim):
-                hess[i, j] = rgrid.integrate(
-                    4 * np.pi * r**2,
-                    rho * gauss_funcs[i] * gauss_funcs[j] / pro**2,
-                )
-                hess[j, i] = hess[i, j]
-        hess = z[0] * cvxopt.matrix(hess)
-        return f, df, hess
-
-    opt_CVX = cvxopt.solvers.cp(
-        F,
-        # G=matrix_constraint_ineq,
-        # h=vector_constraint_ineq,
         A=matrix_constraint_eq,
         b=vector_constraint_eq,
         verbose=verbose,
@@ -1681,39 +1161,33 @@ def opt_propars_minimization_slow_negative_paras(
 
 
 def opt_propars_minimization_fast(
-    bs_helper, rho, propars, rgrid, alphas, threshold, verbose=False
+    bs_funcs, rho, propars, points, weights, alphas, threshold, allow_neg_params=False
 ):
     nprim = len(propars)
-    matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
-    vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
-    matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
+    if allow_neg_params:
+        matrix_constraint_ineq = None
+        vector_constraint_ineq = None
+    else:
+        matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
+        vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
 
-    r = rgrid.points
-    weights = rgrid.weights
-    r = np.clip(r, 1e-100, 1e10)
-    N_a = rgrid.integrate(4 * np.pi * r**2, rho)
+    integrand_mult = 4 * np.pi * points**2 * weights * rho
+    N_a = np.sum(integrand_mult)
+    matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
     vector_constraint_eq = cvxopt.matrix(N_a, (1, 1))
 
-    # Precomputed Gaussian functions
-    # TODO: use cache
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    integrand_mult = 4 * np.pi * r**2 * weights
-
-    def F(x=None, z=None):
+    def obj_func(x=None, z=None):
         if x is None:
             return 0, cvxopt.matrix(propars[:])
 
         x = np.clip(x, 1e-6, None).flatten()
-        gauss_pros = gauss_funcs * x[:, None]
+        gauss_pros = bs_funcs * x[:, None]
         pro = gauss_pros.sum(axis=0)
         pro = np.clip(pro, 1e-100, np.inf)
 
-        f = -rgrid.integrate(integrand_mult, rho * np.log(pro))
-
-        tmp_grad = integrand_mult * rho / pro
-        df = -np.sum(tmp_grad[None, :] * gauss_funcs, axis=1).reshape((1, nprim))
+        f = -np.sum(integrand_mult * np.log(pro))
+        tmp_grad = integrand_mult / pro
+        df = -np.sum(tmp_grad[None, :] * bs_funcs, axis=1).reshape((1, nprim))
         df = cvxopt.matrix(df)
 
         if z is None:
@@ -1721,21 +1195,19 @@ def opt_propars_minimization_fast(
 
         tmp_hess = tmp_grad / pro
         hess = np.sum(
-            tmp_hess[None, None, :] * gauss_funcs[:, None, :] * gauss_funcs[None, :, :],
+            tmp_hess[None, None, :] * bs_funcs[:, None, :] * bs_funcs[None, :, :],
             axis=-1,
         )
         hess = z[0] * cvxopt.matrix(hess)
         return f, df, hess
 
     opt_CVX = cvxopt.solvers.cp(
-        F,
+        obj_func,
         G=matrix_constraint_ineq,
         h=vector_constraint_ineq,
         A=matrix_constraint_eq,
         b=vector_constraint_eq,
-        verbose=verbose,
-        reltol=threshold,
-        options={"show_progress": log.do_medium},
+        options={"show_progress": log.do_medium, "feastol": threshold},
     )
 
     optimized_res = opt_CVX["x"]
@@ -1750,41 +1222,32 @@ def opt_propars_minimization_fast(
 
 
 def opt_propars_minimization_trust_constr(
-    bs_helper, rho, propars, rgrid, alphas, threshold, verbose=False
+    bs_funcs, rho, propars, points, weights, alphas, threshold
 ):
     nprim = len(propars)
-
-    r = rgrid.points
-    weights = rgrid.weights
-    r = np.clip(r, 1e-100, 1e10)
-    N_a = rgrid.integrate(4 * np.pi * r**2, rho)
+    integrand_mult = 4 * np.pi * points**2 * weights * rho
+    N_a = np.sum(integrand_mult)
     constraint = LinearConstraint(np.ones((1, nprim)), N_a, N_a)
 
-    # Precomputed Gaussian functions
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    integrand_mult = 4 * np.pi * r**2 * weights * rho
-
-    def F(x=None):
-        gauss_pros = gauss_funcs * x[:, None]
+    def obj_funcs(x=None):
+        gauss_pros = bs_funcs * x[:, None]
         pro = gauss_pros.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
+        pro = np.clip(pro, 1e-20, np.inf)
         f = -np.sum(integrand_mult * np.log(pro))
         tmp_grad = integrand_mult / pro
-        df = -np.sum(tmp_grad[None, :] * gauss_funcs, axis=1)
+        df = -np.sum(tmp_grad[None, :] * bs_funcs, axis=1)
         return f, df
 
     bounds = [(1e-6, 200)] * nprim
     opt_res = minimize(
-        F,
+        obj_funcs,
         x0=propars,
         method="trust-constr",
         jac=True,
         bounds=bounds,
         constraints=constraint,
         hess="3-point",
-        options={"gtol": 1e-8, "maxiter": 5000},
+        options={"gtol": threshold, "maxiter": 5000},
     )
 
     if not opt_res.success:
@@ -1800,41 +1263,31 @@ def opt_propars_minimization_trust_constr(
 
 
 def opt_propars_minimization_no_constr(
-    bs_helper, rho, propars, rgrid, alphas, threshold, verbose=False
+    bs_funcs, rho, propars, points, weights, alphas, threshold
 ):
     nprim = len(propars)
+    integrand_mult = 4 * np.pi * points**2 * weights * rho
+    N_a = np.sum(integrand_mult)
 
-    r = rgrid.points
-    weights = rgrid.weights
-    r = np.clip(r, 1e-100, 1e10)
-    N_a = rgrid.integrate(4 * np.pi * r**2, rho)
-    # constraint = LinearConstraint(np.ones((1, nprim)), N_a, N_a)
-
-    # Precomputed Gaussian functions
-    gauss_funcs = np.array(
-        [bs_helper.compute_proshell_dens(1.0, alphas[k], r) for k in range(nprim)]
-    )
-    integrand_mult = 4 * np.pi * r**2 * weights * rho
-
-    def F(x=None):
-        gauss_pros = gauss_funcs * x[:, None]
+    def obj_func(x=None):
+        gauss_pros = bs_funcs * x[:, None]
         pro = gauss_pros.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
+        pro = np.clip(pro, 1e-20, np.inf)
         f = -np.sum(integrand_mult * np.log(pro)) - (N_a - np.sum(x))
         tmp_grad = integrand_mult / pro
-        df = -np.sum(tmp_grad[None, :] * gauss_funcs, axis=1) + 1
+        df = -np.sum(tmp_grad[None, :] * bs_funcs, axis=1) + 1
         return f, df
 
     bounds = [(1e-6, 200)] * nprim
     opt_res = minimize(
-        F,
+        obj_func,
         x0=propars,
         method="trust-constr",
         jac=True,
         bounds=bounds,
         constraints=None,
         hess="3-point",
-        options={"gtol": 1e-8, "maxiter": 5000},
+        options={"gtol": threshold, "maxiter": 5000},
     )
 
     if not opt_res.success:
@@ -1847,23 +1300,3 @@ def opt_propars_minimization_no_constr(
     if np.sum(optimized_res) - N_a >= 1e-4 and log.do_warning:
         log("The sum of results is not equal to N_a!")
     return optimized_res
-
-
-def _solver_comparison(rho, propars, rgrid, alphas, threshold):
-    propars_lisa = opt_propars_minimization_fast(rho, propars, rgrid, alphas, threshold)
-    propars_lisa = np.clip(propars_lisa, 0, np.inf)
-
-    propars_lagrangian = opt_propars_fixed_points_sc(
-        rho, propars, rgrid, alphas, threshold
-    )
-    propars_lagrangian = np.clip(propars_lagrangian, 0, np.inf)
-    print("propars_lisa:")
-    print(propars_lisa)
-    print(np.sum(propars_lisa))
-    print("propars_lagrangian:")
-    print(propars_lagrangian)
-    print(np.sum(propars_lagrangian))
-    print("*" * 80)
-    assert np.allclose(propars_lisa, propars_lagrangian, atol=1e-2)
-    return propars_lisa
-    # return propars_lagrangian
