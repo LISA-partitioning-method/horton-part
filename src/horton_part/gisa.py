@@ -29,7 +29,7 @@ import cvxopt
 # from cvxopt.solvers import qp
 from .iterstock import ISAWPart
 from .log import log, biblio
-from .basis import BasisFuncHelper
+from .basis import BasisFuncHelper, check_pro_atom_parameters
 from .cache import just_once
 
 
@@ -184,8 +184,10 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         at_weights = self.cache.load("at_weights", iatom)
         spline = atgrid.spherical_average(at_weights * dens)
         # avoid too large r
-        points = np.clip(atgrid.rgrid.points, 1e-20, 1e10)
-        spherical_average = np.clip(spline(points), 1e-20, np.inf)
+        # points = np.clip(atgrid.rgrid.points, 1e-20, 1e10)
+        # spherical_average = np.clip(spline(points), 1e-20, np.inf)
+        points = atgrid.rgrid.points
+        spherical_average = spline(points)
 
         # assign as new propars
         propars = self.cache.load("propars")[
@@ -238,7 +240,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             rgrid = self.get_rgrid(a)
             r = rgrid.points
             # weights = rgrid.weights
-            r = np.clip(r, 1e-20, 1e10)
+            # r = np.clip(r, 1e-20, 1e10)
 
             nprim = self._ranges[a + 1] - self._ranges[a]
             alphas = self.bs_helper.load_exponent(self.numbers[a])
@@ -252,11 +254,9 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             )
 
 
-def calc_proatom_dens(propars, bs_funcs, threshold=1e-20):
+def calc_proatom_dens(propars, bs_funcs):
     shells = propars[:, None] * bs_funcs
-    pro = shells.sum(axis=0)
-    pro = np.clip(pro, threshold, np.inf)
-    return pro
+    return shells.sum(axis=0)
 
 
 def _constrained_least_squares_quadprog(
@@ -319,11 +319,13 @@ def _constrained_least_squares_quadprog(
     matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
     vector_constraint = np.zeros(nprim + 1)
     # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-    vector_constraint[0] = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
+    pop = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
+    vector_constraint[0] = pop
 
     propars_qp = quadprog.solve_qp(
         G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
     )[0]
+    check_pro_atom_parameters(propars_qp, total_population=float(pop))
     return propars_qp
 
 
@@ -377,6 +379,7 @@ def _constrained_least_squares(
         verbose=2 if log.level >= 2 else log.level,
         gtol=threshold,
     )
+    check_pro_atom_parameters(res.x)
     return res.x
 
 
@@ -408,8 +411,8 @@ def _constrained_least_cvxopt(
 
     # Linear equality constraints
     A = cvxopt.matrix(1.0, (1, nprim))
-    Na = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
-    b = cvxopt.matrix(Na, (1, 1))
+    pop = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
+    b = cvxopt.matrix(pop, (1, 1))
 
     # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
     opt_CVX = cvxopt.solvers.qp(
@@ -423,6 +426,7 @@ def _constrained_least_cvxopt(
         options={"show_progress": log.do_medium, "feastol": threshold},
     )
     new_propars = np.asarray(opt_CVX["x"]).flatten()
+    check_pro_atom_parameters(new_propars, total_population=float(pop))
     return new_propars
 
 
