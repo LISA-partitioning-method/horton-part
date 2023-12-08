@@ -29,6 +29,7 @@ import time
 from .base import WPart, just_once
 
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
+from .log import log
 
 
 __all__ = ["StockholderWPart"]
@@ -57,28 +58,67 @@ class StockholderWPart(WPart):
 
     @just_once
     def compute_local_grids(self):
+        """Compute local grids for each atom.
+
+        This method initializes local grid properties and calculates grids for each atom based on their coordinates and a specified radius.
+        """
+        self._initialize_grid_properties()
+        # TODO: the radius should be basis function dependent.
+        for index in range(self.natom):
+            self._compute_atom_grid(index)
+
+        if log.do_debug:
+            self._log_grid_info()
+
+    def _initialize_grid_properties(self):
+        """Initialize grid-related properties."""
         self.local_grids = []
         self.atom_in_local_grid = []
         self.points_in_atom = []
         self.radial_dists = []
-        # TODO: the radius should be basis function dependent.
-        for index in range(self.natom):
-            # Find the local grid included in a sphere whose radius is specified by user.
-            local_grid = self.grid.get_localgrid(
-                center=self.coordinates[index], radius=self.local_grid_radius
+
+    def _compute_atom_grid(self, index):
+        """Compute grid properties for a specific atom."""
+        # Find the local grid included in a sphere whose radius is specified by user.
+        local_grid = self.grid.get_localgrid(
+            center=self.coordinates[index], radius=self.local_grid_radius
+        )
+        self.local_grids.append(local_grid)
+
+        # Find indices of points belonging to atom `index`.
+        begin, end = self.grid.indices[index], self.grid.indices[index + 1]
+        # Find all points belonging to atom `index` in the local grid.
+        in_atom = (begin <= local_grid.indices) & (local_grid.indices < end)
+        # The indices of points corresponding to the current atom, starting from `begin` to `end`.
+        # This is because the local grids could also include grids from other atom.
+        self.atom_in_local_grid.append(in_atom)
+        # Reindex indices for each atom, starting from 0 to `end` - `begin`.
+        self.points_in_atom.append(local_grid.indices[in_atom] - begin)
+
+        r = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
+        self.radial_dists.append(r)
+
+    def _log_grid_info(self):
+        """Log information about the computed grids."""
+        print("-" * 80)
+        print("Information of integral grids.")
+        print("-" * 80)
+        print("Compute local grids ...")
+        print(f"Grid size of molecular grid: {self.grid.size}")
+        reduced_mol_grid_size = 0
+        for i, local_grid in enumerate(self.local_grids):
+            atom_grid = self.get_grid(i)
+            dist = np.sqrt(
+                np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2)
             )
-            self.local_grids.append(local_grid)
-            # Find indices of points belonging to atom `index`.
-            begin, end = self.grid.indices[index], self.grid.indices[index + 1]
-            # Find all points belonging to atom `index` in the local grid.
-            in_atm = (begin <= local_grid.indices) & (local_grid.indices < end)
-            # The indices of points corresponding to the current atom, starting from `begin` to `end`.
-            # This is because the local grids could also include grids from other atom.
-            self.atom_in_local_grid.append(in_atm)
-            # Reindex indices for each atom, starting from 0 to `end` - `begin`.
-            self.points_in_atom.append(local_grid.indices[in_atm] - begin)
-            r = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
-            self.radial_dists.append(r)
+            print(f"  Grid size of local grid centered at atom {i}: {local_grid.size}")
+            reduced_atom_grid_size = len(
+                atom_grid.points[dist <= self.local_grid_radius]
+            )
+            print(f"  Grid size of atom {i}: {reduced_atom_grid_size}")
+            reduced_mol_grid_size += reduced_atom_grid_size
+        print(f"Grid size of truncated molecular grid: {self.grid.size}")
+        print("-" * 80)
 
     def update_pro(self, index, proatdens, promoldens):
         # work = np.zeros((self.grid.size,))
@@ -150,7 +190,7 @@ class StockholderWPart(WPart):
         spline = self.get_proatom_spline(index)
         output[:] = 0.0
         self.eval_spline(index, spline, output, grid, label="proatom")
-        output += 1e-100
+        # output += 1e-100
         assert np.isfinite(output).all()
 
     def update_at_weights(self):

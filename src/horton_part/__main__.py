@@ -55,7 +55,7 @@ from iodata import load_one
 from horton_part import wpart_schemes, log
 
 width = 100
-np.set_printoptions(precision=14, suppress=True, linewidth=width)
+np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
 __all__ = ["prepare_input", "construct_molgrid_from_dict"]

@@ -24,7 +24,16 @@
 import numpy as np
 import warnings
 
-__all__ = ["BasisFuncHelper", "compute_quantities", "check_pro_atom_parameters"]
+__all__ = [
+    "BasisFuncHelper",
+    "compute_quantities",
+    "check_pro_atom_parameters",
+    "check_for_pro_error",
+    "check_for_grad_error",
+    "check_for_hessian_error",
+    "NEGATIVE_CUTOFF",
+    "POPULATION_CUTOFF",
+]
 
 NEGATIVE_CUTOFF = -1e-12
 POPULATION_CUTOFF = 1e-4
@@ -288,13 +297,27 @@ def load_exp_exponent(number, nb_exp):
     param_dict = {
         # TZP fc: Triple zeta forzen core 1 polarization function
         # See https://www.scm.com/zorabasis/periodic.tzpfc.html
-        1: np.array([3.16, 2.09, 1.38, 1.50]),
+        1: np.array([3.16, 2.09, 1.38, 1.50, 0.2, 0.001, 0.01, 0.0001, 0.000001]),
         6: np.array([10.80, 11.59, 7.59, 4.97, 4.79, 3.35, 2.34, 1.64]),
         7: np.array([12.76, 13.77, 9.06, 5.97, 5.77, 4.05, 2.85, 2.00]),
         8: np.array([14.72, 15.80, 10.35, 6.78, 6.54, 4.57, 3.20, 2.24]),
         9: np.array([16.66, 16.24, 9.81, 5.93, 5.30, 3.46, 2.26, 1.48]),
         16: np.array(
-            [26.90, 26.93, 16.64, 15.19, 10.12, 8.95, 6.26, 4.37, 3.82, 2.76, 2.00]
+            [
+                26.90,
+                26.93,
+                16.64,
+                15.19,
+                10.12,
+                8.95,
+                6.26,
+                4.37,
+                3.82,
+                2.76,
+                2.00,
+                0.02,
+                0.0001,
+            ]
         ),
     }
     if number in param_dict:
@@ -325,7 +348,7 @@ def compute_exp_function(population, exponent, points, nderiv=0):
         raise NotImplementedError
 
 
-def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff=1e-15):
+def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff):
     """
     Compute various quantities based on input density, pro-atom parameters, and basis functions.
 
@@ -348,7 +371,7 @@ def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff
         Calculated pro-atom density.
     sick : ndarray
         Boolean array indicating where density or pro-density is below the cutoff.
-    ln_pro_density : ndarray
+    ln_pro : ndarray
         Natural logarithm of the pro-atom density, with adjustments for sick values.
     ratio : ndarray
         Ratio of density to pro-atom density, with adjustments for sick values.
@@ -357,18 +380,23 @@ def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff
     """
     pro_atom_params = np.asarray(pro_atom_params).flatten()
     pro_shells = basis_functions * pro_atom_params[:, None]
-    pro_density = pro_shells.sum(axis=0)
+    pro_density = np.einsum("ij->j", pro_shells)
+
+    # this is the definition in the L-ISA paper
+    # sick = density < density_cutoff
+    # is_infinity = pro_density < density_cutoff
 
     sick = (density < density_cutoff) | (pro_density < density_cutoff)
 
     with np.errstate(all="ignore"):
-        ln_pro_density = np.log(pro_density)
+        ln_pro = np.log(pro_density, out=np.zeros_like(pro_density), where=~sick)
         ratio = np.divide(density, pro_density, out=np.zeros_like(density), where=~sick)
         ln_ratio = np.log(ratio, out=np.zeros_like(density), where=~sick)
 
-    ln_pro_density[sick] = 0.0
+    # TODO: for negative density, what shall we do?
+    # ln_pro[pro_density < 0] = -1e5
 
-    return pro_shells, pro_density, sick, ln_pro_density, ratio, ln_ratio
+    return pro_shells, pro_density, sick, ln_pro, ratio, ln_ratio
 
 
 def check_pro_atom_parameters(
@@ -447,3 +475,33 @@ def check_pro_atom_parameters(
         warnings.warn(
             "The sum of pro-atom parameters is not equal to atomic population"
         )
+
+    if (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any():
+        raise RuntimeError("Pro-atom density should be monotonically decreasing.")
+
+
+def check_for_pro_error(pro, as_warn=True):
+    """Check for non-monotonic and non-negative density"""
+    if (pro < NEGATIVE_CUTOFF).any():
+        if as_warn:
+            warnings.warn("Negative pro-atom density found during optimization!")
+        else:
+            raise RuntimeError("Negative pro-atom density found!")
+    if (pro[:-1] - pro[1:] < NEGATIVE_CUTOFF).any():
+        if as_warn:
+            warnings.warn("Pro-atom density should be monotonically decreasing.")
+        else:
+            raise RuntimeError("Pro-atom density should be monotonically decreasing.")
+
+
+def check_for_grad_error(grad):
+    """Check for non-monotonic density and negative gradient errors."""
+    if (grad < NEGATIVE_CUTOFF).any():
+        raise RuntimeError("Negative gradient detected.")
+
+
+def check_for_hessian_error(hess):
+    """Check for negative-eigenvalue hessian errors."""
+    if (np.linalg.eigvals(hess) <= NEGATIVE_CUTOFF).any():
+        # raise RuntimeError("All eigenvalues of Hessian matrix are not all")
+        warnings.warn("All eigenvalues of Hessian matrix are not all")

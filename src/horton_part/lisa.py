@@ -38,7 +38,13 @@ import time
 from .log import log, biblio
 from .gisa import GaussianIterativeStockholderWPart
 from .cache import just_once
-from .basis import compute_quantities, check_pro_atom_parameters
+from .basis import (
+    compute_quantities,
+    check_pro_atom_parameters,
+    check_for_pro_error,
+    check_for_grad_error,
+    check_for_hessian_error,
+)
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -72,7 +78,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        local_grid_radius=8.0,
+        local_grid_radius=np.inf,
         solver=1,
         diis_size=8,
         basis_func_type="gauss",
@@ -467,6 +473,9 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         while True:
             old_rho0 = self.compute_promol_dens(old_propars)
             sick = (rho < density_cutoff) | (old_rho0 < density_cutoff)
+            # sick = (rho < density_cutoff * self.natom) | (
+            #         old_rho0 < density_cutoff * self.natom
+            # )
 
             ishell = 0
             for iatom in range(self.natom):
@@ -492,8 +501,9 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 # 4. get new propars using fixed-points
                 propars[:] = np.asarray(new_propars)
 
-            rho0 = self.compute_promol_dens(all_propars)
-            change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
+            # rho0 = self.compute_promol_dens(all_propars)
+            # change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
+            change = self.compute_change(all_propars, old_propars)
             if counter % 10 == 0:
                 print("%9i   %10.5e" % (counter, change))
             if change < self._threshold:
@@ -598,7 +608,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 all_propars = all_fun_vals
 
             if not np.all(all_propars >= -1e-10).all():
-                log("negative c_ak found!")
+                warnings.warn("Negative parameters found!")
 
         raise RuntimeError("Error: inner iteration is not converge!")
 
@@ -631,7 +641,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 density_cutoff=density_cutoff,
             )
         if self._solver == 104:
-            # no robust: HF
+            # no robust: HF, SiH4
             return opt_propars_minimization_fast(
                 bs_funcs,
                 rho,
@@ -652,7 +662,28 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 threshold,
                 density_cutoff=density_cutoff,
             )
+        elif self._solver == 20101:
+            return opt_propars_fixed_points_sc_one_step(
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff=density_cutoff,
+            )
+        elif self._solver == 2011:
+            return opt_propars_fixed_points_sc_convex(
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff=density_cutoff,
+            )
         elif self._solver in [202, 206]:
+            # for large diis_size, it is also not robust
             return opt_propars_fixed_points_diis(
                 bs_funcs,
                 rho,
@@ -675,6 +706,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
                 density_cutoff=density_cutoff,
             )
         elif self._solver == 204:
+            # wrong results could be obtained.
             return opt_propars_fixed_points_fslove(
                 bs_funcs,
                 rho,
@@ -770,6 +802,122 @@ def opt_propars_fixed_points_sc(
             return propars
         oldpro = pro
     raise RuntimeError("Error: Inner iteration is not converge!")
+
+
+def opt_propars_fixed_points_sc_one_step(
+    bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+):
+    r"""
+    Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
+
+    The parameters can be computed analytically in this way. which should give the same results
+    as the L-ISA algorithms.
+
+    .. math::
+
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+    Parameters
+    ----------
+    rho:
+        Atomic spherical-average density, i.e.,
+        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+    propars:
+        Parameters array.
+    rgrid:
+        Radial grid.
+    alphas:
+        Exponential coefficients of Gaussian primitive functions.
+    threshold:
+        Threshold for convergence.
+
+    Returns
+    -------
+
+    """
+    pro_shells, pro, sick, lnpro, ratio, lnratio = compute_quantities(
+        rho, propars, bs_funcs, density_cutoff
+    )
+
+    # the partitions and the updated parameters
+    propars[:] = np.einsum(
+        "p,ip->i", 4 * np.pi * points**2 * weights, pro_shells * ratio
+    )
+    return propars
+
+
+def opt_propars_fixed_points_sc_convex(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    density_cutoff,
+    sc_iter_limit=1000,
+):
+    r"""
+    Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
+
+    The parameters can be computed analytically in this way. which should give the same results
+    as the L-ISA algorithms.
+
+    .. math::
+
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+    Parameters
+    ----------
+    rho:
+        Atomic spherical-average density, i.e.,
+        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
+    propars:
+        Parameters array.
+    rgrid:
+        Radial grid.
+    alphas:
+        Exponential coefficients of Gaussian primitive functions.
+    threshold:
+        Threshold for convergence.
+
+    Returns
+    -------
+
+    """
+    oldpro = None
+    if log.do_medium:
+        log("            Iter.    Change    ")
+        log("            -----    ------    ")
+    for irep in range(sc_iter_limit):
+        pro_shells, pro, sick, lnpro, ratio, lnratio = compute_quantities(
+            rho, propars, bs_funcs, density_cutoff
+        )
+
+        # the partitions and the updated parameters
+        propars[:] = np.einsum(
+            "p,ip->i", 4 * np.pi * points**2 * weights, pro_shells * ratio
+        )
+        check_pro_atom_parameters(propars)
+
+        # check for convergence
+        if oldpro is None:
+            change = 1e100
+        else:
+            error = oldpro - pro
+            change = np.sqrt(
+                np.einsum("i,i,i->", 4 * np.pi * points**2 * weights, error, error)
+            )
+        if log.do_medium:
+            log(f"            {irep+1:<4}    {change:.3e}")
+        if change < threshold:
+            return propars
+        oldpro = pro
+    else:
+        warnings.warn("Inner iteration is not converge! Using LISA-I scheme.")
+        return opt_propars_minimization_fast(
+            bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+        )
+    # raise RuntimeError("Error: Inner iteration is not converge!")
 
 
 def diis(c_values, r_values, max_history):
@@ -1085,41 +1233,64 @@ def opt_propars_minimization_fast(
         matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
         vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
 
-    integrand_mult = 4 * np.pi * points**2 * weights * rho
-    pop = np.sum(integrand_mult)
+    int_weights = 4 * np.pi * points**2 * weights
+    pop = np.einsum("i,i", int_weights, rho)
+
     matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
     vector_constraint_eq = cvxopt.matrix(pop, (1, 1))
 
     def obj_func(x=None, z=None):
+        """The local objective function for an atom."""
         if x is None:
             return 0, cvxopt.matrix(propars[:])
 
-        pro_shells, pro, sick, lnpro, ratio, lnratio = compute_quantities(
+        pro_shells, pro, sick, ln_pro, ratio, ln_ratio = compute_quantities(
             rho, x, bs_funcs, density_cutoff
         )
 
-        f = -np.sum(integrand_mult * lnpro)
+        if log.do_debug:
+            try:
+                check_for_pro_error(pro)
+            except RuntimeError as e:
+                print(bs_funcs.shape)
+                print("bs_funcs.T:")
+                print(bs_funcs.T)
+                print("[in obj_func]: pro-atom parameters:")
+                print(np.asarray(x))
+                print("pro-atom density:")
+                print(pro.reshape((-1, 1)))
+                print("atomic density:")
+                print(rho.reshape((-1, 1)))
+                np.savez_compressed(
+                    "dump_negative_dens.npz",
+                    points=points,
+                    weights=weights,
+                    bs_funcs=bs_funcs,
+                    propars=np.asarray(x),
+                    pro=pro,
+                    rho=rho,
+                )
+                raise e
 
-        with np.errstate(all="ignore"):
-            tmp_grad = integrand_mult / pro
-        tmp_grad[sick] = 0.0
+        # f = -np.einsum("i,i,i", int_weights, rho, ln_pro)
+        f = np.einsum("i,i,i", int_weights, rho, ln_ratio)
 
-        df = -np.sum(tmp_grad[None, :] * bs_funcs, axis=1).reshape((1, nprim))
-        df = cvxopt.matrix(df)
-
+        # compute gradient
+        grad = int_weights * ratio
+        if log.do_debug:
+            check_for_grad_error(grad)
+        df = -np.einsum("j,ij->i", grad, bs_funcs)
+        df = cvxopt.matrix(df.reshape((1, nprim)))
         if z is None:
             return f, df
 
-        with np.errstate(all="ignore"):
-            tmp_hess = tmp_grad / pro
-        tmp_hess[sick] = 0.0
-
-        hess = np.sum(
-            tmp_hess[None, None, :] * bs_funcs[:, None, :] * bs_funcs[None, :, :],
-            axis=-1,
-        )
-        hess = z[0] * cvxopt.matrix(hess)
-        return f, df, hess
+        # compute hessian
+        hess = np.divide(grad, pro, out=np.zeros_like(grad), where=~sick)
+        d2f = np.einsum("k,ik,jk->ij", hess, bs_funcs, bs_funcs)
+        if log.do_debug:
+            check_for_hessian_error(d2f)
+        d2f = z[0] * cvxopt.matrix(d2f)
+        return f, df, d2f
 
     opt_CVX = cvxopt.solvers.cp(
         obj_func,

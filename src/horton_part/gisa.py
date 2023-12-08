@@ -183,9 +183,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
         spline = atgrid.spherical_average(at_weights * dens)
-        # avoid too large r
-        # points = np.clip(atgrid.rgrid.points, 1e-20, 1e10)
-        # spherical_average = np.clip(spline(points), 1e-20, np.inf)
         points = atgrid.rgrid.points
         spherical_average = spline(points)
 
@@ -196,21 +193,26 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         alphas = self.bs_helper.load_exponent(self.numbers[iatom])
         bs_funcs = self.cache.load("bs_funcs", iatom)
 
+        # use truncated grids if local_grid_radius != np.inf
+        r_mask = points <= self.local_grid_radius
+        points = points[r_mask]
+        rho = spherical_average[r_mask]
+        weights = rgrid.weights[r_mask]
+        bs_funcs = bs_funcs[:, r_mask]
+
         # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
             bs_funcs,
-            spherical_average,
+            rho,
             propars.copy(),
             points,
-            rgrid.weights,
+            weights,
             alphas,
             self._inner_threshold,
         )
 
         # compute the new charge
-        pseudo_population = atgrid.rgrid.integrate(
-            4 * np.pi * points**2 * spherical_average
-        )
+        pseudo_population = np.einsum("i,i,i", weights, 4 * np.pi * points**2, rho)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
@@ -239,8 +241,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         for a in range(self.natom):
             rgrid = self.get_rgrid(a)
             r = rgrid.points
-            # weights = rgrid.weights
-            # r = np.clip(r, 1e-20, 1e10)
+            # r = r[r <= self.local_grid_radius]
 
             nprim = self._ranges[a + 1] - self._ranges[a]
             alphas = self.bs_helper.load_exponent(self.numbers[a])
