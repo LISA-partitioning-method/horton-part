@@ -172,7 +172,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         for iatom in range(self.natom):
             propars[
                 self._ranges[iatom] : self._ranges[iatom + 1]
-            ] = self.bs_helper.load_initial_propars(self.numbers[iatom])
+            ] = self.bs_helper.load_initials(self.numbers[iatom])
         self.compute_integral()
         return propars
 

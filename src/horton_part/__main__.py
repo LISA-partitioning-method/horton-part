@@ -493,7 +493,7 @@ def parse_args(args=None):
         "--func_type",
         type=str,
         default="gauss",
-        choices=["gauss", "exp"],
+        choices=["gauss", "slater"],
         help="The type of basis functions. [default=%(default)s]",
     )
     parser.add_argument(
