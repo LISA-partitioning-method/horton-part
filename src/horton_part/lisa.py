@@ -27,11 +27,7 @@ import cvxopt
 from scipy.linalg import solve, LinAlgWarning, eigh
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import SparseEfficiencyWarning
-from scipy.optimize import (
-    minimize,
-    LinearConstraint,
-    SR1,
-)
+from scipy.optimize import minimize, LinearConstraint, SR1
 import warnings
 import time
 from .log import log, biblio
@@ -162,6 +158,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     @just_once
     def do_global_partitioning(self):
         """Global partitioning scheme."""
+        self.initial_local_grids()
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache
         if new:
@@ -228,7 +225,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     @just_once
     def eval_pro_shells_lisa_101(self):
         """Evaluate pro-shell functions on (local) molecular grids."""
-        self.compute_local_grids()
         nshell = len(self.cache.load("propars"))
         pro_shells = self.cache.load("pro_shells", alloc=(nshell, self.grid.size))[0]
         pro_shells[:] = 0.0
@@ -240,7 +236,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             centers[a] = self.coordinates[a, :]
             for exp in exponents:
                 g_ai = self.bs_helper.compute_proshell_dens(
-                    1.0, exp, self.radial_dists[a], 0
+                    1.0, exp, self.radial_distances[a], 0
                 )
                 pro_shells[ishell, self.local_grids[a].indices] = g_ai
 
@@ -455,14 +451,13 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     @just_once
     def eval_pro_shells_lisa_201(self):
         """Evaluate pro-shell functions on (local) molecular grids for the self-consistent method."""
-        self.compute_local_grids()
         for a in range(self.natom):
             exponents = self.bs_helper.load_exponent(self.numbers[a])
             indices = self.local_grids[a].indices
             for i, exp in enumerate(exponents):
                 g_ai = self.cache.load("pro-shell", a, i, alloc=len(indices))[0]
                 g_ai[:] = self.bs_helper.compute_proshell_dens(
-                    1.0, exp, self.radial_dists[a], 0
+                    1.0, exp, self.radial_distances[a], 0
                 )
 
     def _update_propars_lisa_201_globally(self, density_cutoff=1e-15):
@@ -778,9 +773,7 @@ def opt_propars_fixed_points_sc(
         )
 
         # the partitions and the updated parameters
-        propars[:] = np.einsum(
-            "p,ip->i", 4 * np.pi * points**2 * weights, pro_shells * ratio
-        )
+        propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
         check_pro_atom_parameters(propars)
 
         # check for convergence
@@ -788,9 +781,7 @@ def opt_propars_fixed_points_sc(
             change = 1e100
         else:
             error = oldpro - pro
-            change = np.sqrt(
-                np.einsum("i,i,i->", 4 * np.pi * points**2 * weights, error, error)
-            )
+            change = np.sqrt(np.einsum("i,i,i", weights, error, error))
         if log.do_medium:
             log(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
@@ -835,9 +826,7 @@ def opt_propars_fixed_points_sc_one_step(
     )
 
     # the partitions and the updated parameters
-    propars[:] = np.einsum(
-        "p,ip->i", 4 * np.pi * points**2 * weights, pro_shells * ratio
-    )
+    propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
     return propars
 
 
@@ -889,9 +878,7 @@ def opt_propars_fixed_points_sc_convex(
         )
 
         # the partitions and the updated parameters
-        propars[:] = np.einsum(
-            "p,ip->i", 4 * np.pi * points**2 * weights, pro_shells * ratio
-        )
+        propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
         check_pro_atom_parameters(propars)
 
         # check for convergence
@@ -899,9 +886,7 @@ def opt_propars_fixed_points_sc_convex(
             change = 1e100
         else:
             error = oldpro - pro
-            change = np.sqrt(
-                np.einsum("i,i,i->", 4 * np.pi * points**2 * weights, error, error)
-            )
+            change = np.sqrt(np.einsum("i,i,i->", weights, error, error))
         if log.do_medium:
             log(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
@@ -1032,7 +1017,7 @@ def opt_propars_fixed_points_diis(
         )
 
         integrands = pro_shells * ratio
-        fun_val = np.einsum("ip,p->i", integrands, 4 * np.pi * points**2 * weights)
+        fun_val = np.einsum("ip,p->i", integrands, weights)
 
         # Build DIIS Residual
         diis_r = propars - fun_val
@@ -1107,8 +1092,6 @@ def opt_propars_fixed_points_newton(
     -------
 
     """
-    int_weights = 4 * np.pi * points**2 * weights
-
     if log.do_medium:
         log("            Iter.    Change    ")
         log("            -----    ------    ")
@@ -1127,7 +1110,7 @@ def opt_propars_fixed_points_newton(
         # check for convergence
         if oldpro is not None:
             error = oldpro - pro
-            change = np.sqrt(np.einsum("i,i,i", int_weights, error, error))
+            change = np.sqrt(np.einsum("i,i,i", weights, error, error))
         if log.do_medium:
             log(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
@@ -1138,8 +1121,8 @@ def opt_propars_fixed_points_newton(
             grad_integrand = integrand / pro
         grad_integrand[:, sick] = 0.0
 
-        grad = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, int_weights)
-        h = 1 - np.einsum("kp,p->k", integrand, int_weights)
+        grad = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
+        h = 1 - np.einsum("kp,p->k", integrand, weights)
         delta = solve(grad, -h, assume_a="sym")
         propars += delta
         oldpro = pro
@@ -1164,8 +1147,7 @@ def opt_propars_minimization_fast(
         matrix_constraint_ineq = -cvxopt.matrix(np.identity(nprim))
         vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
 
-    int_weights = 4 * np.pi * points**2 * weights
-    pop = np.einsum("i,i", int_weights, rho)
+    pop = np.einsum("i,i", weights, rho)
 
     matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
     vector_constraint_eq = cvxopt.matrix(pop, (1, 1))
@@ -1204,10 +1186,10 @@ def opt_propars_minimization_fast(
                 raise e
 
         # f = -np.einsum("i,i,i", int_weights, rho, ln_pro)
-        f = np.einsum("i,i,i", int_weights, rho, ln_ratio)
+        f = np.einsum("i,i,i", weights, rho, ln_ratio)
 
         # compute gradient
-        grad = int_weights * ratio
+        grad = weights * ratio
         if log.do_debug:
             check_for_grad_error(grad)
         df = -np.einsum("j,ij->i", grad, bs_funcs)
@@ -1249,8 +1231,7 @@ def opt_propars_minimization_trust_constr(
     explicit_constr=True,
 ):
     nprim = len(propars)
-    int_weights = 4 * np.pi * points**2 * weights
-    pop = np.einsum("i,i", int_weights, rho)
+    pop = np.einsum("i,i", weights, rho)
 
     constraint = None
     if explicit_constr:
@@ -1261,10 +1242,10 @@ def opt_propars_minimization_trust_constr(
         pro_shells, pro, sick, ratio, ln_ratio = compute_quantities(
             rho, x, bs_funcs, density_cutoff
         )
-        f = np.einsum("i,i,i", int_weights, rho, ln_ratio)
-        df = -np.einsum("j,j,ij->i", int_weights, ratio, bs_funcs)
+        f = np.einsum("i,i,i", weights, rho, ln_ratio)
+        df = -np.einsum("j,j,ij->i", weights, ratio, bs_funcs)
         if not explicit_constr:
-            f += np.einsum("i,i", int_weights, pro) - pop
+            f += np.einsum("i,i", weights, pro) - pop
             df += 1
         return f, df
 

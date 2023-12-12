@@ -285,11 +285,9 @@ def check_pro_atom_parameters(
             "The sum of pro-atom parameters is not equal to atomic population"
         )
 
-    if (
-        check_monotonicity
-        and (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any()
-    ):
-        raise RuntimeError("Pro-atom density should be monotonically decreasing.")
+    if check_monotonicity and pro_atom_density is not None:
+        if (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any():
+            raise RuntimeError("Pro-atom density should be monotonically decreasing.")
 
 
 def check_for_pro_error(pro, as_warn=True):

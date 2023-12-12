@@ -104,34 +104,42 @@ class Part(JustOnceClass):
 
     @property
     def natom(self):
+        """The number of atoms in the molecule."""
         return self._natom
 
     @property
     def coordinates(self):
+        """Atomic coordinates."""
         return self._coordinates
 
     @property
     def numbers(self):
+        """Atomic numbers"""
         return self._numbers
 
     @property
     def pseudo_numbers(self):
+        """Atomic charges."""
         return self._pseudo_numbers
 
     @property
     def grid(self):
+        """Molecular grid."""
         return self.get_grid()
 
     @property
     def local(self):
+        """Whether local grids are included."""
         return self._local
 
     @property
     def lmax(self):
+        """The maximum angular momentum index for moment calculations."""
         return self._lmax
 
     @property
     def cache(self):
+        """Cache."""
         return self._cache
 
     def __clear__(self):
@@ -168,13 +176,6 @@ class Part(JustOnceClass):
         if output is not None:
             output[:] = result
         return result
-
-    def get_wcor(self, index):
-        """Return the weight corrections on a grid
-
-        See get_grid for the meaning of the optional arguments
-        """
-        raise NotImplementedError
 
     def _init_subgrids(self):
         raise NotImplementedError
@@ -424,9 +425,6 @@ class WPart(Part):
 
     def _init_subgrids(self):
         self._subgrids = self._grid.atgrids
-
-    def get_wcor(self, index):
-        return None
 
     def to_atomic_grid(self, index, data):
         if index is None or not self.local:

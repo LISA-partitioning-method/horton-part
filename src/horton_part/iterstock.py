@@ -108,7 +108,6 @@ class ISAWPart(StockholderWPart):
         """
         if self._local_grid_radius is None or self._local_grid_radius < 0:
             raise ValueError("Local grid radius is not properly set.")
-
         return self._local_grid_radius
 
     def compute_change(self, propars1, propars2):
@@ -138,6 +137,7 @@ class ISAWPart(StockholderWPart):
         if "promoldens" in self.cache:
             rho = self._moldens
             rho_0 = self.cache.load("promoldens")
+            # This is okay, because rho0 and rho are non-negative.
             rho_0 = np.clip(rho_0, 1e-100, np.inf)
             rho = np.clip(rho, 1e-100, np.inf)
             entropy = self._grid.integrate(rho, np.log(rho) - np.log(rho_0))
@@ -217,6 +217,7 @@ class ISAWPart(StockholderWPart):
     @just_once
     def do_partitioning(self):
         """Do partitioning"""
+        self.initial_local_grids()
         # Perform one general check in the beginning to avoid recomputation
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache
@@ -226,8 +227,6 @@ class ISAWPart(StockholderWPart):
             print("Iteration       Change")
 
             counter = 0
-            change = 1e100
-
             while True:
                 counter += 1
                 self.cache.dump("niter", counter, tags="o")

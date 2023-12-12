@@ -183,7 +183,7 @@ class MBISWPart(ISAWPart):
 
         """
         propars = self.cache.load("propars")
-        r = self.radial_dists[index]
+        r = self.radial_distances[index]
         y = np.zeros(len(r), float)
         # d = np.zeros(len(r), float)
         my_propars = propars[self._ranges[index] : self._ranges[index + 1]]
@@ -234,7 +234,7 @@ class MBISWPart(ISAWPart):
 
         # compute the new charge
         # 4 * np.pi * rgrid.points ** 2 * spherical_average
-        pseudo_population = rgrid.integrate(4 * np.pi * points**2 * spherical_average)
+        pseudo_population = rgrid.integrate(4 * np.pi * points**2, spherical_average)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 

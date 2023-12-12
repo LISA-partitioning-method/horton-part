@@ -111,6 +111,13 @@ class GaussianIterativeStockholderWPart(ISAWPart):
                 "the use of Gaussian Iterative Stockholder partitioning",
             )
 
+    def _get_exponents(self, index):
+        # TODO: this is not necessary, e.g., 1-arctan(x).
+        return self.bs_helper.load_exponent(self.numbers[index])
+
+    def _get_initials(self, index):
+        return self.bs_helper.load_initials(self.numbers[index])
+
     def get_rgrid(self, index):
         """Load radial grid."""
         return self.get_grid(index).rgrid
@@ -132,8 +139,9 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
         propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        alphas = self.bs_helper.load_exponent(self.numbers[iatom])
-        return self.bs_helper.compute_proatom_dens(propars, alphas, rgrid.points, 1)
+        return self.bs_helper.compute_proatom_dens(
+            propars, self._get_exponents(iatom), rgrid.points, 1
+        )
 
     def eval_proatom(self, index, output, grid):
         """Evaluate function on a local grid.
@@ -153,9 +161,8 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         """
         propars = self.cache.load("propars")
         populations = propars[self._ranges[index] : self._ranges[index + 1]]
-        exponents = self.bs_helper.load_exponent(self.numbers[index])
         output[:] = self.bs_helper.compute_proatom_dens(
-            populations, exponents, self.radial_dists[index], 0
+            populations, self._get_exponents(index), self.radial_distances[index], 0
         )
 
     def _init_propars(self):
@@ -163,17 +170,17 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
-            nshell = self.bs_helper.get_nshell(self.numbers[iatom])
+            nshell = len(self._get_exponents(iatom))
             self._ranges.append(self._ranges[-1] + nshell)
             self._nshells.append(nshell)
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         propars[:] = 1.0
         for iatom in range(self.natom):
-            propars[
-                self._ranges[iatom] : self._ranges[iatom + 1]
-            ] = self.bs_helper.load_initials(self.numbers[iatom])
-        self.compute_integral()
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = self._get_initials(
+                iatom
+            )
+        self._evaluate_basis_functions()
         return propars
 
     def _update_propars_atom(self, iatom):
@@ -190,7 +197,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         propars = self.cache.load("propars")[
             self._ranges[iatom] : self._ranges[iatom + 1]
         ]
-        alphas = self.bs_helper.load_exponent(self.numbers[iatom])
         bs_funcs = self.cache.load("bs_funcs", iatom)
 
         # use truncated grids if local_grid_radius != np.inf
@@ -199,6 +205,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         rho = spherical_average[r_mask]
         weights = rgrid.weights[r_mask]
         bs_funcs = bs_funcs[:, r_mask]
+        weights = 4 * np.pi * points**2 * weights
 
         # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
@@ -207,12 +214,12 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             propars.copy(),
             points,
             weights,
-            alphas,
+            self._get_exponents(iatom),
             self._inner_threshold,
         )
 
         # compute the new charge
-        pseudo_population = np.einsum("i,i,i", weights, 4 * np.pi * points**2, rho)
+        pseudo_population = np.einsum("i,i", weights, rho)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
@@ -237,16 +244,16 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             raise NotImplementedError
 
     @just_once
-    def compute_integral(self):
-        for a in range(self.natom):
-            rgrid = self.get_rgrid(a)
+    def _evaluate_basis_functions(self):
+        for iatom in range(self.natom):
+            rgrid = self.get_rgrid(iatom)
             r = rgrid.points
-            # r = r[r <= self.local_grid_radius]
 
-            nprim = self._ranges[a + 1] - self._ranges[a]
-            alphas = self.bs_helper.load_exponent(self.numbers[a])
+            nprim = self._ranges[iatom + 1] - self._ranges[iatom]
+            alphas = self._get_exponents(iatom)
 
-            bs_funcs = self.cache.load("bs_funcs", a, alloc=(nprim, r.size))[0]
+            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nprim, r.size))[0]
+            # TODO: the number of points for radial grid could be different for different atoms.
             bs_funcs[:, :] = np.array(
                 [
                     self.bs_helper.compute_proshell_dens(1.0, alphas[k], r)
@@ -308,9 +315,7 @@ def _constrained_least_squares_quadprog(
 
     vec_b = np.zeros(nprim, float)
     for k in range(nprim):
-        vec_b[k] = 2 * np.einsum(
-            "i,i,i->", 4 * np.pi * r**2 * weights, bs_funcs[k], rho
-        )
+        vec_b[k] = 2 * np.einsum("i,i,i->", weights, bs_funcs[k], rho)
 
     # Construct linear equality or inequality constraints
     matrix_constraint = np.zeros([nprim, nprim + 1])
@@ -368,10 +373,9 @@ def _constrained_least_squares(
     """
 
     def f(propars):
-        # rho_test = bs_helper.compute_proatom_dens(args, alphas, r, 0)
         pro = calc_proatom_dens(propars, bs_funcs)
         # This is integrand function corresponding to the difference of number of electrons.
-        return 4 * np.pi * weights * points**2 * np.abs(pro - rho)
+        return weights * np.abs(pro - rho)
 
     res = least_squares(
         f,
@@ -388,7 +392,6 @@ def _constrained_least_cvxopt(
     bs_funcs, rho, propars, points, weights, alphas, threshold
 ):
     nprim, npt = bs_funcs.shape
-    r = points
 
     S = (
         2
@@ -400,9 +403,7 @@ def _constrained_least_cvxopt(
 
     vec_b = np.zeros((nprim, 1), float)
     for k in range(nprim):
-        vec_b[k] = 2 * np.einsum(
-            "i,i->", 4 * np.pi * r**2 * weights * bs_funcs[k], rho
-        )
+        vec_b[k] = 2 * np.einsum("i,i->", weights * bs_funcs[k], rho)
     q = -cvxopt.matrix(vec_b)
 
     # Linear inequality constraints
@@ -412,7 +413,7 @@ def _constrained_least_cvxopt(
 
     # Linear equality constraints
     A = cvxopt.matrix(1.0, (1, nprim))
-    pop = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
+    pop = np.einsum("i,i->", weights, rho)
     b = cvxopt.matrix(pop, (1, 1))
 
     # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
