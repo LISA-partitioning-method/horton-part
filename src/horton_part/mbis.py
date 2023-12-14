@@ -27,7 +27,7 @@ import numpy as np
 
 from .iterstock import ISAWPart
 from .log import biblio, log
-from .basis import check_pro_atom_parameters
+from .utils import check_pro_atom_parameters
 
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]

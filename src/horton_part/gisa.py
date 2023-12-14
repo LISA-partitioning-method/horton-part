@@ -29,11 +29,12 @@ import cvxopt
 # from cvxopt.solvers import qp
 from .iterstock import ISAWPart
 from .log import log, biblio
-from .basis import BasisFuncHelper, check_pro_atom_parameters
+from .basis import BasisFuncHelper
+from .utils import check_pro_atom_parameters
 from .cache import just_once
 
 
-__all__ = ["GaussianIterativeStockholderWPart", "calc_proatom_dens"]
+__all__ = ["GaussianIterativeStockholderWPart"]
 
 
 class GaussianIterativeStockholderWPart(ISAWPart):
@@ -74,7 +75,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         """
         self._solver = solver
         self.func_type = basis_func_type
-        self.bs_helper = BasisFuncHelper(basis_func_type)
+        self.bs_helper = BasisFuncHelper.from_type(basis_func_type)
         ISAWPart.__init__(
             self,
             coordinates,
@@ -110,13 +111,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
                 "verstraelen2012a",
                 "the use of Gaussian Iterative Stockholder partitioning",
             )
-
-    def _get_exponents(self, index):
-        # TODO: this is not necessary, e.g., 1-arctan(x).
-        return self.bs_helper.exponents[self.numbers[index]]
-
-    def _get_initials(self, index):
-        return self.bs_helper.initials[self.numbers[index]]
 
     def get_rgrid(self, index):
         """Load radial grid."""
@@ -170,16 +164,16 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
-            nshell = len(self._get_exponents(iatom))
+            nshell = self.bs_helper.get_nshell(self.numbers[iatom])
             self._ranges.append(self._ranges[-1] + nshell)
             self._nshells.append(nshell)
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         propars[:] = 1.0
         for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = self._get_initials(
-                iatom
-            )
+            propars[
+                self._ranges[iatom] : self._ranges[iatom + 1]
+            ] = self.bs_helper.get_initial(self.numbers[iatom])
         self._evaluate_basis_functions()
         return propars
 
@@ -214,7 +208,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             propars.copy(),
             points,
             weights,
-            self._get_exponents(iatom),
+            self.bs_helper.get_exponent(self.numbers[iatom]),
             self._inner_threshold,
         )
 
@@ -236,10 +230,6 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             return _constrained_least_cvxopt(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver == 0:
-            return _solver_comparison(
-                bs_funcs, rho, propars, points, weights, alphas, threshold
-            )
         else:
             raise NotImplementedError
 
@@ -248,19 +238,16 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         for iatom in range(self.natom):
             rgrid = self.get_rgrid(iatom)
             r = rgrid.points
-            nprim = self._ranges[iatom + 1] - self._ranges[iatom]
-            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nprim, r.size))[0]
+            nshell = self._ranges[iatom + 1] - self._ranges[iatom]
+            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
             bs_funcs[:, :] = np.array(
                 [
-                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], k, 1.0, r)
-                    for k in range(nprim)
+                    self.bs_helper.compute_proshell_dens(
+                        self.numbers[iatom], ishell, 1.0, r
+                    )
+                    for ishell in range(nshell)
                 ]
             )
-
-
-def calc_proatom_dens(propars, bs_funcs):
-    shells = propars[:, None] * bs_funcs
-    return shells.sum(axis=0)
 
 
 def _constrained_least_squares_quadprog(
@@ -368,12 +355,12 @@ def _constrained_least_squares(
 
     """
 
-    def f(propars):
-        pro = calc_proatom_dens(propars, bs_funcs)
+    def _obj_func(x):
+        pro = np.sum(x[:, None] * bs_funcs, axis=0)
         return weights * np.abs(pro - rho)
 
     res = least_squares(
-        f,
+        _obj_func,
         x0=propars,
         bounds=(0, np.inf),
         verbose=2 if log.level >= 2 else log.level,
@@ -425,25 +412,3 @@ def _constrained_least_cvxopt(
     new_propars = np.asarray(opt_CVX["x"]).flatten()
     check_pro_atom_parameters(new_propars, total_population=float(pop))
     return new_propars
-
-
-def _solver_comparison(bs_funcs, rho, propars, points, weights, alphas, threshold):
-    propars_qp = _constrained_least_squares_quadprog(
-        bs_funcs, rho, propars, points, weights, alphas, threshold
-    )
-    print("propars_qp:")
-    propars_qp = np.clip(propars_qp, 0, np.inf)
-    print(propars_qp)
-
-    propars_lsq = _constrained_least_squares(
-        bs_funcs, rho, propars, points, weights, alphas, threshold, x0=propars_qp
-    )
-    print("propars_lsq:")
-    print(propars_lsq)
-
-    propars_cvxopt = _constrained_least_cvxopt(
-        bs_funcs, rho, propars, points, weights, alphas, threshold
-    )
-    print("propars_cvxopt:")
-    print(propars_cvxopt)
-    return propars_cvxopt

@@ -158,6 +158,7 @@ class StockholderWPart(WPart):
         ]
 
     def get_rgrid(self, index):
+        """Load radial grid."""
         raise NotImplementedError
 
     def get_proatom_rho(self, index, *args, **kwargs):

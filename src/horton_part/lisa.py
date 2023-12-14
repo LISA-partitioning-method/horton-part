@@ -33,7 +33,7 @@ import time
 from .log import log, biblio
 from .gisa import GaussianIterativeStockholderWPart
 from .cache import just_once
-from .basis import (
+from .utils import (
     compute_quantities,
     check_pro_atom_parameters,
     check_for_pro_error,
