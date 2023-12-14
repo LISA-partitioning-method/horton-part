@@ -230,17 +230,17 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         pro_shells[:] = 0.0
         centers = self.cache.load("pro_shell_centers", alloc=(nshell, 3))[0]
 
-        ishell = 0
-        for a in range(self.natom):
-            exponents = self.bs_helper.load_exponent(self.numbers[a])
-            centers[a] = self.coordinates[a, :]
-            for exp in exponents:
+        index = 0
+        for iatom in range(self.natom):
+            centers[iatom] = self.coordinates[iatom, :]
+            number = self.numbers[iatom]
+            for ishell in range(self.bs_helper.get_nshell(number)):
                 g_ai = self.bs_helper.compute_proshell_dens(
-                    1.0, exp, self.radial_distances[a], 0
+                    number, ishell, 1.0, self.radial_distances[iatom], 0
                 )
-                pro_shells[ishell, self.local_grids[a].indices] = g_ai
+                pro_shells[index, self.local_grids[iatom].indices] = g_ai
 
-                ishell += 1
+                index += 1
 
         rho = self._moldens
         rho_x_pro_shells = self.cache.load(
@@ -452,12 +452,13 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     def eval_pro_shells_lisa_201(self):
         """Evaluate pro-shell functions on (local) molecular grids for the self-consistent method."""
         for a in range(self.natom):
-            exponents = self.bs_helper.load_exponent(self.numbers[a])
+            number = self.numbers[a]
+            nb_exp = self.bs_helper.get_nshell(number)
             indices = self.local_grids[a].indices
-            for i, exp in enumerate(exponents):
+            for i in range(nb_exp):
                 g_ai = self.cache.load("pro-shell", a, i, alloc=len(indices))[0]
                 g_ai[:] = self.bs_helper.compute_proshell_dens(
-                    1.0, exp, self.radial_distances[a], 0
+                    number, i, 1.0, self.radial_distances[a], 0
                 )
 
     def _update_propars_lisa_201_globally(self, density_cutoff=1e-15):
@@ -481,7 +482,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             for iatom in range(self.natom):
                 # 2. load old propars
                 propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                alphas = self.bs_helper.load_exponent(self.numbers[iatom])
+                alphas = self.bs_helper.exponents[self.numbers[iatom]]
 
                 # 3. compute basis functions on molecule grid
                 new_propars = []
@@ -534,7 +535,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             for iatom in range(self.natom):
                 # 2. load old propars
                 propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                alphas = self.bs_helper.load_exponent(self.numbers[iatom])
+                alphas = self.bs_helper.exponents[self.numbers[iatom]]
 
                 # 3. compute basis functions on molecule grid
                 fun_val = []

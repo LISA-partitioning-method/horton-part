@@ -22,6 +22,7 @@
 
 
 import numpy as np
+from scipy.special import gamma
 import warnings
 import json
 from importlib_resources import files
@@ -49,6 +50,7 @@ FILE_PATHS = {
         "initial": JSON_DATA_PATH.joinpath("gauss_initials.json"),
     },
     "slater": {
+        # https://www.scm.com/zorabasis/periodic.qz4pae.html
         "exponent": JSON_DATA_PATH.joinpath("slater_exponents.json"),
         "initial": JSON_DATA_PATH.joinpath("slater_initials.json"),
     },
@@ -56,14 +58,37 @@ FILE_PATHS = {
 
 
 class BasisFuncHelper:
-    def __init__(self, func_type="gauss"):
-        if func_type not in FILE_PATHS:
-            raise ValueError(f"Unsupported function type: {func_type}")
+    """Helper class for basis function."""
+
+    def __init__(self, func_type="gauss", exponents=None, initials=None):
         self.func_type = func_type
+        self.exp_order = {"gauss": 2, "slater": 1}[func_type]
         self._cache = {}
 
-    def load_initials(self, number, nb_exp=None):
-        exps = self.load_exponent(number, nb_exp)
+        if exponents is None:
+            exponents = {
+                iatom: self.load_exponent(iatom)
+                for iatom in [1, 3, 6, 7, 8, 9, 14, 16, 17, 35]
+            }
+        self.exponents = exponents
+
+        orders = {
+            iatom: np.ones_like(exps) / len(exps)
+            for iatom, exps in self.exponents.items()
+        }
+        self.orders = orders
+
+        if initials is None:
+            initials = {
+                iatom: self.load_initials(iatom) for iatom in self.exponents.keys()
+            }
+        self.initials = initials
+
+        print(self.exponents)
+
+    def load_initials(self, number):
+        """Load initial populations of exponential functions for an atom."""
+        exps = self.exponents[number]
         key = ("pops", number)
         if key not in self._cache:
             self._cache[key] = self._load_params(number, len(exps), "initial")
@@ -89,43 +114,37 @@ class BasisFuncHelper:
         else:
             return self._generate_default_params(number, nb_exp, param_type)
 
-    def _generate_default_params(self, number, nb_exp, param_type):
+    @staticmethod
+    def _generate_default_params(number, nb_exp, param_type):
         # Fallback logic for default parameters
         if param_type == "exponent":
-            if self.func_type == "gauss":
-                a0 = 1  # Atomic unit for Gaussian
-                return np.array(
-                    [
-                        2 * number ** (1 - (i - 1) / (nb_exp - 1)) / a0
-                        for i in range(1, nb_exp + 1)
-                    ]
-                )
-            elif self.func_type == "slater":
-                return np.array(
-                    [
-                        2 * number ** (1 - (i - 1) / (nb_exp - 1))
-                        for i in range(1, nb_exp + 1)
-                    ]
-                )
+            return np.array(
+                [
+                    2 * number ** (1 - (i - 1) / (nb_exp - 1))
+                    for i in range(1, nb_exp + 1)
+                ]
+            )
         elif param_type == "initial":
             return np.ones(nb_exp, float) * number / nb_exp
         else:
             raise ValueError(f"Unsupported param_type: {param_type}")
 
     def get_nshell(self, number):
-        return len(self.load_exponent(number))
+        """Get number of basis functions based on the atomic number of an atom."""
+        return len(self.exponents[number])
 
-    def compute_proshell_dens(self, population, exponent, points, nderiv=0):
-        return getattr(self, f"evaluate_{self.func_type}_function")(
-            population, exponent, points, nderiv
+    def compute_proshell_dens(self, number, ishell, population, points, nderiv=0):
+        """Compute pro-shell density on points for an atom."""
+        return self.evaluate_general_function(
+            self.exp_order, population, self.exponents[number][ishell], points, nderiv
         )
 
-    def compute_proatom_dens(self, populations, exponents, points, nderiv=0):
+    def compute_proatom_dens(self, number, populations, points, nderiv=0):
+        """Compute pro-atom density on points for an atom."""
         nshell = len(populations)
         y = d = 0.0
         for k in range(nshell):
-            population, exponent = populations[k], exponents[k]
-            res = self.compute_proshell_dens(population, exponent, points, nderiv)
+            res = self.compute_proshell_dens(number, k, populations[k], points, nderiv)
             if nderiv == 0:
                 y += res
             elif nderiv == 1:
@@ -133,35 +152,45 @@ class BasisFuncHelper:
                 d += res[1]
             else:
                 raise NotImplementedError
-
-        if nderiv == 0:
-            return y
-        elif nderiv == 1:
-            return y, d
-        else:
-            raise RuntimeError("nderiv should only be 0 or 1.")
+        return {0: y, 1: (y, d)}[nderiv]
 
     @staticmethod
-    def evaluate_gauss_function(population, exponent, points, nderiv=0):
-        """The primitive Gaussian function with exponent of `alpha_k`."""
-        f = population * (exponent / np.pi) ** 1.5 * np.exp(-exponent * points**2)
-        if nderiv == 0:
-            return f
-        elif nderiv == 1:
-            return f, -2 * exponent * points * f
-        else:
-            raise NotImplementedError
+    def evaluate_general_function(n, population, alpha, r, nderiv=0):
+        r"""Evaluate general function and its derivative.
 
-    @staticmethod
-    def evaluate_slater_function(population, exponent, points, nderiv=0):
-        """The primitive Gaussian function with exponent of `alpha_k`."""
-        f = population * (exponent**3 / 8 / np.pi) * np.exp(-exponent * points)
-        if nderiv == 0:
-            return f
-        elif nderiv == 1:
-            return f, -exponent * f
-        else:
-            raise NotImplementedError
+        .. math::
+
+            f(\mathbf{r}) = N(\alpha, n) \exp^{-\alpha |\mathbf{r}|^n}
+
+            \int N(\alpha, n)  f(\mathbf{r}) d\mathbf{r} =  4 \pi * \int_0^{\infty} r^2  \exp^{-\alpha r^n} = 1
+
+            N(\alpha, n) = \frac{n \alpha^{3/n}}{4 \pi \Gamma(3/n)}
+
+            N(\alpha, 1) = \frac{\alpha^3}{8 \pi}
+
+            N(\alpha, 2) = (\frac{\alpha}{\pi})^{3/2}
+
+            \frac{\partial{f(\mathbf{r})}}{\partial{r}} = - n r^{n-1} \alpha f(\mathbf{r})
+
+
+        Parameters
+        ----------
+        population: float
+            Constant representing population.
+        n: float
+            Order, positive
+        alpha: float
+            Exponential coefficient
+        r:
+            Points
+        nderiv: int
+            The order of derivative
+
+        """
+        prefactor = n * alpha ** (3 / n) / (4 * np.pi * gamma(3 / n))
+        f = population * prefactor * np.exp(-alpha * r**n)
+        df = -n * r ** (n - 1) * f
+        return {0: f, 1: (f, df)}[nderiv]
 
 
 def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff):

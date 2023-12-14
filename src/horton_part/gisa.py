@@ -113,10 +113,10 @@ class GaussianIterativeStockholderWPart(ISAWPart):
 
     def _get_exponents(self, index):
         # TODO: this is not necessary, e.g., 1-arctan(x).
-        return self.bs_helper.load_exponent(self.numbers[index])
+        return self.bs_helper.exponents[self.numbers[index]]
 
     def _get_initials(self, index):
-        return self.bs_helper.load_initials(self.numbers[index])
+        return self.bs_helper.initials[self.numbers[index]]
 
     def get_rgrid(self, index):
         """Load radial grid."""
@@ -140,7 +140,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         rgrid = self.get_rgrid(iatom)
         propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
         return self.bs_helper.compute_proatom_dens(
-            propars, self._get_exponents(iatom), rgrid.points, 1
+            self.numbers[iatom], propars, rgrid.points, 1
         )
 
     def eval_proatom(self, index, output, grid):
@@ -162,7 +162,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         propars = self.cache.load("propars")
         populations = propars[self._ranges[index] : self._ranges[index + 1]]
         output[:] = self.bs_helper.compute_proatom_dens(
-            populations, self._get_exponents(index), self.radial_distances[index], 0
+            self.numbers[index], populations, self.radial_distances[index], 0
         )
 
     def _init_propars(self):
@@ -248,15 +248,11 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         for iatom in range(self.natom):
             rgrid = self.get_rgrid(iatom)
             r = rgrid.points
-
             nprim = self._ranges[iatom + 1] - self._ranges[iatom]
-            alphas = self._get_exponents(iatom)
-
             bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nprim, r.size))[0]
-            # TODO: the number of points for radial grid could be different for different atoms.
             bs_funcs[:, :] = np.array(
                 [
-                    self.bs_helper.compute_proshell_dens(1.0, alphas[k], r)
+                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], k, 1.0, r)
                     for k in range(nprim)
                 ]
             )
@@ -374,7 +370,6 @@ def _constrained_least_squares(
 
     def f(propars):
         pro = calc_proatom_dens(propars, bs_funcs)
-        # This is integrand function corresponding to the difference of number of electrons.
         return weights * np.abs(pro - rho)
 
     res = least_squares(
