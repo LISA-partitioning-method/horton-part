@@ -92,6 +92,10 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
+        self.use_global_method = use_global_method
+        self.func_type = basis_func_type
+        self.diis_size = diis_size
+
         GaussianIterativeStockholderWPart.__init__(
             self,
             coordinates,
@@ -108,9 +112,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             solver,
         )
 
-        self.diis_size = diis_size
-        self.use_global_method = use_global_method
-        self.func_type = basis_func_type
         if basis_func_json_file is not None:
             print(f"Load basis functions from custom json file: {basis_func_json_file}")
             self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
