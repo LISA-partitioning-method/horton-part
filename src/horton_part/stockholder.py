@@ -232,7 +232,10 @@ class StockholderWPart(WPart):
         spline = self.get_proatom_spline(index)
         output[:] = 0.0
         self.eval_spline(index, spline, output, grid, label="proatom")
-        # output += 1e-100
+        # Note: this is very important because the initial values for ISA methods are all zeros.
+        # Without this line, the result is wrong.
+        # TODO: this should be fixed.
+        output += 1e-100
         assert np.isfinite(output).all()
 
     def update_at_weights(self):
