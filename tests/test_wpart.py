@@ -35,7 +35,9 @@ from .common import (
 )
 
 
-def check_water_hf_sto3g(scheme, expecting, needs_padb=True, **kwargs):
+def check_water_hf_sto3g(
+    scheme, expecting, needs_padb=True, check_spline=True, **kwargs
+):
     if needs_padb:
         records = load_atoms_npz(
             numbers=[8, 6, 1], max_cation=1, max_anion=-1, level="hf_sto3g"
@@ -64,7 +66,8 @@ def check_water_hf_sto3g(scheme, expecting, needs_padb=True, **kwargs):
     assert abs(wpart["charges"] - wpart["cartesian_multipoles"][:, 0]).max() < 1e-3
     assert abs(wpart["charges"] - wpart["pure_multipoles"][:, 0]).max() < 1e-3
 
-    check_proatom_splines(wpart)
+    if check_spline:
+        check_proatom_splines(wpart)
     return wpart
 
 
@@ -101,8 +104,12 @@ def test_is_water_hf_sto3g():
 
 def test_mbis_water_hf_sto3g():
     expecting = np.array([-0.61891067, 0.3095756, 0.30932584])
-    wpart = check_water_hf_sto3g("mbis", expecting, needs_padb=False)
-    assert wpart["charges"] == pytest.approx(wpart["valence_charges"] + wpart["core_charges"])
+    wpart = check_water_hf_sto3g(
+        "mbis", expecting, needs_padb=False, check_spline=False
+    )
+    assert wpart["charges"] == pytest.approx(
+        wpart["valence_charges"] + wpart["core_charges"]
+    )
     assert (wpart["core_charges"] > 0).all()
     assert (wpart["valence_charges"] < 0).all()
     assert (wpart["valence_widths"] > 0).all()

@@ -56,9 +56,8 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        local_grid_radius=8.0,
+        local_grid_radius=np.inf,
         solver=1,
-        basis_func_type="gauss",
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -74,8 +73,8 @@ class GaussianIterativeStockholderWPart(ISAWPart):
              Reduce the CPU cost at the expense of more memory consumption.
         """
         self._solver = solver
-        self.func_type = basis_func_type
-        self.bs_helper = BasisFuncHelper.from_type(basis_func_type)
+        self.bs_helper = BasisFuncHelper.from_function_type("gauss")
+
         ISAWPart.__init__(
             self,
             coordinates,
@@ -201,6 +200,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         bs_funcs = bs_funcs[:, r_mask]
         weights = 4 * np.pi * points**2 * weights
 
+        alphas = self.bs_helper.get_exponent(self.numbers[iatom])
         # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
             bs_funcs,
@@ -208,7 +208,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
             propars.copy(),
             points,
             weights,
-            self.bs_helper.get_exponent(self.numbers[iatom]),
+            alphas,
             self._inner_threshold,
         )
 
@@ -288,7 +288,6 @@ def _constrained_least_squares_quadprog(
     """
 
     nprim = len(propars)
-    r = points
     S = (
         2
         / np.pi**1.5
@@ -298,7 +297,7 @@ def _constrained_least_squares_quadprog(
 
     vec_b = np.zeros(nprim, float)
     for k in range(nprim):
-        vec_b[k] = 2 * np.einsum("i,i,i->", weights, bs_funcs[k], rho)
+        vec_b[k] = 2 * np.einsum("i,i,i", weights, bs_funcs[k], rho)
 
     # Construct linear equality or inequality constraints
     matrix_constraint = np.zeros([nprim, nprim + 1])
@@ -308,7 +307,7 @@ def _constrained_least_squares_quadprog(
     matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
     vector_constraint = np.zeros(nprim + 1)
     # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-    pop = np.einsum("i,i->", 4 * np.pi * r**2 * weights, rho)
+    pop = np.einsum("i,i", weights, rho)
     vector_constraint[0] = pop
 
     propars_qp = quadprog.solve_qp(
@@ -385,7 +384,7 @@ def _constrained_least_cvxopt(
 
     vec_b = np.zeros((nprim, 1), float)
     for k in range(nprim):
-        vec_b[k] = 2 * np.einsum("i,i->", weights * bs_funcs[k], rho)
+        vec_b[k] = 2 * np.einsum("i,i", weights * bs_funcs[k], rho)
     q = -cvxopt.matrix(vec_b)
 
     # Linear inequality constraints
@@ -395,7 +394,7 @@ def _constrained_least_cvxopt(
 
     # Linear equality constraints
     A = cvxopt.matrix(1.0, (1, nprim))
-    pop = np.einsum("i,i->", weights, rho)
+    pop = np.einsum("i,i", weights, rho)
     b = cvxopt.matrix(pop, (1, 1))
 
     # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))

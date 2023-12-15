@@ -330,8 +330,9 @@ def main(args=None):
 
         if args.type in ["gisa", "lisa"]:
             kwargs["solver"] = args.solver
-            kwargs["basis_func_type"] = args.func_type
             if args.type in ["lisa"]:
+                kwargs["basis_func_type"] = args.func_type
+                kwargs["basis_func_json_file"] = args.func_file
                 kwargs["use_global_method"] = args.use_global_method
                 if args.solver > 200:
                     kwargs["diis_size"] = args.diis_size
@@ -495,6 +496,12 @@ def parse_args(args=None):
         default="gauss",
         choices=["gauss", "slater"],
         help="The type of basis functions. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--func_file",
+        type=str,
+        default=None,
+        help="The json filename of basis functions.",
     )
     parser.add_argument(
         "--maxiter",

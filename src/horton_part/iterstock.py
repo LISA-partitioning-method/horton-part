@@ -27,7 +27,6 @@ import numpy as np
 
 from .cache import just_once
 from .stockholder import StockholderWPart
-from .log import log
 import time
 
 
@@ -48,7 +47,7 @@ class ISAWPart(StockholderWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        local_grid_radius=8.0,
+        local_grid_radius=np.inf,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -141,8 +140,6 @@ class ISAWPart(StockholderWPart):
             rho_0 = np.clip(rho_0, 1e-100, np.inf)
             rho = np.clip(rho, 1e-100, np.inf)
             entropy = self._grid.integrate(rho, np.log(rho) - np.log(rho_0))
-            if log.do_medium:
-                print(f"Entropy: {entropy:.8f}")
             self.history_entropies.append(entropy)
 
         # Update the partitioning based on the latest proatoms
@@ -217,16 +214,17 @@ class ISAWPart(StockholderWPart):
     @just_once
     def do_partitioning(self):
         """Do partitioning"""
-        self.initial_local_grids()
+        # self.initial_local_grids()
         # Perform one general check in the beginning to avoid recomputation
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache
         new |= "change" not in self.cache
         if new:
             propars = self._init_propars()
-            print("Iteration       Change")
+            print("Iteration       Change      Entropy")
 
             counter = 0
+            entropy = np.inf
             while True:
                 counter += 1
                 self.cache.dump("niter", counter, tags="o")
@@ -237,7 +235,8 @@ class ISAWPart(StockholderWPart):
 
                 # Check for convergence
                 change = self.compute_change(propars, old_propars)
-                print("%9i   %10.5e" % (counter, change))
+                entropy = self.history_entropies[-1] if counter > 1 else entropy
+                print("%9i   %10.5e   %10.5e" % (counter, change, entropy))
                 if change < self._threshold or counter >= self._maxiter:
                     break
             print()

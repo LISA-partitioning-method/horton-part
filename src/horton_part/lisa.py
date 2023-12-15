@@ -40,6 +40,7 @@ from .utils import (
     check_for_grad_error,
     check_for_hessian_error,
 )
+from .basis import BasisFuncHelper
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -75,6 +76,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         solver=1,
         diis_size=8,
         basis_func_type="gauss",
+        basis_func_json_file=None,
         use_global_method=False,
     ):
         """
@@ -90,8 +92,6 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self.diis_size = diis_size
-        self.use_global_method = use_global_method
         GaussianIterativeStockholderWPart.__init__(
             self,
             coordinates,
@@ -106,8 +106,17 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
             inner_threshold,
             local_grid_radius,
             solver,
-            basis_func_type,
         )
+
+        self.diis_size = diis_size
+        self.use_global_method = use_global_method
+        self.func_type = basis_func_type
+        if basis_func_json_file is not None:
+            print(f"Load basis functions from custom json file: {basis_func_json_file}")
+            self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
+        else:
+            print(f"Load {basis_func_type} basis functions")
+            self.bs_helper = BasisFuncHelper.from_function_type(basis_func_type)
 
     def _init_log_scheme(self):
         if log.do_medium:

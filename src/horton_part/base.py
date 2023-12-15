@@ -223,8 +223,9 @@ class Part(JustOnceClass):
         grid = self.get_grid(index)
         dens = self.get_moldens(index)
         at_weights = self.cache.load("at_weights", index)
-        wcor = self.get_wcor(index)
-        wcor = np.ones_like(at_weights) if wcor is None else wcor
+        # wcor = self.get_wcor(index)
+        # wcor = np.ones_like(at_weights) if wcor is None else wcor
+        wcor = np.ones_like(at_weights)
         return grid.integrate(at_weights, dens, wcor)
 
     @just_once
@@ -305,8 +306,9 @@ class Part(JustOnceClass):
                 aim = self.get_moldens(i) * self.cache.load("at_weights", i)
 
                 # 3) Compute weight corrections
-                wcor = self.get_wcor(i)
-                wcor = 1 if wcor is None else wcor
+                # wcor = self.get_wcor(i)
+                # wcor = 1 if wcor is None else wcor
+                wcor = 1
 
                 # 4) Compute Cartesian multipole moments
                 # The minus sign is present to account for the negative electron

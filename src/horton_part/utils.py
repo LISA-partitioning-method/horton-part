@@ -54,7 +54,7 @@ def wpart_schemes(scheme):
 
         wpart = HirshfeldIWPart
     elif scheme == "is":
-        from .iterstock import IterativeStockholderWPart
+        from .isa import IterativeStockholderWPart
 
         wpart = IterativeStockholderWPart
     elif scheme == "mbis":

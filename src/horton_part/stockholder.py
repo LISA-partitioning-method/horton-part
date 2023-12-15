@@ -25,6 +25,7 @@ from __future__ import print_function
 
 import numpy as np
 import time
+import warnings
 
 from .base import WPart, just_once
 
@@ -40,6 +41,11 @@ def eval_spline_grid(spline, grid, center):
 
 
 class StockholderWPart(WPart):
+    def _init_subgrids(self):
+        WPart._init_subgrids(self)
+        self.initial_local_grids()
+
+    @property
     def local_grid_radius(self):
         """
         Get the radius of the local grid sphere.
@@ -133,29 +139,41 @@ class StockholderWPart(WPart):
             reduced_mol_grid_size += reduced_atom_grid_size
             rgrid = self.get_rgrid(i)
             r = rgrid.points
-            r_mask = r <= self.local_grid_radius
-            degrees = np.asarray(atom_grid.degrees)[r_mask]
-            degrees_str = [str(d) for d in degrees]
-            print(f"   |-- Radial grid size: {len(r[r_mask])}")
-            print(f"   |-- Angular grid {len(degrees)} degrees: ")
-            nb = 20
-            prefix = "          "
-            for j in range(len(degrees_str) // nb + 1):
-                print(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
+            if len(r) == len(atom_grid.degrees):
+                r_mask = r <= self.local_grid_radius
+                degrees = np.asarray(atom_grid.degrees)[r_mask]
+                degrees_str = [str(d) for d in degrees]
+                print(f"   |-- Radial grid size: {len(r[r_mask])}")
+                print(f"   |-- Angular grid {len(degrees)} degrees: ")
+                nb = 20
+                prefix = "          "
+                for j in range(len(degrees_str) // nb + 1):
+                    print(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
+            else:
+                warnings.warn(
+                    "The size of 'rgrid' in the method is not equal to the size of 'rgrid' of atom grid."
+                )
         print("-" * 80)
         print(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
         print("=" * 80)
         print(" ")
 
     def update_pro(self, index, proatdens, promoldens):
-        local_grid = self.local_grids[index]
-        work = np.zeros((local_grid.size,))
-        self.eval_proatom(index, work, local_grid)
-        promoldens[local_grid.indices] += work
-        promoldens += 1e-100
-        proatdens[self.pt_indices_relative_to_atom[index]] = work[
-            self.atom_points_overlap[index]
-        ]
+        if hasattr(self, "local_grids"):
+            local_grid = self.local_grids[index]
+            work = np.zeros((local_grid.size,))
+            self.eval_proatom(index, work, local_grid)
+            promoldens[local_grid.indices] += work
+            promoldens += 1e-100
+            proatdens[self.pt_indices_relative_to_atom[index]] = work[
+                self.atom_points_overlap[index]
+            ]
+        else:
+            # work = self.grid.zeros()
+            work = np.zeros((self.grid.size,))
+            self.eval_proatom(index, work, self.grid)
+            promoldens += work
+            proatdens[:] = self.to_atomic_grid(index, work)
 
     def get_rgrid(self, index):
         """Load radial grid."""
