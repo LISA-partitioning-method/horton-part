@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "horton-part"
 authors = [
   { name="YingXing Cheng", email="yingxing.cheng@ugent.be" },
-  { name="Toon Verstraelen", email="toon.verstraelen@ugent.be" },
 ]
 maintainers = [
     {name='YingXing Cheng', email='yingxing.cheng@ugent.be'}]
@@ -46,16 +45,13 @@ tests = ['pytest', 'pytest-skip-slow']
 
 [project.urls]
 Homepage = 'https://github.com/yingxingcheng/horton-part'
-# Documentation = "https://readthedocs.org"
 Repository = 'https://github.com/yingxingcheng/horton-part'
 Changelog = "https://github.com/yingxingcheng/horton-part/CHANGELOG.md"
 
 [project.scripts]
-# part-from-horton3 = "horton_part.adapters.horton3:main"
-# part-from-gpaw = "denspart.adapters.gpaw:main"
-# part-from-adf = "denspart.adapters.adf:main"
 part = "horton_part.__main__:main"
-# part-write-extxyz = "horton_part.utils.write_extxyz:main"
+part-gen = "horton_part.scripts.generate_density:main"
+part-dens = "horton_part.scripts.partition_density:main"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.

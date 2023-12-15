@@ -30,11 +30,13 @@ from .mbis import *
 from .mulliken import *
 from .proatomdb import *
 from .stockholder import *
+from .isa import *
 from .gisa import *
 from .lisa import *
 from .log import *
 from .moments import *
 from .utils import *
+from .basis import *
 
 try:
     from _version import __version__

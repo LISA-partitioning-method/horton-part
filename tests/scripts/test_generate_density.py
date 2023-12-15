@@ -26,7 +26,7 @@ import pytest
 from iodata.utils import FileFormatWarning
 from numpy.testing import assert_allclose
 
-from horton_part.__main__ import main, construct_molgrid_from_dict
+from horton_part.scripts.generate_density import main
 
 FILENAMES = [
     "2h-azirine-cc.fchk",
@@ -121,7 +121,7 @@ def test_from_horton3_density(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
         with pytest.warns(None) as record:
-            main([str(fn_full), "--output", fn_density, "--skip_part"])
+            main([str(fn_full), "--output", fn_density])
         if len(record) == 1:
             assert issubclass(record[0].category, FileFormatWarning)
         assert os.path.isfile(fn_density)
@@ -129,46 +129,3 @@ def test_from_horton3_density(fn_wfn, tmpdir):
 
     nelec = np.dot(data["density"], data["weights"])
     assert_allclose(nelec, data["nelec"], atol=1e-2)
-
-
-@pytest.mark.parametrize("fn_wfn", ["hf_sto3g.fchk", "water_sto3g_hf_g03.fchk"])
-def test_from_horton3_all(fn_wfn, tmpdir):
-    with resources.path("iodata.test.data", fn_wfn) as fn_full:
-        fn_density = os.path.join(tmpdir, "density.npz")
-        with pytest.warns(None) as record:
-            main([str(fn_full), "-g", "-o", "--output", fn_density, "--skip_part"])
-        if len(record) == 1:
-            assert issubclass(record[0].category, FileFormatWarning)
-        assert os.path.isfile(fn_density)
-        data = dict(np.load(fn_density))
-
-    assert "atom0/points" in data
-    assert "density_gradient" in data
-    assert "orbitals" in data
-    assert "orbitals_gradient" in data
-
-
-@pytest.mark.parametrize("fn_wfn", ["hf_sto3g.fchk", "water_sto3g_hf_g03.fchk"])
-def test_construct_molgrid_from_dict(fn_wfn, tmpdir):
-    with resources.path("iodata.test.data", fn_wfn) as fn_full:
-        fn_density = os.path.join(tmpdir, "density.npz")
-        with pytest.warns(None) as record:
-            main([str(fn_full), "-t", "mbis", "--output", fn_density])
-        if len(record) == 1:
-            assert issubclass(record[0].category, FileFormatWarning)
-        assert os.path.isfile(fn_density)
-        data = dict(np.load(fn_density))
-        molgrid = construct_molgrid_from_dict(data)
-
-    natom = len(data["atnums"])
-    for iatom in range(natom):
-        atgrid = molgrid.get_atomic_grid(iatom)
-        assert atgrid.points.shape == data[f"atom{iatom}/points"].shape
-        assert atgrid.weights.shape == data[f"atom{iatom}/weights"].shape
-        assert atgrid.points == pytest.approx(data[f"atom{iatom}/points"], abs=1e-8)
-        assert atgrid.weights == pytest.approx(data[f"atom{iatom}/weights"], abs=1e-8)
-
-    assert molgrid.points.shape == data["points"].shape
-    assert molgrid.weights.shape == data["weights"].shape
-    assert molgrid.points == pytest.approx(data["points"], abs=1e-8)
-    assert molgrid.weights == pytest.approx(data["weights"], abs=1e-8)

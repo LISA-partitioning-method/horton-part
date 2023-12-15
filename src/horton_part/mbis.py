@@ -27,6 +27,7 @@ import numpy as np
 
 from .iterstock import ISAWPart
 from .log import biblio, log
+from .utils import check_pro_atom_parameters
 
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
@@ -54,11 +55,10 @@ def _get_initial_mbis_propars(number):
     return propars
 
 
-def _opt_mbis_propars(rho, propars, rgrid, threshold):
+def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     assert len(propars) % 2 == 0
     nshell = len(propars) // 2
     r = rgrid.points
-    r = np.clip(r, 1e-100, 1e10)
     terms = np.zeros((nshell, len(r)), float)
     oldpro = None
     if log.do_medium:
@@ -70,10 +70,21 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
             N = propars[2 * ishell]
             S = propars[2 * ishell + 1]
             terms[ishell] = N * S**3 * np.exp(-S * r) / (8 * np.pi)
+
         pro = terms.sum(axis=0)
-        pro = np.clip(pro, 1e-100, np.inf)
+        sick = (rho < density_cutoff) | (pro < density_cutoff)
+        with np.errstate(all="ignore"):
+            lnpro = np.log(pro)
+            ratio = rho / pro
+            lnratio = np.log(rho) - np.log(pro)
+        lnpro[sick] = 0.0
+        ratio[sick] = 0.0
+        lnratio[sick] = 0.0
+
+        # pro = np.clip(pro, 1e-100, np.inf)
         # transform to partitions
-        terms *= rho / pro
+        # terms *= rho / pro
+        terms *= ratio
         # the partitions and the updated parameters
         for ishell in range(nshell):
             m0 = rgrid.integrate(4 * np.pi * r**2, terms[ishell])
@@ -91,6 +102,11 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold):
             log(f"            {irep+1:<4}    {change:.3e}")
 
         if change < threshold:
+            check_pro_atom_parameters(
+                propars,
+                total_population=rgrid.integrate(4 * np.pi * r**2, rho),
+                pro_atom_density=pro,
+            )
             return propars
         oldpro = pro
     assert False
@@ -120,9 +136,22 @@ class MBISWPart(ISAWPart):
             biblio.cite("verstraelen2016", "the use of MBIS partitioning")
 
     def get_rgrid(self, iatom):
+        """Get radial grid for `iatom` atom."""
         return self.get_grid(iatom).rgrid
 
     def get_proatom_rho(self, iatom, propars=None):
+        """Get pro-atom density for atom `iatom`.
+
+        If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
+
+        Parameters
+        ----------
+        iatom: int
+            The index of atom `iatom`.
+        propars: np.array
+            The pro-atom parameters.
+
+        """
         if propars is None:
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
@@ -136,6 +165,34 @@ class MBISWPart(ISAWPart):
             y += f
             d -= S * f
         return y, d
+
+    def eval_proatom(self, index, output, grid):
+        """Evaluate function on a local grid.
+
+        The size of the local grid is specified by the radius of the sphere where the local grid is considered.
+        For example, when the radius is `np.inf`, the grid corresponds to the whole molecular grid.
+
+        Parameters
+        ----------
+        index: int
+            The index of an atom in the molecule.
+        output: np.array
+            The size of `output` should be the same as the size of the local grid.
+        grid: np.array
+            The local grid.
+
+        """
+        propars = self.cache.load("propars")
+        r = self.radial_distances[index]
+        y = np.zeros(len(r), float)
+        # d = np.zeros(len(r), float)
+        my_propars = propars[self._ranges[index] : self._ranges[index + 1]]
+        for ishell in range(self._nshells[index]):
+            N, S = my_propars[2 * ishell : 2 * ishell + 2]
+            f = N * S**3 * np.exp(-S * r) / (8 * np.pi)
+            y += f
+            # d -= S * f
+        output[:] = y
 
     def _init_propars(self):
         ISAWPart._init_propars(self)
@@ -160,7 +217,9 @@ class MBISWPart(ISAWPart):
         dens = self.get_moldens(iatom)
         at_weights = self.cache.load("at_weights", iatom)
         spline = atgrid.spherical_average(at_weights * dens)
-        spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
+        points = rgrid.points
+        spherical_average = spline(points)
+        # spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
 
         # assign as new propars
         my_propars = self.cache.load("propars")[
@@ -171,11 +230,11 @@ class MBISWPart(ISAWPart):
         )
 
         # avoid too large r
-        r = np.clip(rgrid.points, 1e-100, 1e10)
+        # r = np.clip(rgrid.points, 1e-100, 1e10)
 
         # compute the new charge
         # 4 * np.pi * rgrid.points ** 2 * spherical_average
-        pseudo_population = rgrid.integrate(4 * np.pi * r**2 * spherical_average)
+        pseudo_population = rgrid.integrate(4 * np.pi * points**2, spherical_average)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
