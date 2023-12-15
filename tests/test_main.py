@@ -121,7 +121,7 @@ def test_from_horton3_density(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
         with pytest.warns(None) as record:
-            main([str(fn_full), "--output", fn_density, "--skip_part"])
+            main(["--fn_wfn", str(fn_full), "--output", fn_density, "--skip_part"])
         if len(record) == 1:
             assert issubclass(record[0].category, FileFormatWarning)
         assert os.path.isfile(fn_density)
@@ -136,7 +136,17 @@ def test_from_horton3_all(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
         with pytest.warns(None) as record:
-            main([str(fn_full), "-g", "-o", "--output", fn_density, "--skip_part"])
+            main(
+                [
+                    "--fn_wfn",
+                    str(fn_full),
+                    "-g",
+                    "-o",
+                    "--output",
+                    fn_density,
+                    "--skip_part",
+                ]
+            )
         if len(record) == 1:
             assert issubclass(record[0].category, FileFormatWarning)
         assert os.path.isfile(fn_density)
@@ -153,11 +163,12 @@ def test_construct_molgrid_from_dict(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
         with pytest.warns(None) as record:
-            main([str(fn_full), "-t", "mbis", "--output", fn_density])
+            main(["--fn_wfn", str(fn_full), "-t", "mbis", "--output", fn_density])
         if len(record) == 1:
             assert issubclass(record[0].category, FileFormatWarning)
         assert os.path.isfile(fn_density)
         data = dict(np.load(fn_density))
+        print(data.keys())
         molgrid = construct_molgrid_from_dict(data)
 
     natom = len(data["atnums"])

@@ -406,6 +406,7 @@ def main(args=None):
 
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
+        part_data.update(data)
         np.savez_compressed(args.output, **part_data)
     else:
         np.savez_compressed(args.output, **data)
