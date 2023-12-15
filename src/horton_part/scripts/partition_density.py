@@ -4,7 +4,7 @@ import numpy as np
 from grid.molgrid import MolGrid
 from grid.basegrid import OneDGrid
 from grid.atomgrid import AtomGrid
-from horton_part import wpart_schemes
+from horton_part import wpart_schemes, log
 
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
@@ -39,6 +39,7 @@ def construct_molgrid_from_dict(data):
 def main():
     """Main program."""
     args = parse_args()
+    log.set_level(args.verbose)
     print("*" * width)
     print(f"Reade grid and density data from {args.filename}")
     print("*" * width)
