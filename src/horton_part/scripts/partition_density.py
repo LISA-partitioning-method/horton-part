@@ -219,6 +219,12 @@ def parse_args():
         type=str,
         default="partitioning.npz",
     )
+    parser.add_argument(
+        "--verbose",
+        type=int,
+        default=3,
+        help="The level for printing output information. [default=%(default)s]",
+    )
 
     return parser.parse_args()
 
