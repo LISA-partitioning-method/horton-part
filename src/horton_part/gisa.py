@@ -41,8 +41,6 @@ class GaussianISAWPart(AbstractISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "gisa"
-    options = ["lmax", "threshold", "maxiter", "solver"]
-    linear = False
 
     def __init__(
         self,

@@ -57,6 +57,8 @@ __all__ = [
 
 
 class LinearISAWPart(GaussianISAWPart):
+    """Linear Iterative Stockholder Analysis partitioning scheme."""
+
     name = "lisa"
 
     def __init__(

@@ -34,7 +34,7 @@ __all__ = ["Part", "WPart"]
 
 class Part(JustOnceClass):
     name = None
-    linear = False  # whether the populations are linear in the density matrix.
+    # linear = False  # whether the populations are linear in the density matrix.
 
     def __init__(
         self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax
@@ -208,13 +208,6 @@ class Part(JustOnceClass):
         #     print("%30s  %10.3f" % ("Total", nbyte_total / 1024.0**3))
         #     print("" + "~" * 100)
         #     print()
-
-    def get_memory_estimates(self):
-        return [
-            ("Atomic weights", np.ones(self.natom), 0),
-            ("Promolecule", np.zeros(self.natom), 1),
-            ("Working arrays", np.zeros(self.natom), 2),
-        ]
 
     def to_atomic_grid(self, index, data):
         raise NotImplementedError

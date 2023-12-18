@@ -130,8 +130,6 @@ class HirshfeldWPart(AbstractStockholderWPart):
     """Hirshfeld partitioning with Becke-Lebedev grids"""
 
     name = "h"
-    options = ["lmax"]
-    linear = True
 
     def __init__(
         self,
@@ -154,7 +152,6 @@ class HirshfeldWPart(AbstractStockholderWPart):
         """
         check_proatomdb(numbers, pseudo_numbers, proatomdb)
         self._proatomdb = proatomdb
-        # HirshfeldMixin.__init__(self, numbers, pseudo_numbers, proatomdb)
         AbstractStockholderWPart.__init__(
             self,
             coordinates,

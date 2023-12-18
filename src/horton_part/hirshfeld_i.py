@@ -36,8 +36,6 @@ class HirshfeldIWPart(AbstractISAWPart):
     """Iterative Hirshfeld partitioning with Becke-Lebedev grids"""
 
     name = "hi"
-    options = ["lmax", "threshold", "maxiter"]
-    linear = False
 
     def __init__(
         self,
@@ -102,20 +100,14 @@ class HirshfeldIWPart(AbstractISAWPart):
             )
             biblio.cite("bultinck2007", "the use of Hirshfeld-I partitioning")
 
-    def _get_proatomdb(self):
+    @property
+    def proatomdb(self):
+        """Database of atomic pro-atom density."""
         return self._proatomdb
-
-    proatomdb = property(_get_proatomdb)
 
     def get_rgrid(self, index):
         number = self.numbers[index]
         return self.proatomdb.get_rgrid(number)
-
-    def get_memory_estimates(self):
-        # This is a conservative estimate.
-        return [
-            ("Isolated atoms", np.ones(self.natom) * 3, 0),
-        ]
 
     def get_interpolation_info(self, i, charges=None):
         if charges is None:

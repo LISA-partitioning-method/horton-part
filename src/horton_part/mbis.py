@@ -114,8 +114,6 @@ class MBISWPart(AbstractISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "mbis"
-    options = ["lmax", "threshold", "maxiter"]
-    linear = False
 
     def _init_log_scheme(self):
         if log.do_medium:
