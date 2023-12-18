@@ -22,13 +22,17 @@
 
 
 import numpy as np
+import logging
 
 from .core.iterstock import AbstractISAWPart
-from .core.log import biblio, log
+from .core.logging import deflist
+
 from .utils import check_pro_atom_parameters
 
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
+
+logger = logging.getLogger(__name__)
 
 
 def _get_nshell(number):
@@ -59,9 +63,8 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     r = rgrid.points
     terms = np.zeros((nshell, len(r)), float)
     oldpro = None
-    if log.do_medium:
-        log("            Iter.    Change    ")
-        log("            -----    ------    ")
+    logger.debug("            Iter.    Change    ")
+    logger.debug("            -----    ------    ")
     for irep in range(1000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
@@ -96,8 +99,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             error = oldpro - pro
             change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
 
-        if log.do_medium:
-            log(f"            {irep+1:<4}    {change:.3e}")
+        logger.debug(f"            {irep+1:<4}    {change:.3e}")
 
         if change < threshold:
             check_pro_atom_parameters(
@@ -116,20 +118,20 @@ class MBISWPart(AbstractISAWPart):
     name = "mbis"
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            log("Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    ("Scheme", "Minimal Basis Iterative Stockholder (MBIS)"),
-                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
-                    (
-                        "Inner loop convergence threshold",
-                        "%.1e" % self._inner_threshold,
-                    ),
-                    ("Maximum iterations", self._maxiter),
-                ]
-            )
-            biblio.cite("verstraelen2016", "the use of MBIS partitioning")
+        logger.info("Initialized: %s" % self.__class__.__name__)
+        deflist(
+            logger,
+            [
+                ("Scheme", "Minimal Basis Iterative Stockholder (MBIS)"),
+                ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                (
+                    "Inner loop convergence threshold",
+                    "%.1e" % self._inner_threshold,
+                ),
+                ("Maximum iterations", self._maxiter),
+            ],
+        )
+        # biblio.cite("verstraelen2016", "the use of MBIS partitioning")
 
     def get_rgrid(self, iatom):
         """Get radial grid for `iatom` atom."""

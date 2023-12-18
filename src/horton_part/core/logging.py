@@ -18,10 +18,17 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-from .base import *
-from .iterstock import *
-from .proatomdb import *
-from .stockholder import *
-from .logging import *
-from .moments import *
-from .basis import *
+
+
+def deflist(logger, l):
+    """Print a definition list.
+
+    Parameters
+    ----------
+    l : list
+        A list of keyword and value pairs. A table will be printed where the first
+        column contains the keywords and the second column contains (wrapped) values.
+    """
+    widest = max(len(item[0]) for item in l)
+    for name, value in l:
+        logger.info("  %s : %s" % (name.ljust(widest), value))

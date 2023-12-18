@@ -23,10 +23,16 @@
 
 import numpy as np
 from .core.iterstock import AbstractISAWPart
-from .core.log import log, biblio
+from .core.logging import deflist
+
+# from .core.log import log, biblio
+
+import logging
 
 
 __all__ = ["ISAWPart"]
+
+logger = logging.getLogger(__name__)
 
 
 class ISAWPart(AbstractISAWPart):
@@ -35,21 +41,21 @@ class ISAWPart(AbstractISAWPart):
     name = "is"
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            log("Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    ("Scheme", "Iterative Stockholder"),
-                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
-                    (
-                        "Inner loop convergence threshold",
-                        "%.1e" % self._inner_threshold,
-                    ),
-                    ("Maximum iterations", self._maxiter),
-                    ("lmax", self._lmax),
-                ]
-            )
-        biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")
+        logger.info("Initialized: %s" % self.__class__.__name__)
+        deflist(
+            logger,
+            [
+                ("Scheme", "Iterative Stockholder"),
+                ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                (
+                    "Inner loop convergence threshold",
+                    "%.1e" % self._inner_threshold,
+                ),
+                ("Maximum iterations", self._maxiter),
+                ("lmax", self._lmax),
+            ],
+        )
+        # biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")
 
     def get_rgrid(self, index):
         return self.get_grid(index).rgrid

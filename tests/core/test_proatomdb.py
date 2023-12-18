@@ -23,10 +23,7 @@
 import numpy as np
 
 from horton_part.core.proatomdb import ProAtomDB
-from horton_part.core.log import log
 from ..common import load_atoms_npz
-
-log.set_level(0)
 
 
 def test_db_basics():

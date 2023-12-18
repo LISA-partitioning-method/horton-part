@@ -21,11 +21,10 @@
 """Base classes for all stockholder partitioning schemes"""
 
 
-from __future__ import print_function
-
 import numpy as np
 import time
 import warnings
+import logging
 
 from .base import WPart, just_once
 
@@ -33,6 +32,8 @@ from scipy.interpolate import CubicSpline, CubicHermiteSpline
 
 
 __all__ = ["AbstractStockholderWPart"]
+
+logger = logging.getLogger(__name__)
 
 
 def eval_spline_grid(spline, grid, center):
@@ -118,24 +119,24 @@ class AbstractStockholderWPart(WPart):
 
     def _log_grid_info(self):
         """Log information about the computed grids."""
-        print("")
-        print("=" * 80)
-        print("Information of integral grids.")
-        print("-" * 80)
-        print("Compute local grids ...")
-        print(f"Grid size of molecular grid: {self.grid.size}")
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info("Information of integral grids.")
+        logger.info("-" * 80)
+        logger.info("Compute local grids ...")
+        logger.info(f"Grid size of molecular grid: {self.grid.size}")
         reduced_mol_grid_size = 0
         for i, local_grid in enumerate(self.local_grids):
-            print(f" Atom {i} ".center(80, "*"))
+            logger.info(f" Atom {i} ".center(80, "*"))
             atom_grid = self.get_grid(i)
             dist = np.sqrt(
                 np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2)
             )
-            print(f"|-- Local grid size: {local_grid.size}")
+            logger.info(f"|-- Local grid size: {local_grid.size}")
             reduced_atom_grid_size = len(
                 atom_grid.points[dist <= self.local_grid_radius]
             )
-            print(f"|-- Atom grid size: {reduced_atom_grid_size}")
+            logger.info(f"|-- Atom grid size: {reduced_atom_grid_size}")
             reduced_mol_grid_size += reduced_atom_grid_size
             rgrid = self.get_rgrid(i)
             r = rgrid.points
@@ -143,20 +144,20 @@ class AbstractStockholderWPart(WPart):
                 r_mask = r <= self.local_grid_radius
                 degrees = np.asarray(atom_grid.degrees)[r_mask]
                 degrees_str = [str(d) for d in degrees]
-                print(f"   |-- Radial grid size: {len(r[r_mask])}")
-                print(f"   |-- Angular grid {len(degrees)} degrees: ")
+                logger.info(f"   |-- Radial grid size: {len(r[r_mask])}")
+                logger.info(f"   |-- Angular grid {len(degrees)} degrees: ")
                 nb = 20
                 prefix = "          "
                 for j in range(len(degrees_str) // nb + 1):
-                    print(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
+                    logger.info(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
             else:
                 warnings.warn(
                     "The size of 'rgrid' in the method is not equal to the size of 'rgrid' of atom grid."
                 )
-        print("-" * 80)
-        print(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
-        print("=" * 80)
-        print(" ")
+        logger.info("-" * 80)
+        logger.info(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
+        logger.info("=" * 80)
+        logger.info(" ")
 
     def update_pro(self, index, proatdens, promoldens):
         if hasattr(self, "local_grids"):
@@ -204,7 +205,7 @@ class AbstractStockholderWPart(WPart):
             rho[rho < 0] = 0.0
             deriv = None
             error = rgrid.integrate(rho) - original
-            print(
+            logger.info(
                 "                Pro-atom not positive everywhere. Lost %.1e electrons"
                 % error
             )
@@ -272,7 +273,7 @@ class AbstractStockholderWPart(WPart):
             # density
             key = ("spline_prodensity", index)
             if key not in self.cache:
-                print("Storing proatom density spline for atom %i." % index)
+                logger.info("Storing proatom density spline for atom %i." % index)
                 spline = self.get_proatom_spline(index)
                 self.cache.dump(key, spline, tags="o")
             # # hartree potential

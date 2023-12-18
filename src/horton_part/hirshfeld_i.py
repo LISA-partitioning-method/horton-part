@@ -22,11 +22,16 @@
 
 
 import numpy as np
+import logging
 
 from .core.cache import just_once
 from .hirshfeld import check_proatomdb, do_dispersion
 from .core.iterstock import AbstractISAWPart
-from .core.log import log, biblio
+from .core.logging import deflist
+
+# from .core.log import log, biblio
+
+logger = logging.getLogger(__name__)
 
 
 __all__ = ["HirshfeldIWPart"]
@@ -88,17 +93,17 @@ class HirshfeldIWPart(AbstractISAWPart):
         )
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            log("Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    ("Scheme", "Hirshfeld-I"),
-                    ("Convergence threshold", "%.1e" % self._threshold),
-                    ("Maximum iterations", self._maxiter),
-                    ("Proatomic DB", self._proatomdb),
-                ]
-            )
-            biblio.cite("bultinck2007", "the use of Hirshfeld-I partitioning")
+        logger.info("Initialized: %s" % self.__class__.__name__)
+        deflist(
+            logger,
+            [
+                ("Scheme", "Hirshfeld-I"),
+                ("Convergence threshold", "%.1e" % self._threshold),
+                ("Maximum iterations", self._maxiter),
+                ("Proatomic DB", self._proatomdb),
+            ],
+        )
+        # biblio.cite("bultinck2007", "the use of Hirshfeld-I partitioning")
 
     @property
     def proatomdb(self):

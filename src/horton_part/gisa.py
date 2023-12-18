@@ -28,13 +28,18 @@ import cvxopt
 
 # from cvxopt.solvers import qp
 from .core.iterstock import AbstractISAWPart
-from .core.log import log, biblio
+from .core.logging import deflist
+
+# from .core.log import log, biblio
 from .core.basis import BasisFuncHelper
 from .utils import check_pro_atom_parameters
 from .core.cache import just_once
+import logging
 
 
 __all__ = ["GaussianISAWPart"]
+
+logger = logging.getLogger(__name__)
 
 
 class GaussianISAWPart(AbstractISAWPart):
@@ -90,24 +95,24 @@ class GaussianISAWPart(AbstractISAWPart):
         )
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            log.deflist(
-                [
-                    ("Scheme", "Gaussian Iterative Stockholder Analysis (GISA)"),
-                    ("Outer loop convergence threshold", "%.1e" % self._threshold),
-                    (
-                        "Inner loop convergence threshold",
-                        "%.1e" % self._inner_threshold,
-                    ),
-                    ("Maximum iterations", self._maxiter),
-                    ("lmax", self._lmax),
-                    ("Solver", self._solver),
-                ]
-            )
-            biblio.cite(
-                "verstraelen2012a",
-                "the use of Gaussian Iterative Stockholder partitioning",
-            )
+        deflist(
+            logger,
+            [
+                ("Scheme", "Gaussian Iterative Stockholder Analysis (GISA)"),
+                ("Outer loop convergence threshold", "%.1e" % self._threshold),
+                (
+                    "Inner loop convergence threshold",
+                    "%.1e" % self._inner_threshold,
+                ),
+                ("Maximum iterations", self._maxiter),
+                ("lmax", self._lmax),
+                ("Solver", self._solver),
+            ],
+        )
+        # biblio.cite(
+        #     "verstraelen2012a",
+        #     "the use of Gaussian Iterative Stockholder partitioning",
+        # )
 
     def get_rgrid(self, index):
         """Load radial grid."""
@@ -360,7 +365,7 @@ def _constrained_least_squares(
         _obj_func,
         x0=propars,
         bounds=(0, np.inf),
-        verbose=2 if log.level >= 2 else log.level,
+        # verbose=2 if log.level >= 2 else log.level,
         gtol=threshold,
     )
     check_pro_atom_parameters(res.x)
@@ -404,7 +409,8 @@ def _constrained_least_cvxopt(
         A,
         b,
         initvals=propars,
-        options={"show_progress": log.do_medium, "feastol": threshold},
+        options={"feastol": threshold},
+        # options={"show_progress": log.do_medium, "feastol": threshold},
     )
     new_propars = np.asarray(opt_CVX["x"]).flatten()
     check_pro_atom_parameters(new_propars, total_population=float(pop))

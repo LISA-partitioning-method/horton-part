@@ -24,6 +24,7 @@
 from __future__ import print_function
 
 import numpy as np
+import logging
 
 from .cache import just_once
 from .stockholder import AbstractStockholderWPart
@@ -31,6 +32,8 @@ import time
 
 
 __all__ = ["AbstractISAWPart"]
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractISAWPart(AbstractStockholderWPart):
@@ -221,7 +224,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         new |= "change" not in self.cache
         if new:
             propars = self._init_propars()
-            print("Iteration       Change      Entropy")
+            logger.info("Iteration       Change      Entropy")
 
             counter = 0
             entropy = np.inf
@@ -236,10 +239,10 @@ class AbstractISAWPart(AbstractStockholderWPart):
                 # Check for convergence
                 change = self.compute_change(propars, old_propars)
                 entropy = self.history_entropies[-1] if counter > 1 else entropy
-                print("%9i   %10.5e   %10.5e" % (counter, change, entropy))
+                logger.info("%9i   %10.5e   %10.5e" % (counter, change, entropy))
                 if change < self._threshold or counter >= self._maxiter:
                     break
-            print()
+            logger.info("")
 
             self._finalize_propars()
             self.cache.dump("niter", counter, tags="o")

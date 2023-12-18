@@ -9,6 +9,7 @@ from grid.molgrid import MolGrid
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 from iodata import load_one
+import logging
 
 
 width = 100
@@ -16,6 +17,8 @@ np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
 __all__ = ["prepare_input"]
+
+logger = logging.getLogger(__name__)
 
 
 def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgrids):
@@ -72,7 +75,7 @@ def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids):
         grid.basegrid.Grid.
 
     """
-    print("Setting up grid")
+    logger.info("Setting up grid")
     becke = BeckeWeights(order=3)
     # Fix for missing radii.
     becke._radii[2] = 0.5
@@ -145,12 +148,12 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
     istart = 0
     while istart < len(points):
         iend = min(istart + chunk_size, len(points))
-        print(f"Computing stuff: {istart} ... {iend} / {len(points)}")
+        logger.info(f"Computing stuff: {istart} ... {iend} / {len(points)}")
         # Basis functions are computed upfront for efficiency.
-        print("  basis")
+        logger.info("  basis")
         basis_grid = evaluate_basis(basis, points[istart:iend], coord_type=coord_types)
         if gradient:
-            print("  basis_gradient")
+            logger.info("  basis_gradient")
             basis_gradient_grid = np.array(
                 [
                     evaluate_deriv_basis(
@@ -160,22 +163,22 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
                 ]
             )
         # Use basis functions on grid for various quantities.
-        print("  density")
+        logger.info("  density")
         result["density"][istart:iend] = np.einsum(
             "ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True
         )
         if gradient:
-            print("  density gradient")
+            logger.info("  density gradient")
             result["density_gradient"][istart:iend] = 2 * np.einsum(
                 "ab,bp,cap->pc", one_rdm, basis_grid, basis_gradient_grid, optimize=True
             )
         if orbitals:
-            print("  orbitals")
+            logger.info("  orbitals")
             result["orbitals"][istart:iend] = np.einsum(
                 "bo,bp->po", iodata.mo.coeffs, basis_grid
             )
             if gradient:
-                print("  orbitals gradient")
+                logger.info("  orbitals gradient")
                 result["orbitals_gradient"][istart:iend] = np.einsum(
                     "bo,cbp->poc", iodata.mo.coeffs, basis_gradient_grid
                 )
@@ -187,26 +190,36 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
 def main(args=None) -> int:
     """Main program."""
     args = parse_args(args=args)
-    if args.verbose > 1:
-        print(args)
-        print("Loading file : ", args.filename)
+
+    # Convert the log level string to a logging level
+    log_level = getattr(logging, args.log.upper(), None)
+    if not isinstance(log_level, int):
+        raise ValueError(f"Invalid log level: {args.log}")
+
+    # Configure logging
+    if log_level > logging.DEBUG:
+        logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=log_level)
+
+    logger.info(args)
+    logger.info("Loading file : ", args.filename)
 
     iodata = load_one(args.filename)
 
-    if args.verbose > 1:
-        print("*" * width)
-        print(" Molecualr information ".center(width, " "))
-        print("*" * width)
-        print("atnums :")
-        print(iodata.atnums)
-        print("Coordinates [a.u.]: ")
-        print(iodata.atcoords)
+    logger.info("*" * width)
+    logger.info(" Molecualr information ".center(width, " "))
+    logger.info("*" * width)
+    logger.info("atnums :")
+    logger.info(iodata.atnums)
+    logger.info("Coordinates [a.u.]: ")
+    logger.info(iodata.atcoords)
 
-        # grid and density
-        print(" " * width)
-        print("*" * width)
-        print(" Build grid and compute moleuclar density ".center(width, " "))
-        print("*" * width)
+    # grid and density
+    logger.info(" " * width)
+    logger.info("*" * width)
+    logger.info(" Build grid and compute moleuclar density ".center(width, " "))
+    logger.info("*" * width)
 
     grid, data = prepare_input(
         iodata,
@@ -239,9 +252,8 @@ def main(args=None) -> int:
         data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
         data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
 
-    if args.verbose > 1:
-        print(" " * width)
-        print("*" * width)
+    logger.info(" " * width)
+    logger.info("*" * width)
     np.savez_compressed(args.output, **data)
     return 0
 
@@ -262,11 +274,17 @@ def parse_args(args):
         type=str,
         default="mol_density.npz",
     )
+    # parser.add_argument(
+    #     "--verbose",
+    #     type=int,
+    #     default=3,
+    #     help="The level for printing output information. [default=%(default)s]",
+    # )
     parser.add_argument(
-        "--verbose",
-        type=int,
-        default=3,
-        help="The level for printing output information. [default=%(default)s]",
+        "--log",
+        default="WARNING",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level (default: %(default)s)",
     )
     # for grid
     parser.add_argument(

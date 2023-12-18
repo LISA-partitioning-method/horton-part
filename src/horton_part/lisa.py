@@ -29,15 +29,16 @@ from scipy.sparse import SparseEfficiencyWarning
 from scipy.optimize import minimize, LinearConstraint, SR1
 import warnings
 import time
-from .core.log import log, biblio
+import logging
+
+# from .core.log import log, biblio
+from .core.logging import deflist
 from .gisa import GaussianISAWPart
 from .core.cache import just_once
 from .utils import (
     compute_quantities,
     check_pro_atom_parameters,
     check_for_pro_error,
-    check_for_grad_error,
-    check_for_hessian_error,
 )
 from .core.basis import BasisFuncHelper
 
@@ -54,6 +55,8 @@ __all__ = [
     "opt_propars_minimization_trust_constr",
     "opt_propars_minimization_fast",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class LinearISAWPart(GaussianISAWPart):
@@ -114,50 +117,52 @@ class LinearISAWPart(GaussianISAWPart):
         )
 
         if basis_func_json_file is not None:
-            print(f"Load basis functions from custom json file: {basis_func_json_file}")
+            logger.info(
+                f"Load basis functions from custom json file: {basis_func_json_file}"
+            )
             self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
         else:
-            print(f"Load {basis_func_type} basis functions")
+            logger.info(f"Load {basis_func_type} basis functions")
             self.bs_helper = BasisFuncHelper.from_function_type(basis_func_type)
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            info_list = [
-                ("Scheme", "Linear Iterative Stockholder"),
-                ("Outer loop convergence threshold", "%.1e" % self._threshold),
-            ]
-            if not self.use_global_method:
-                info_list.append(
-                    (
-                        "Inner loop convergence threshold",
-                        "%.1e" % self._inner_threshold,
-                    )
+        # if log.do_medium:
+        info_list = [
+            ("Scheme", "Linear Iterative Stockholder"),
+            ("Outer loop convergence threshold", "%.1e" % self._threshold),
+        ]
+        if not self.use_global_method:
+            info_list.append(
+                (
+                    "Inner loop convergence threshold",
+                    "%.1e" % self._inner_threshold,
                 )
-                info_list.append(("Using global ISA", False))
-            else:
-                info_list.append(("Using global ISA", True))
-
-            if self._solver in [104, 202, 203, 204, 206]:
-                allow_negative_params = True
-            else:
-                allow_negative_params = False
-
-            info_list.extend(
-                [
-                    ("Maximum outer iterations", self._maxiter),
-                    ("lmax", self._lmax),
-                    ("Solver", self._solver),
-                    ("Basis function type", self.func_type),
-                    ("Local grid radius", self._local_grid_radius),
-                    ("Allow negative parameters", allow_negative_params),
-                ]
             )
-            if self._solver in [202, 206]:
-                info_list.append(("DIIS size", self.diis_size))
-            log.deflist(info_list)
-            biblio.cite(
-                "Benda2022", "the use of Linear Iterative Stockholder partitioning"
-            )
+            info_list.append(("Using global ISA", False))
+        else:
+            info_list.append(("Using global ISA", True))
+
+        if self._solver in [104, 202, 203, 204, 206]:
+            allow_negative_params = True
+        else:
+            allow_negative_params = False
+
+        info_list.extend(
+            [
+                ("Maximum outer iterations", self._maxiter),
+                ("lmax", self._lmax),
+                ("Solver", self._solver),
+                ("Basis function type", self.func_type),
+                ("Local grid radius", self._local_grid_radius),
+                ("Allow negative parameters", allow_negative_params),
+            ]
+        )
+        if self._solver in [202, 206]:
+            info_list.append(("DIIS size", self.diis_size))
+        deflist(logger, info_list)
+        # biblio.cite(
+        #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
+        # )
 
     @just_once
     def do_partitioning(self):
@@ -209,7 +214,7 @@ class LinearISAWPart(GaussianISAWPart):
                 raise NotImplementedError
 
             t1 = time.time()
-            print(f"Time usage for partitioning: {t1-t0:.2f} s")
+            logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
             propars = self.cache.load("propars")
             propars[:] = new_propars
 
@@ -305,7 +310,8 @@ class LinearISAWPart(GaussianISAWPart):
             A=matrix_constraint_eq,
             b=vector_constraint_eq,
             verbose=True,
-            options={"show_progress": log.do_medium, "feastol": self._threshold},
+            # options={"show_progress": log.do_medium, "feastol": self._threshold},
+            options=({"show_progress": 3, "feastol": self._threshold},),
         )
 
         propars[:] = np.asarray(opt_CVX["x"]).flatten()
@@ -402,7 +408,7 @@ class LinearISAWPart(GaussianISAWPart):
 
         # Compute the total population
         pop = self.grid.integrate(rho)
-        print("Integral of density:", pop)
+        logger.info("Integral of density:", pop)
         pars0 = self.cache.load("propars")
         nb_par = len(pars0)
 
@@ -448,15 +454,15 @@ class LinearISAWPart(GaussianISAWPart):
         )
 
         # Check for convergence.
-        print(f'Optimizer message: "{optresult.message}"')
+        logger.info(f'Optimizer message: "{optresult.message}"')
         if not optresult.success:
             raise RuntimeError("Convergence failure.")
 
         rho0 = self.compute_promol_dens(optresult.x)
         constrain = self.grid.integrate(rho0) - pop
-        print(f"Constraint: {constrain}")
-        print("Optimized parameters: ")
-        print(optresult.x)
+        logger.info(f"Constraint: {constrain}")
+        logger.info("Optimized parameters: ")
+        logger.info(optresult.x)
         return optresult.x
 
     @just_once
@@ -479,7 +485,7 @@ class LinearISAWPart(GaussianISAWPart):
         all_propars = self.cache.load("propars")
         old_propars = all_propars.copy()
 
-        print("Iteration       Change")
+        logger.info("Iteration       Change")
 
         counter = 0
         while True:
@@ -517,9 +523,9 @@ class LinearISAWPart(GaussianISAWPart):
             # change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
             change = self.compute_change(all_propars, old_propars)
             if counter % 10 == 0:
-                print("%9i   %10.5e" % (counter, change))
+                logger.info("%9i   %10.5e" % (counter, change))
             if change < self._threshold:
-                print("%9i   %10.5e" % (counter, change))
+                logger.info("%9i   %10.5e" % (counter, change))
                 break
             old_propars = all_propars.copy()
             counter += 1
@@ -531,7 +537,7 @@ class LinearISAWPart(GaussianISAWPart):
         self.eval_pro_shells_lisa_201()
         all_propars = self.cache.load("propars")
 
-        print("Iteration       Change")
+        logger.info("Iteration       Change")
 
         history_diis = []
         history_propars = []
@@ -579,8 +585,7 @@ class LinearISAWPart(GaussianISAWPart):
             # Compute drms
             drms = np.linalg.norm(diis_r)
 
-            if log.do_medium:
-                log(f"           {counter:<4}    {drms:.6E}")
+            logger.info(f"           {counter:<4}    {drms:.6E}")
 
             if change < self._threshold:
                 return all_propars
@@ -776,9 +781,9 @@ def opt_propars_fixed_points_sc(
 
     """
     oldpro = None
-    if log.do_medium:
-        log("            Iter.    Change    ")
-        log("            -----    ------    ")
+    # if log.do_medium:
+    logger.debug("            Iter.    Change    ")
+    logger.debug("            -----    ------    ")
     for irep in range(int(1e10)):
         pro_shells, pro, sick, ratio, lnratio = compute_quantities(
             rho, propars, bs_funcs, density_cutoff
@@ -794,8 +799,8 @@ def opt_propars_fixed_points_sc(
         else:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
-        if log.do_medium:
-            log(f"            {irep+1:<4}    {change:.3e}")
+        # if log.do_medium:
+        logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             return propars
         oldpro = pro
@@ -881,9 +886,9 @@ def opt_propars_fixed_points_sc_convex(
 
     """
     oldpro = None
-    if log.do_medium:
-        log("            Iter.    Change    ")
-        log("            -----    ------    ")
+    # if log.do_medium:
+    logger.debug("            Iter.    Change    ")
+    logger.debug("            -----    ------    ")
     for irep in range(sc_iter_limit):
         pro_shells, pro, sick, ratio, lnratio = compute_quantities(
             rho, propars, bs_funcs, density_cutoff
@@ -899,8 +904,8 @@ def opt_propars_fixed_points_sc_convex(
         else:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i->", weights, error, error))
-        if log.do_medium:
-            log(f"            {irep+1:<4}    {change:.3e}")
+        # if log.do_medium:
+        #     log(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             return propars
         oldpro = pro
@@ -962,7 +967,7 @@ def diis(c_values, r_values, max_history):
         coeffs[:-1], np.ones_like(coeffs[:-1]) / nb_coeff, rtol=1e-3
     ):
         turn_off_diis = True
-        print("turn off DIIS")
+        logger.info("turn off DIIS")
 
     # assert np.isclose(np.sum(coeffs[:-1]), 1.0)
     # B_rank = np.linalg.matrix_rank(B)
@@ -1019,9 +1024,9 @@ def opt_propars_fixed_points_diis(
     history_propars = []
     start_diis_iter = diis_size + 1
 
-    if log.do_medium:
-        log("            Iter.    dRMS      ")
-        log("            -----    ------    ")
+    # if log.do_medium:
+    logger.debug("            Iter.    dRMS      ")
+    logger.debug("            -----    ------    ")
 
     for irep in range(1000):
         pro_shells, pro, sick, ratio, lnratio = compute_quantities(
@@ -1036,8 +1041,8 @@ def opt_propars_fixed_points_diis(
         # Compute drms
         drms = np.linalg.norm(diis_r)
 
-        if log.do_medium:
-            log(f"           {irep:<4}    {drms:.6E}")
+        # if log.do_medium:
+        logger.debug(f"           {irep:<4}    {drms:.6E}")
         if drms < threshold:
             return propars
 
@@ -1104,9 +1109,9 @@ def opt_propars_fixed_points_newton(
     -------
 
     """
-    if log.do_medium:
-        log("            Iter.    Change    ")
-        log("            -----    ------    ")
+    # if log.do_medium:
+    logger.debug("            Iter.    Change    ")
+    logger.debug("            -----    ------    ")
 
     oldpro = None
     change = 1e100
@@ -1123,8 +1128,8 @@ def opt_propars_fixed_points_newton(
         if oldpro is not None:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
-        if log.do_medium:
-            log(f"            {irep+1:<4}    {change:.3e}")
+        # if log.do_medium:
+        logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             return propars
 
@@ -1173,19 +1178,20 @@ def opt_propars_minimization_fast(
             rho, x, bs_funcs, density_cutoff
         )
 
-        if log.do_debug:
+        if logger.level >= logging.DEBUG:
+            # if log.do_debug:
             try:
                 check_for_pro_error(pro)
             except RuntimeError as e:
-                print(bs_funcs.shape)
-                print("bs_funcs.T:")
-                print(bs_funcs.T)
-                print("[in obj_func]: pro-atom parameters:")
-                print(np.asarray(x))
-                print("pro-atom density:")
-                print(pro.reshape((-1, 1)))
-                print("atomic density:")
-                print(rho.reshape((-1, 1)))
+                logger.info(bs_funcs.shape)
+                logger.info("bs_funcs.T:")
+                logger.info(bs_funcs.T)
+                logger.info("[in obj_func]: pro-atom parameters:")
+                logger.info(np.asarray(x))
+                logger.info("pro-atom density:")
+                logger.info(pro.reshape((-1, 1)))
+                logger.info("atomic density:")
+                logger.info(rho.reshape((-1, 1)))
                 np.savez_compressed(
                     "dump_negative_dens.npz",
                     points=points,
@@ -1202,8 +1208,8 @@ def opt_propars_minimization_fast(
 
         # compute gradient
         grad = weights * ratio
-        if log.do_debug:
-            check_for_grad_error(grad)
+        # if log.do_debug:
+        #     check_for_grad_error(grad)
         df = -np.einsum("j,ij->i", grad, bs_funcs)
         df = cvxopt.matrix(df.reshape((1, nprim)))
         if z is None:
@@ -1212,8 +1218,8 @@ def opt_propars_minimization_fast(
         # compute hessian
         hess = np.divide(grad, pro, out=np.zeros_like(grad), where=~sick)
         d2f = np.einsum("k,ik,jk->ij", hess, bs_funcs, bs_funcs)
-        if log.do_debug:
-            check_for_hessian_error(d2f)
+        # if log.do_debug:
+        #     check_for_hessian_error(d2f)
         d2f = z[0] * cvxopt.matrix(d2f)
         return f, df, d2f
 
@@ -1223,7 +1229,8 @@ def opt_propars_minimization_fast(
         h=vector_constraint_ineq,
         A=matrix_constraint_eq,
         b=vector_constraint_eq,
-        options={"show_progress": log.do_medium, "feastol": threshold},
+        options={"show_progress": 3, "feastol": threshold},
+        # options={"show_progress": log.do_medium, "feastol": threshold},
     )
 
     optimized_res = opt_CVX["x"]

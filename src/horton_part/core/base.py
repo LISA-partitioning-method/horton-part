@@ -24,12 +24,17 @@
 import numpy as np
 
 from .cache import JustOnceClass, just_once, Cache
+from .logging import deflist
 from ..utils import typecheck_geo
-from .log import log
+
+# from .log import log
+import logging
 from grid import AtomGrid
 
 
 __all__ = ["Part", "WPart"]
+
+logger = logging.getLogger(__name__)
 
 
 class Part(JustOnceClass):
@@ -94,10 +99,10 @@ class Part(JustOnceClass):
         if local:
             self._init_subgrids()
         # Some screen logging
-        self.biblio = []
+        # self.biblio = []
         self._init_log_base()
         self._init_log_scheme()
-        self._init_log_memory()
+        # self._init_log_memory()
 
     def __getitem__(self, key):
         return self.cache.load(key)
@@ -185,29 +190,6 @@ class Part(JustOnceClass):
 
     def _init_log_scheme(self):
         raise NotImplementedError
-
-    def _init_log_memory(self):
-        pass
-        # if log.do_medium:
-        #     # precompute arrays sizes for certain grids
-        #     nbyte_global = self.grid.size * 8
-        #     nbyte_locals = np.array(
-        #         [self.get_grid(i).size * 8 for i in range(self.natom)]
-        #     )
-
-        #     # compute and report usage
-        #     estimates = self.get_memory_estimates()
-        #     nbyte_total = 0
-        #     print("Coarse estimate of memory usage for the partitioning:")
-        #     print("                         Label  Memory[GB]")
-        #     print()
-        #     for label, nlocals, nglobal in estimates:
-        #         nbyte = np.dot(nlocals, nbyte_locals) + nglobal * nbyte_global
-        #         print("%30s  %10.3f" % (label, nbyte / 1024.0**3))
-        #         nbyte_total += nbyte
-        #     print("%30s  %10.3f" % ("Total", nbyte_total / 1024.0**3))
-        #     print("" + "~" * 100)
-        #     print()
 
     def to_atomic_grid(self, index, data):
         raise NotImplementedError
@@ -411,14 +393,17 @@ class WPart(Part):
         )
 
     def _init_log_base(self):
-        if log.do_medium:
-            log("Performing a density-based AIM analysis with a wavefunction as input.")
-            log.deflist(
-                [
-                    ("Molecular grid", self._grid.__class__.__name__),
-                    ("Using local grids", self._local),
-                ]
-            )
+        # if log.do_medium:
+        logger.info(
+            "Performing a density-based AIM analysis with a wavefunction as input."
+        )
+        deflist(
+            logger,
+            [
+                ("Molecular grid", self._grid.__class__.__name__),
+                ("Using local grids", self._local),
+            ],
+        )
 
     def _init_subgrids(self):
         self._subgrids = self._grid.atgrids
@@ -433,8 +418,8 @@ class WPart(Part):
     @just_once
     def do_density_decomposition(self):
         if not self.local:
-            print(
-                "!WARNING! Skip density decomposition because no local grids were found."
+            logger.warning(
+                "Skip density decomposition because no local grids were found."
             )
             return
 

@@ -4,13 +4,17 @@ import numpy as np
 from grid.molgrid import MolGrid
 from grid.basegrid import OneDGrid
 from grid.atomgrid import AtomGrid
-from horton_part import wpart_schemes, log
+from horton_part import wpart_schemes
+import logging
 
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
 __all__ = ["construct_molgrid_from_dict"]
+
+
+logger = logging.getLogger(__name__)
 
 
 def construct_molgrid_from_dict(data):
@@ -39,17 +43,26 @@ def construct_molgrid_from_dict(data):
 def main():
     """Main program."""
     args = parse_args()
-    log.set_level(args.verbose)
-    print("*" * width)
-    print(f"Reade grid and density data from {args.filename}")
-    print("*" * width)
+    # Convert the log level string to a logging level
+    log_level = getattr(logging, args.log.upper(), None)
+    if not isinstance(log_level, int):
+        raise ValueError(f"Invalid log level: {args.log}")
+
+    if log_level > logging.DEBUG:
+        logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=log_level)
+
+    logger.info("*" * width)
+    logger.info(f"Reade grid and density data from {args.filename}")
+    logger.info("*" * width)
     data = np.load(args.filename)
     grid = construct_molgrid_from_dict(data)
 
-    print(" " * width)
-    print("*" * width)
-    print(" Partitioning ".center(width, " "))
-    print("*" * width)
+    logger.info(" " * width)
+    logger.info("*" * width)
+    logger.info(" Partitioning ".center(width, " "))
+    logger.info("*" * width)
     kwargs = {
         "coordinates": data["atcoords"],
         "numbers": data["atnums"],
@@ -75,40 +88,40 @@ def main():
     part.do_partitioning()
     # part.do_moments()
 
-    print(" " * width)
-    print("*" * width)
-    print(" Results ".center(width, " "))
-    print("*" * width)
-    print("charges:")
-    print(part.cache["charges"])
-    # print("cartesian multipoles:")
-    # print(part.cache["cartesian_multipoles"])
-    # print("radial moments:")
-    # print(part.cache["radial_moments"])
+    logger.info(" " * width)
+    logger.info("*" * width)
+    logger.info(" Results ".center(width, " "))
+    logger.info("*" * width)
+    logger.info("charges:")
+    logger.info(part.cache["charges"])
+    # logger.info("cartesian multipoles:")
+    # logger.info(part.cache["cartesian_multipoles"])
+    # logger.info("radial moments:")
+    # logger.info(part.cache["radial_moments"])
 
     if not (args.type in ["lisa"] and args.use_global_method):
-        print(" " * width)
-        print("*" * width)
-        print(" Time usage ".center(width, " "))
-        print("*" * width)
-        print(
+        logger.info(" " * width)
+        logger.info("*" * width)
+        logger.info(" Time usage ".center(width, " "))
+        logger.info("*" * width)
+        logger.info(
             f"Do Partitioning                              : {part.time_usage['do_partitioning']:>10.2f} s"
         )
-        print(
+        logger.info(
             f"  Update Weights                             : {part._cache['time_update_at_weights']:>10.2f} s"
         )
-        print(
+        logger.info(
             f"    Update Promolecule Density (N_atom**2)   : {part._cache['time_update_promolecule']:>10.2f} s"
         )
-        print(
+        logger.info(
             f"    Update AIM Weights (N_atom)              : {part._cache['time_compute_at_weights']:>10.2f} s"
         )
-        print(
+        logger.info(
             f"  Update Atomic Parameters (iter*N_atom)     : {part._cache['time_update_propars_atoms']:>10.2f} s"
         )
-        # print(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
-        print("*" * width)
-        print(" " * width)
+        # logger.info(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
+        logger.info("*" * width)
+        logger.info(" " * width)
 
     part_data = {}
     part_data["natom"] = len(data["atnums"])
@@ -220,11 +233,17 @@ def parse_args():
         type=str,
         default="partitioning.npz",
     )
+    # parser.add_argument(
+    #     "--verbose",
+    #     type=int,
+    #     default=3,
+    #     help="The level for printing output information. [default=%(default)s]",
+    # )
     parser.add_argument(
-        "--verbose",
-        type=int,
-        default=3,
-        help="The level for printing output information. [default=%(default)s]",
+        "--log",
+        default="INFO",
+        choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level (default: %(default)s)",
     )
 
     return parser.parse_args()

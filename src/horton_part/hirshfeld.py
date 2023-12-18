@@ -19,13 +19,18 @@
 #
 # --
 """Hirshfeld partitioning"""
+import logging
 
 from .core.cache import just_once
 from .core.stockholder import AbstractStockholderWPart
-from .core.log import log, biblio
+from .core.logging import deflist
+
+# from .core.log import log, biblio
 
 
 __all__ = ["HirshfeldWPart", "check_proatomdb", "do_dispersion"]
+
+logger = logging.getLogger(__name__)
 
 
 def check_proatomdb(numbers, pseudo_numbers, proatomdb):
@@ -44,16 +49,15 @@ def check_proatomdb(numbers, pseudo_numbers, proatomdb):
 
 def do_dispersion(part):
     if part.lmax < 3:
-        print(
-            "!WARNING! Skip computing dispersion coefficients because lmax=%i<3"
-            % part.lmax
+        logger.warning(
+            "Skip computing dispersion coefficients because lmax=%i<3" % part.lmax
         )
-        biblio.cite(
-            "tkatchenko2009",
-            "the method to evaluate atoms-in-molecules C6 parameters",
-        )
-        biblio.cite("chu2004", "the reference C6 parameters of isolated atoms")
-        biblio.cite("yan1996", "the isolated hydrogen C6 parameter")
+        # biblio.cite(
+        #     "tkatchenko2009",
+        #     "the method to evaluate atoms-in-molecules C6 parameters",
+        # )
+        # biblio.cite("chu2004", "the reference C6 parameters of isolated atoms")
+        # biblio.cite("yan1996", "the isolated hydrogen C6 parameter")
 
     # reference C6 values in atomic units
     ref_c6s = {
@@ -112,7 +116,7 @@ def do_dispersion(part):
         part.do_moments()
         radial_moments = part._cache.load("radial_moments")
 
-        print("Computing atomic dispersion coefficients.")
+        logger.info("Computing atomic dispersion coefficients.")
 
         for i in range(part.natom):
             n = part.numbers[i]
@@ -165,15 +169,15 @@ class HirshfeldWPart(AbstractStockholderWPart):
         )
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            log("Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    ("Scheme", "Hirshfeld"),
-                    ("Proatomic DB", self.proatomdb),
-                ]
-            )
-            biblio.cite("hirshfeld1977", "the use of Hirshfeld partitioning")
+        logger.info("Initialized: %s" % self.__class__.__name__)
+        deflist(
+            logger,
+            [
+                ("Scheme", "Hirshfeld"),
+                ("Proatomic DB", self.proatomdb),
+            ],
+        )
+        # biblio.cite("hirshfeld1977", "the use of Hirshfeld partitioning")
 
     def _get_proatomdb(self):
         return self._proatomdb

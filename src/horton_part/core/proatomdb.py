@@ -24,15 +24,18 @@
 from __future__ import print_function
 
 import numpy as np
+import logging
 
 # from .wrapper import CubicSpline
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
 from grid import OneDGrid
 
-from .log import log
+# from .log import log
 
 
 __all__ = ["ProAtomRecord", "ProAtomDB"]
+
+logger = logging.getLogger(__name__)
 
 
 class ProAtomRecord(object):
@@ -276,18 +279,18 @@ class ProAtomDB(object):
                     r1 = self.get_record(number, charge1)
                     r0.update_safe(r1)
 
-        # Screen info
-        self._log_init()
+        # # Screen info
+        # self._log_init()
 
-    def _log_init(self):
-        if log.do_medium:
-            log("Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    ("Numbers", list(self._rgrid_map.keys())),
-                    ("Records", list(self._map.keys())),
-                ]
-            )
+    # def _log_init(self):
+    #     if log.do_medium:
+    #         log("Initialized: %s" % self.__class__.__name__)
+    #         log.deflist(
+    #             [
+    #                 ("Numbers", list(self._rgrid_map.keys())),
+    #                 ("Records", list(self._map.keys())),
+    #             ]
+    #         )
 
     def get_record(self, number, charge):
         return self._map[(number, charge)]
@@ -415,8 +418,8 @@ class ProAtomDB(object):
         Note that only 'safe' atoms are considered to determine the cutoff
         radius.
         """
-        print("Reducing extents of the pro-atoms")
-        print("   Z     npiont           radius")
+        logger.info("Reducing extents of the pro-atoms")
+        logger.info("   Z     npiont           radius")
         for number in self.get_numbers():
             rgrid = self.get_rgrid(number)
             npoint = 0
@@ -433,7 +436,7 @@ class ProAtomDB(object):
                 self._rgrid_map[number].weights[:npoint],
             )
             self._rgrid_map[number] = new_rgrid
-            print(
+            logger.info(
                 "%4i   %5i -> %5i    %10.3e -> %10.3e"
                 % (
                     number,
@@ -443,12 +446,12 @@ class ProAtomDB(object):
                     new_rgrid.points[-1],
                 )
             )
-        print()
+        logger.info("")
 
     def normalize(self):
-        print("Normalizing proatoms to integer populations")
-        print("   Z  charge             before             after")
-        print()
+        logger.info("Normalizing proatoms to integer populations")
+        logger.info("   Z  charge             before             after")
+        logger.info("")
         for number in self.get_numbers():
             rgrid = self.get_rgrid(number)
             for charge in self.get_charges(number):
@@ -457,7 +460,7 @@ class ProAtomDB(object):
                 nel_integer = r.pseudo_number - charge
                 r.rho[:] *= nel_integer / nel_before
                 nel_after = rgrid.integrate(r.rho)
-                print(
+                logger.info(
                     "%4i     %+3i    %15.8e   %15.8e"
                     % (number, charge, nel_before, nel_after)
                 )

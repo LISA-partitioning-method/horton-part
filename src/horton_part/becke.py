@@ -25,13 +25,19 @@ from __future__ import print_function
 
 import numpy as np
 
+# from grid.becke import BeckeWeights
 from .core.base import WPart
+from .core.logging import deflist
 from .utils import angstrom, radius_becke, radius_covalent
-from .core.log import biblio, log
+
+# from .core.log import biblio, log
 from grid.becke import BeckeWeights
+import logging
 
 
 __all__ = ["BeckeWPart"]
+
+logger = logging.getLogger(__name__)
 
 
 class BeckeWPart(WPart):
@@ -73,21 +79,21 @@ class BeckeWPart(WPart):
         )
 
     def _init_log_scheme(self):
-        if log.do_medium:
-            log(" Initialized: %s" % self.__class__.__name__)
-            log.deflist(
-                [
-                    (" Scheme", "Becke"),
-                    (" Switching function", "k=%i" % self._k),
-                ]
-            )
-            biblio.cite("becke1988_multicenter", "the use of Becke partitioning")
-            biblio.cite(
-                "slater1964", "the Brag-Slater radii used in the Becke partitioning"
-            )
+        logger.info(" Initialized: %s" % self.__class__.__name__)
+        deflist(
+            logger,
+            [
+                (" Scheme", "Becke"),
+                (" Switching function", "k=%i" % self._k),
+            ],
+        )
+        # biblio.cite("becke1988_multicenter", "the use of Becke partitioning")
+        # biblio.cite(
+        #     "slater1964", "the Brag-Slater radii used in the Becke partitioning"
+        # )
 
     def update_at_weights(self):
-        print("Computing Becke weights.")
+        logger.info("Computing Becke weights.")
 
         # The list of radii is constructed to be as close as possible to
         # the original values used by Becke.

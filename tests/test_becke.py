@@ -24,11 +24,7 @@
 from pytest import raises
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 from horton_part.becke import BeckeWPart
-from horton_part import log
-
 from .common import load_molecule_npz, reorder_rows
-
-log.set_level(0)
 
 
 def test_becke_n2_hfs_sto3g():
