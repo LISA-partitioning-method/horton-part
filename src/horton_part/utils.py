@@ -54,9 +54,9 @@ def wpart_schemes(scheme):
 
         wpart = HirshfeldIWPart
     elif scheme == "is":
-        from .isa import IterativeStockholderWPart
+        from .isa import ISAWPart
 
-        wpart = IterativeStockholderWPart
+        wpart = ISAWPart
     elif scheme == "mbis":
         from .mbis import MBISWPart
 
@@ -66,13 +66,13 @@ def wpart_schemes(scheme):
 
         wpart = BeckeWPart
     elif scheme == "lisa":
-        from .lisa import LinearIterativeStockholderWPart
+        from .lisa import LinearISAWPart
 
-        wpart = LinearIterativeStockholderWPart
+        wpart = LinearISAWPart
     elif scheme == "gisa":
-        from .gisa import GaussianIterativeStockholderWPart
+        from .gisa import GaussianISAWPart
 
-        wpart = GaussianIterativeStockholderWPart
+        wpart = GaussianISAWPart
     return wpart
 
 

@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 from grid import ExpRTransform, BeckeWeights, MolGrid, UniformInteger
-from horton_part.proatomdb import ProAtomDB
+from horton_part.core.proatomdb import ProAtomDB
 from horton_part.utils import wpart_schemes
 from .common import (
     load_molecule_npz,

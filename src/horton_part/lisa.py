@@ -21,7 +21,6 @@
 """Gaussian Iterative Stockholder Analysis (GISA) partitioning"""
 
 
-from __future__ import division, print_function
 import numpy as np
 import cvxopt
 from scipy.linalg import solve, LinAlgWarning, eigh
@@ -30,9 +29,9 @@ from scipy.sparse import SparseEfficiencyWarning
 from scipy.optimize import minimize, LinearConstraint, SR1
 import warnings
 import time
-from .log import log, biblio
-from .gisa import GaussianIterativeStockholderWPart
-from .cache import just_once
+from .core.log import log, biblio
+from .gisa import GaussianISAWPart
+from .core.cache import just_once
 from .utils import (
     compute_quantities,
     check_pro_atom_parameters,
@@ -40,7 +39,7 @@ from .utils import (
     check_for_grad_error,
     check_for_hessian_error,
 )
-from .basis import BasisFuncHelper
+from .core.basis import BasisFuncHelper
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -48,7 +47,7 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
 
 __all__ = [
-    "LinearIterativeStockholderWPart",
+    "LinearISAWPart",
     "opt_propars_fixed_points_sc",
     "opt_propars_fixed_points_diis",
     "opt_propars_fixed_points_newton",
@@ -57,7 +56,7 @@ __all__ = [
 ]
 
 
-class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
+class LinearISAWPart(GaussianISAWPart):
     name = "lisa"
 
     def __init__(
@@ -96,7 +95,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
         self.func_type = basis_func_type
         self.diis_size = diis_size
 
-        GaussianIterativeStockholderWPart.__init__(
+        GaussianISAWPart.__init__(
             self,
             coordinates,
             numbers,
@@ -161,7 +160,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
     @just_once
     def do_partitioning(self):
         if not self.use_global_method:
-            return GaussianIterativeStockholderWPart.do_partitioning(self)
+            return GaussianISAWPart.do_partitioning(self)
         else:
             self.do_global_partitioning()
 
@@ -625,7 +624,7 @@ class LinearIterativeStockholderWPart(GaussianIterativeStockholderWPart):
 
     def _finalize_propars(self):
         if not self.use_global_method:
-            return GaussianIterativeStockholderWPart._finalize_propars(self)
+            return GaussianISAWPart._finalize_propars(self)
         else:
             self._cache.load("charges")
             pass

@@ -25,9 +25,9 @@ from __future__ import print_function
 
 import numpy as np
 
-from .base import WPart
+from .core.base import WPart
 from .utils import angstrom, radius_becke, radius_covalent
-from .log import biblio, log
+from .core.log import biblio, log
 from grid.becke import BeckeWeights
 
 

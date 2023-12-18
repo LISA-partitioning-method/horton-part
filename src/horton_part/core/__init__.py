@@ -18,31 +18,10 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-"""Prepare inputs for denspart with HORTON3 modules.
-
-This implementation makes some ad hoc choices on the molecular integration
-grid, which should be revised in future. For now, this is something that is
-just supposed to just work. The code is not tuned for precision nor for
-efficiency.
-
-This module is far from polished and is currently only used for prototyping:
-
-- The integration grid is not final. It may have precision issues and it is not
-  pruned. Furthermore, all atoms are given the same atomic grid, which is far
-  from optimal and the Becke partitioning is used, which can be improved upon.
-
-- Only the spin-summed density is computed, using the post-hf 1RDM if it is
-  present. The spin-difference density is ignored.
-
-- It is slow.
-
-"""
-import sys
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+from .base import *
+from .iterstock import *
+from .proatomdb import *
+from .stockholder import *
+from .log import *
+from .moments import *
+from .basis import *

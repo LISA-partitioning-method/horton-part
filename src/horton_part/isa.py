@@ -22,14 +22,14 @@
 
 
 import numpy as np
-from .iterstock import ISAWPart
-from .log import log, biblio
+from .core.iterstock import AbstractISAWPart
+from .core.log import log, biblio
 
 
-__all__ = ["IterativeStockholderWPart"]
+__all__ = ["ISAWPart"]
 
 
-class IterativeStockholderWPart(ISAWPart):
+class ISAWPart(AbstractISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "is"
@@ -82,7 +82,7 @@ class IterativeStockholderWPart(ISAWPart):
         return propars[self._ranges[index] : self._ranges[index + 1]], None
 
     def _init_propars(self):
-        ISAWPart._init_propars(self)
+        AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         for index in range(self.natom):
             npoint = self.get_rgrid(index).size

@@ -21,12 +21,10 @@
 """Minimal Basis Iterative Stockholder (MBIS) partitioning"""
 
 
-from __future__ import print_function
-
 import numpy as np
 
-from .iterstock import ISAWPart
-from .log import biblio, log
+from .core.iterstock import AbstractISAWPart
+from .core.log import biblio, log
 from .utils import check_pro_atom_parameters
 
 
@@ -112,7 +110,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     assert False
 
 
-class MBISWPart(ISAWPart):
+class MBISWPart(AbstractISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "mbis"
@@ -195,7 +193,7 @@ class MBISWPart(ISAWPart):
         output[:] = y
 
     def _init_propars(self):
-        ISAWPart._init_propars(self)
+        AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
@@ -239,7 +237,7 @@ class MBISWPart(ISAWPart):
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
     def _finalize_propars(self):
-        ISAWPart._finalize_propars(self)
+        AbstractISAWPart._finalize_propars(self)
         propars = self.cache.load("propars")
         core_charges = []
         valence_charges = []

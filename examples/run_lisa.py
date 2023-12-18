@@ -5,7 +5,7 @@ from horton_part import log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
-from horton_part import LinearIterativeStockholderWPart
+from horton_part import LinearISAWPart
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 
 from utils import load_fchk
@@ -49,7 +49,7 @@ def main(name):
         "obj_fn_type": 1,
     }
 
-    part = LinearIterativeStockholderWPart(**kwargs)
+    part = LinearISAWPart(**kwargs)
     # part.do_partitioning()
     part.do_all()
 

@@ -23,7 +23,7 @@
 import numpy as np
 from pytest import raises
 
-from horton_part.cache import JustOnceClass, Cache, just_once
+from horton_part.core.cache import JustOnceClass, Cache, just_once
 
 
 class Example(JustOnceClass):

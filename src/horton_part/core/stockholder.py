@@ -32,7 +32,7 @@ from .base import WPart, just_once
 from scipy.interpolate import CubicSpline, CubicHermiteSpline
 
 
-__all__ = ["StockholderWPart"]
+__all__ = ["AbstractStockholderWPart"]
 
 
 def eval_spline_grid(spline, grid, center):
@@ -40,7 +40,7 @@ def eval_spline_grid(spline, grid, center):
     return spline(r)
 
 
-class StockholderWPart(WPart):
+class AbstractStockholderWPart(WPart):
     def _init_subgrids(self):
         WPart._init_subgrids(self)
         self.initial_local_grids()

@@ -21,22 +21,16 @@
 """Density-based partitioning (fuzzy atoms-in-molecules) package"""
 
 
-from .base import *
+from .core import *
 from .becke import *
 from .hirshfeld import *
 from .hirshfeld_i import *
-from .iterstock import *
 from .mbis import *
 from .mulliken import *
-from .proatomdb import *
-from .stockholder import *
 from .isa import *
 from .gisa import *
 from .lisa import *
-from .log import *
-from .moments import *
 from .utils import *
-from .basis import *
 
 try:
     from _version import __version__

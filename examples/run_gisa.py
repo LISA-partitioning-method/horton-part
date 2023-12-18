@@ -4,7 +4,7 @@ import numpy as np
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
-from horton_part import GaussianIterativeStockholderWPart, log
+from horton_part import GaussianISAWPart, log
 from utils import load_fchk
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 
@@ -46,7 +46,7 @@ def main(name):
         "obj_fn_type": 0,
     }
 
-    part = GaussianIterativeStockholderWPart(**kwargs)
+    part = GaussianISAWPart(**kwargs)
     part.do_all()
 
     print("charges:")

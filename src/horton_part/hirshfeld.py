@@ -20,11 +20,9 @@
 # --
 """Hirshfeld partitioning"""
 
-from __future__ import print_function
-
-from .cache import just_once
-from .stockholder import StockholderWPart
-from .log import log, biblio
+from .core.cache import just_once
+from .core.stockholder import AbstractStockholderWPart
+from .core.log import log, biblio
 
 
 __all__ = ["HirshfeldWPart", "check_proatomdb", "do_dispersion"]
@@ -50,13 +48,12 @@ def do_dispersion(part):
             "!WARNING! Skip computing dispersion coefficients because lmax=%i<3"
             % part.lmax
         )
-        return
-
         biblio.cite(
-            "tkatchenko2009", "the method to evaluate atoms-in-molecules C6 parameters"
+            "tkatchenko2009",
+            "the method to evaluate atoms-in-molecules C6 parameters",
         )
-        biblio.cite(["chu2004", "the reference C6 parameters of isolated atoms"])
-        biblio.cite(["yan1996", "the isolated hydrogen C6 parameter"])
+        biblio.cite("chu2004", "the reference C6 parameters of isolated atoms")
+        biblio.cite("yan1996", "the isolated hydrogen C6 parameter")
 
     # reference C6 values in atomic units
     ref_c6s = {
@@ -129,7 +126,7 @@ def do_dispersion(part):
                 c6s[i] = -1
 
 
-class HirshfeldWPart(StockholderWPart):
+class HirshfeldWPart(AbstractStockholderWPart):
     """Hirshfeld partitioning with Becke-Lebedev grids"""
 
     name = "h"
@@ -158,7 +155,7 @@ class HirshfeldWPart(StockholderWPart):
         check_proatomdb(numbers, pseudo_numbers, proatomdb)
         self._proatomdb = proatomdb
         # HirshfeldMixin.__init__(self, numbers, pseudo_numbers, proatomdb)
-        StockholderWPart.__init__(
+        AbstractStockholderWPart.__init__(
             self,
             coordinates,
             numbers,

@@ -24,7 +24,7 @@ import pytest
 import json
 import os
 import tempfile
-from horton_part.basis import BasisFuncHelper, evaluate_function, load_params
+from horton_part.core.basis import BasisFuncHelper, evaluate_function, load_params
 
 
 @pytest.fixture

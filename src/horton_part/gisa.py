@@ -27,17 +27,17 @@ import quadprog
 import cvxopt
 
 # from cvxopt.solvers import qp
-from .iterstock import ISAWPart
-from .log import log, biblio
-from .basis import BasisFuncHelper
+from .core.iterstock import AbstractISAWPart
+from .core.log import log, biblio
+from .core.basis import BasisFuncHelper
 from .utils import check_pro_atom_parameters
-from .cache import just_once
+from .core.cache import just_once
 
 
-__all__ = ["GaussianIterativeStockholderWPart"]
+__all__ = ["GaussianISAWPart"]
 
 
-class GaussianIterativeStockholderWPart(ISAWPart):
+class GaussianISAWPart(AbstractISAWPart):
     """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
 
     name = "gisa"
@@ -75,7 +75,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         self._solver = solver
         self.bs_helper = BasisFuncHelper.from_function_type("gauss")
 
-        ISAWPart.__init__(
+        AbstractISAWPart.__init__(
             self,
             coordinates,
             numbers,
@@ -159,7 +159,7 @@ class GaussianIterativeStockholderWPart(ISAWPart):
         )
 
     def _init_propars(self):
-        ISAWPart._init_propars(self)
+        AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):

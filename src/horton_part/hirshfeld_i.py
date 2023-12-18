@@ -21,20 +21,18 @@
 """Iterative Hirshfeld (HI) partitioning"""
 
 
-from __future__ import print_function
-
 import numpy as np
 
-from .cache import just_once
+from .core.cache import just_once
 from .hirshfeld import check_proatomdb, do_dispersion
-from .iterstock import ISAWPart
-from .log import log, biblio
+from .core.iterstock import AbstractISAWPart
+from .core.log import log, biblio
 
 
 __all__ = ["HirshfeldIWPart"]
 
 
-class HirshfeldIWPart(ISAWPart):
+class HirshfeldIWPart(AbstractISAWPart):
     """Iterative Hirshfeld partitioning with Becke-Lebedev grids"""
 
     name = "hi"
@@ -76,7 +74,7 @@ class HirshfeldIWPart(ISAWPart):
         check_proatomdb(numbers, pseudo_numbers, proatomdb)
         self._proatomdb = proatomdb
 
-        ISAWPart.__init__(
+        AbstractISAWPart.__init__(
             self,
             coordinates,
             numbers,
@@ -172,7 +170,7 @@ class HirshfeldIWPart(ISAWPart):
         output += 1e-100
 
     def _init_propars(self):
-        ISAWPart._init_propars(self)
+        AbstractISAWPart._init_propars(self)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         self.cache.dump("propars", charges, tags="o")
         return charges

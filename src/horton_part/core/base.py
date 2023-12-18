@@ -24,7 +24,7 @@
 import numpy as np
 
 from .cache import JustOnceClass, just_once, Cache
-from .utils import typecheck_geo
+from ..utils import typecheck_geo
 from .log import log
 from grid import AtomGrid
 
@@ -273,8 +273,10 @@ class Part(JustOnceClass):
                 grid = self.get_grid(index)
                 spindens = self.get_spindens(index)
                 at_weights = self.cache.load("at_weights", index)
-                wcor = self.get_wcor(index)
-                spin_charges[index] = grid.integrate(at_weights, spindens, wcor)
+                # weights correction
+                # wcor = self.get_wcor(index)
+                # spin_charges[index] = grid.integrate(at_weights, spindens, wcor)
+                spin_charges[index] = grid.integrate(at_weights, spindens)
 
     @just_once
     def do_moments(self):

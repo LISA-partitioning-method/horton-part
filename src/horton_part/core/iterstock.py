@@ -26,14 +26,14 @@ from __future__ import print_function
 import numpy as np
 
 from .cache import just_once
-from .stockholder import StockholderWPart
+from .stockholder import AbstractStockholderWPart
 import time
 
 
-__all__ = ["ISAWPart"]
+__all__ = ["AbstractISAWPart"]
 
 
-class ISAWPart(StockholderWPart):
+class AbstractISAWPart(AbstractStockholderWPart):
     def __init__(
         self,
         coordinates,
@@ -75,7 +75,7 @@ class ISAWPart(StockholderWPart):
         )
         self._maxiter = maxiter
         self._local_grid_radius = local_grid_radius
-        StockholderWPart.__init__(
+        AbstractStockholderWPart.__init__(
             self,
             coordinates,
             numbers,

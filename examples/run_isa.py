@@ -5,7 +5,7 @@ from horton_part import log
 from iodata import load_one
 from gbasis.evals.eval import evaluate_basis
 from gbasis.wrappers import from_iodata
-from horton_part import IterativeStockholderWPart
+from horton_part import ISAWPart
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 from utils import load_fchk
 
@@ -48,7 +48,7 @@ def main(name):
         "maxiter": 1000,
     }
 
-    part = IterativeStockholderWPart(**kwargs)
+    part = ISAWPart(**kwargs)
     part.do_all()
 
     print("charges:")

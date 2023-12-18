@@ -27,7 +27,7 @@ import numpy as np
 
 from contextlib import contextmanager
 
-from horton_part.proatomdb import ProAtomRecord
+from horton_part.core.proatomdb import ProAtomRecord
 from grid import (
     PowerRTransform,
     UniformInteger,

@@ -22,8 +22,8 @@
 
 from pytest import raises
 
-from .common import load_molecule_npz, reorder_rows
-from horton_part.base import WPart
+from ..common import load_molecule_npz, reorder_rows
+from horton_part.core.base import WPart
 
 from grid import ExpRTransform, UniformInteger, BeckeWeights, MolGrid
 
