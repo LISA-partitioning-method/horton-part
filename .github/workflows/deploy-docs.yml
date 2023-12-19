@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
     - uses: actions/checkout@v2
@@ -30,8 +30,10 @@ jobs:
 
     - name: Install Pandoc
       run: |
-        sudo apt update
-        sudo apt-get install pandoc
+        # For ubuntu-latest
+        # sudo apt update
+        # sudo apt-get install pandoc
+        brew install pandoc
 
     - name: Build documentation
       run: |
