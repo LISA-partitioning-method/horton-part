@@ -107,7 +107,7 @@ def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
 
         \frac{\partial{f(\mathbf{r})}}{\partial{r}} = - n r^{n-1} \alpha f(\mathbf{r})
 
-     Parameters
+    Parameters
     ----------
     n : float or np.ndarray
         Order, positive. Scalar or 1D array.
