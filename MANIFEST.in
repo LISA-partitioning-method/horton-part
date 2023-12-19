@@ -2,5 +2,3 @@ include README.rst
 include LICENSE.txt
 include tests/cached/*.*
 include src/horton_part/data/*.*
-recursive-include examples/data *
-recursive-include examples *.py
