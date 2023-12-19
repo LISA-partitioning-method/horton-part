@@ -101,37 +101,3 @@ For each degree :math:`l`, the orders :math:`m` are in HORTON2 order defined as:
 
 .. math::
    m = [0, 1, -1, 2, -2, \cdots, l, -l].
-
-
-Angular Grids
-=============
-
-The :class:`angular grids<grid.angular.AngularGrid>` is responsible for integrating functions over the unit-sphere.
-The quadrature weights are specifically chosen so that the spherical harmonics are orthonormal:
-
-.. math::
-    \int_{-\pi}^{\pi} \int_0^{\pi} Y_{l_1}^{m_1} Y_{l_2}^{m_2} \sin(\phi) d\theta d\phi = \delta_{l_1, l_2} \delta_{m_1, m_2}
-
-Further, the quadrature weights are all chosen that the weights sum up to :math:`4 \pi`.
-
-
-Nested Grids
--------------
-Angular grids of different degrees can be very close to one another. The following shows the mean with
-standard deviation and maximum distance between an angular grid of one degree and the consequent
-angular grid with higher degree.  The * indicates Lebedev-Laikov grids with negative weights.
-
-.. csv-table:: Lebedev-Laikov Grids
-   :file: ./table_angular_lebedev.csv
-   :widths: 11,11,11,11
-   :delim: ;
-   :header-rows: 1
-   :align: center
-
-
-.. csv-table:: Symmetric Spherical t-Design Grids
-   :file: ./table_angular_spherical.csv
-   :widths: 11,11,11,11
-   :delim: ;
-   :header-rows: 1
-   :align: center
