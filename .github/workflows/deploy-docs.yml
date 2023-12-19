@@ -34,6 +34,7 @@ jobs:
     - name: Build documentation
       run: |
         cd docs
+        bash gen_api.sh
         make html  # Or sphinx-build command based on your setup
 
     - name: Deploy to GitHub Pages
