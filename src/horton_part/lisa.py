@@ -79,29 +79,34 @@ class LinearISAWPart(GaussianISAWPart):
 
     Available Schemes
     -----------------
-    - Local Optimization Problem:
-        - Convex optimization (LISA-101)
-        - Trust-region methods with constraints
-            - Implicit constraints (LSIA-301)
-            - Explicit constraints (LSIA-302)
-        - Fixed-point methods
-            - Alternating/self-consistent method (LISA-201)
-            - DIIS (LISA-202, LISA-206)
-            - Newton method (LISA-203)
-    - Global Optimization Problem:
-        - Convex optimization (LISA-101)
-        - Trust-region methods with constraints
-            - Implicit constraints (LSIA-301)
-            - Explicit constraints (LSIA-302)
-        - Fixed-point methods
-            - Alternating method (LISA-201)
-            - DIIS (LISA-202, LISA-206)
-            - Newton method (LISA-203)
+
+    Local Optimization Problem
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    - Convex optimization (LISA-101)
+    - Trust-region methods with constraints
+        - Implicit constraints (LSIA-301)
+        - Explicit constraints (LSIA-302)
+    - Fixed-point methods
+        - Alternating/self-consistent method (LISA-201)
+        - DIIS (LISA-202, LISA-206)
+        - Newton method (LISA-203)
+
+    Global Optimization Problem
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    - Convex optimization (LISA-101)
+    - Trust-region methods with constraints
+        - Implicit constraints (LSIA-301)
+        - Explicit constraints (LSIA-302)
+    - Fixed-point methods
+        - Alternating method (LISA-201)
+        - DIIS (LISA-202, LISA-206)
+        - Newton method (LISA-203)
 
     See Also
     --------
-    GaussianISAWPart : Parent class from which this class is derived.
-
+    ``GaussianISAWPart`` : Parent class from which this class is derived.
 
     """
 
@@ -210,7 +215,7 @@ class LinearISAWPart(GaussianISAWPart):
 
     @just_once
     def do_partitioning(self):
-        """Do partitioning. See `GaussianISWPart.do_partitioning` for more details."""
+        """See ``GaussianISAPart.do_partitioning``."""
         if not self.use_global_method:
             return GaussianISAWPart.do_partitioning(self)
         else:
@@ -798,35 +803,50 @@ def opt_propars_fixed_points_sc(
     bs_funcs, rho, propars, points, weights, threshold, density_cutoff
 ):
     r"""
-    Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
+    Optimize parameters for proatom density functions using a self-consistent (SC) method.
 
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
+    This approach analytically computes the parameters, aiming to yield results comparable to
+    those obtained via L-ISA algorithms, which require non-negative parameters.
 
-    .. math::
+     .. math::
 
         N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
 
     Returns
     -------
+    np.ndarray
+        Optimized proatom parameters.
 
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    Notes
+    -----
+    The method iteratively optimizes the proatom density function parameters.
+    In each iteration, the basis functions and current parameters are used to compute
+    updated parameters, assessing convergence against the specified threshold.
     """
     oldpro = None
-    # if log.do_medium:
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     for irep in range(int(1e10)):
@@ -844,7 +864,6 @@ def opt_propars_fixed_points_sc(
         else:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
-        # if log.do_medium:
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             return propars
