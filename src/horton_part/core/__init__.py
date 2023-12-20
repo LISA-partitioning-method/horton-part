@@ -23,5 +23,4 @@ from .iterstock import *
 from .proatomdb import *
 from .stockholder import *
 from .logging import *
-from .moments import *
 from .basis import *

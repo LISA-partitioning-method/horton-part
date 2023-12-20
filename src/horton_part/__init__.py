@@ -30,6 +30,7 @@ from .mulliken import *
 from .isa import *
 from .gisa import *
 from .lisa import *
+from .lisa_g import *
 from .utils import *
 
 try:

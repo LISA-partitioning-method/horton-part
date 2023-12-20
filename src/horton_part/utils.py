@@ -69,6 +69,34 @@ def wpart_schemes(scheme):
         from .lisa import LinearISAWPart
 
         wpart = LinearISAWPart
+
+    elif "lisa_g" in scheme:
+        if scheme == "lisa_g_101":
+            from .lisa_g import GlobalLinearISA101WPart
+
+            wpart = GlobalLinearISA101WPart
+        elif scheme == "lisa_g_104":
+            from .lisa_g import GlobalLinearISA104WPart
+
+            wpart = GlobalLinearISA104WPart
+        elif scheme == "lisa_g_201":
+            from .lisa_g import GlobalLinearISA201WPart
+
+            wpart = GlobalLinearISA201WPart
+        elif scheme in ["lisa_g_206", "lisa_g_202"]:
+            from .lisa_g import GlobalLinearISA206WPart
+
+            wpart = GlobalLinearISA206WPart
+        elif scheme == "lisa_g_301":
+            from .lisa_g import GlobalLinearISA301WPart
+
+            wpart = GlobalLinearISA301WPart
+        elif scheme == "lisa_g_302":
+            from .lisa_g import GlobalLinearISA302WPart
+
+            wpart = GlobalLinearISA302WPart
+        else:
+            raise RuntimeError(f"Not known scheme: {scheme}")
     elif scheme == "gisa":
         from .gisa import GaussianISAWPart
 

@@ -75,12 +75,11 @@ def main():
         "local_grid_radius": args.local_grid_radius,
     }
 
-    if args.type in ["gisa", "lisa"]:
+    if args.type in ["gisa", "lisa", "lisa_g"]:
         kwargs["solver"] = args.solver
         if args.type in ["lisa"]:
             kwargs["basis_func_type"] = args.func_type
             kwargs["basis_func_json_file"] = args.func_file
-            kwargs["use_global_method"] = args.use_global_method
             if args.solver > 200:
                 kwargs["diis_size"] = args.diis_size
 
@@ -99,7 +98,7 @@ def main():
     # logger.info("radial moments:")
     # logger.info(part.cache["radial_moments"])
 
-    if not (args.type in ["lisa"] and args.use_global_method):
+    if "lisa_g" not in args.type:
         logger.info(" " * width)
         logger.info("*" * width)
         logger.info(" Time usage ".center(width, " "))
@@ -134,7 +133,7 @@ def main():
     part_data["solver"] = args.solver
     part_data["charges"] = part.cache["charges"]
 
-    if not (args.type in ["lisa"] and args.use_global_method):
+    if "lisa_g" not in args.type:
         part_data["time"] = part.time_usage["do_partitioning"]
         part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
         part_data["time_update_promolecule"] = part._cache["time_update_promolecule"]
@@ -169,7 +168,20 @@ def parse_args():
         "--type",
         type=str,
         default="lisa",
-        choices=["gisa", "lisa", "mbis", "is"],
+        choices=[
+            "gisa",
+            "lisa",
+            "mbis",
+            "is",
+            "lisa_g",
+            "lisa_g_101",
+            "lisa_g_104",
+            "lisa_g_201",
+            "lisa_g_202",
+            "lisa_g_206",
+            "lisa_g_301",
+            "lisa_g_302",
+        ],
         help="Number of angular grid points. [default=%(default)s]",
     )
     parser.add_argument(
@@ -214,12 +226,6 @@ def parse_args():
         type=int,
         default=8,
         help="The number of previous iterations info used in DIIS. [default=%(default)s]",
-    )
-    parser.add_argument(
-        "--use_global_method",
-        default=False,
-        action="store_true",
-        help="Whether use global method",
     )
     parser.add_argument(
         "--local_grid_radius",
