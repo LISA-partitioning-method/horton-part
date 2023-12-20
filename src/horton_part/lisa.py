@@ -61,8 +61,6 @@ logger = logging.getLogger(__name__)
 
 
 class LinearISAWPart(GaussianISAWPart):
-    name = "lisa"
-
     r"""
     Implements the Linear Iterative Stockholder Analysis (L-ISA) partitioning scheme.
 
@@ -72,16 +70,11 @@ class LinearISAWPart(GaussianISAWPart):
     contributions. This class offers a variety of schemes for this
     partitioning, both at local and global optimization levels.
 
-    Attributes
-    ----------
-    name: string
-        The short name for the class.
-
-    Available Schemes
-    -----------------
+    Optimization Problem Schemes
+    ============================
 
     Local Optimization Problem
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    --------------------------
 
     - Convex optimization (LISA-101)
     - Trust-region methods with constraints
@@ -93,7 +86,7 @@ class LinearISAWPart(GaussianISAWPart):
         - Newton method (LISA-203)
 
     Global Optimization Problem
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ---------------------------
 
     - Convex optimization (LISA-101)
     - Trust-region methods with constraints
@@ -104,11 +97,18 @@ class LinearISAWPart(GaussianISAWPart):
         - DIIS (LISA-202, LISA-206)
         - Newton method (LISA-203)
 
+
     See Also
     --------
-    ``GaussianISAWPart`` : Parent class from which this class is derived.
+    horton_part.GaussianISAWPart : Parent class from which this class is derived.
+
+    References
+    ----------
+    .. [1] TODO
 
     """
+
+    name = "lisa"
 
     def __init__(
         self,
