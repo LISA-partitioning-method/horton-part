@@ -18,8 +18,9 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-"""Gaussian Iterative Stockholder Analysis (GISA) partitioning"""
-
+"""
+Module for Linear Iterative Stockholder Analysis (L-ISA) partitioning scheme.
+"""
 
 import numpy as np
 import cvxopt
@@ -60,9 +61,49 @@ logger = logging.getLogger(__name__)
 
 
 class LinearISAWPart(GaussianISAWPart):
-    """Linear Iterative Stockholder Analysis partitioning scheme."""
-
     name = "lisa"
+
+    r"""
+    Implements the Linear Iterative Stockholder Analysis (L-ISA) partitioning scheme.
+
+    This class extends `GaussianISAWPart` and specializes in performing
+    electron density partitioning in molecules using various L-ISA schemes. L-ISA
+    is a method for dividing the electron density of a molecule into atomic
+    contributions. This class offers a variety of schemes for this
+    partitioning, both at local and global optimization levels.
+
+    Attributes
+    ----------
+    name: string
+        The short name for the class.
+
+    Available Schemes
+    -----------------
+    - Local Optimization Problem:
+        - Convex optimization (LISA-101)
+        - Trust-region methods with constraints
+            - Implicit constraints (LSIA-301)
+            - Explicit constraints (LSIA-302)
+        - Fixed-point methods
+            - Alternating/self-consistent method (LISA-201)
+            - DIIS (LISA-202, LISA-206)
+            - Newton method (LISA-203)
+    - Global Optimization Problem:
+        - Convex optimization (LISA-101)
+        - Trust-region methods with constraints
+            - Implicit constraints (LSIA-301)
+            - Explicit constraints (LSIA-302)
+        - Fixed-point methods
+            - Alternating method (LISA-201)
+            - DIIS (LISA-202, LISA-206)
+            - Newton method (LISA-203)
+
+    See Also
+    --------
+    GaussianISAWPart : Parent class from which this class is derived.
+
+
+    """
 
     def __init__(
         self,
@@ -84,14 +125,17 @@ class LinearISAWPart(GaussianISAWPart):
         use_global_method=False,
     ):
         """
+        Construct LISA for given arguments.
+
         **Optional arguments:** (that are not defined in ``WPart``)
 
-        threshold
+        Parameters
+        ----------
+        threshold: float
              The procedure is considered to be converged when the maximum
              change of the charges between two iterations drops below this
              threshold.
-
-        maxiter
+        maxiter: int
              The maximum number of iterations. If no convergence is reached
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
@@ -166,6 +210,7 @@ class LinearISAWPart(GaussianISAWPart):
 
     @just_once
     def do_partitioning(self):
+        """Do partitioning. See `GaussianISWPart.do_partitioning` for more details."""
         if not self.use_global_method:
             return GaussianISAWPart.do_partitioning(self)
         else:
