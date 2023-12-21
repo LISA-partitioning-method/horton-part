@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -20,8 +19,9 @@
 # --
 """Utility Functions"""
 
-import numpy as np
 import warnings
+
+import numpy as np
 
 __all__ = [
     "typecheck_geo",
@@ -72,29 +72,29 @@ def wpart_schemes(scheme):
 
     elif "lisa_g" in scheme:
         if scheme == "lisa_g_101":
-            from .lisa_g import GlobalLinearISA101WPart
+            from .lisa_g import GLisaConvexOptWPart
 
-            wpart = GlobalLinearISA101WPart
+            wpart = GLisaConvexOptWPart
         elif scheme == "lisa_g_104":
-            from .lisa_g import GlobalLinearISA104WPart
+            from .lisa_g import GLisaConvexOptNWPart
 
-            wpart = GlobalLinearISA104WPart
+            wpart = GLisaConvexOptNWPart
         elif scheme == "lisa_g_201":
-            from .lisa_g import GlobalLinearISA201WPart
+            from .lisa_g import GLisaSelfConsistentWPart
 
-            wpart = GlobalLinearISA201WPart
+            wpart = GLisaSelfConsistentWPart
         elif scheme in ["lisa_g_206", "lisa_g_202"]:
-            from .lisa_g import GlobalLinearISA206WPart
+            from .lisa_g import GLisaDIISWPart
 
-            wpart = GlobalLinearISA206WPart
+            wpart = GLisaDIISWPart
         elif scheme == "lisa_g_301":
-            from .lisa_g import GlobalLinearISA301WPart
+            from .lisa_g import GLisaTrustConstrainWPart
 
-            wpart = GlobalLinearISA301WPart
+            wpart = GLisaTrustConstrainWPart
         elif scheme == "lisa_g_302":
-            from .lisa_g import GlobalLinearISA302WPart
+            from .lisa_g import GLisaTrustConstrainNWPart
 
-            wpart = GlobalLinearISA302WPart
+            wpart = GLisaTrustConstrainNWPart
         else:
             raise RuntimeError(f"Not known scheme: {scheme}")
     elif scheme == "gisa":
@@ -157,12 +157,8 @@ def typecheck_geo(
         if need_coordinates:
             raise TypeError("Coordinates can not be None.")
     else:
-        if coordinates.shape != (natom, 3) or not issubclass(
-            coordinates.dtype.type, float
-        ):
-            raise TypeError(
-                "The argument centers must be a float array with shape (natom,3)."
-            )
+        if coordinates.shape != (natom, 3) or not issubclass(coordinates.dtype.type, float):
+            raise TypeError("The argument centers must be a float array with shape (natom,3).")
 
     # Typecheck numbers
     if numbers is None:
@@ -178,9 +174,7 @@ def typecheck_geo(
             pseudo_numbers = numbers.astype(float)
     else:
         if pseudo_numbers.shape != (natom,):
-            raise TypeError(
-                "The argument pseudo_numbers must be a vector with length natom."
-            )
+            raise TypeError("The argument pseudo_numbers must be a vector with length natom.")
         if not issubclass(pseudo_numbers.dtype.type, float):
             pseudo_numbers = pseudo_numbers.astype(float)
 
@@ -318,9 +312,7 @@ radius_becke = {
     117: None,
     118: None,
 }
-radius_becke = dict(
-    [(k, v if v is None else v * angstrom) for k, v in list(radius_becke.items())]
-)
+radius_becke = {k: v if v is None else v * angstrom for k, v in list(radius_becke.items())}
 
 
 # cov_radius_cordero
@@ -444,9 +436,7 @@ radius_covalent = {
     117: None,
     118: None,
 }
-radius_covalent = dict(
-    [(k, v if v is None else v * angstrom) for k, v in list(radius_covalent.items())]
-)
+radius_covalent = {k: v if v is None else v * angstrom for k, v in list(radius_covalent.items())}
 
 
 def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff):
@@ -566,9 +556,7 @@ def check_pro_atom_parameters(
     if total_population is not None and not np.allclose(
         np.sum(pro_atom_params), total_population, atol=POPULATION_CUTOFF
     ):
-        warnings.warn(
-            "The sum of pro-atom parameters is not equal to atomic population"
-        )
+        warnings.warn("The sum of pro-atom parameters is not equal to atomic population")
 
     if check_monotonicity and pro_atom_density is not None:
         if (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any():

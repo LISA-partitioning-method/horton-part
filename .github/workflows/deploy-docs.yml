@@ -27,6 +27,7 @@ jobs:
         pip install nbsphinx==0.9.3
         pip install sphinx_rtd_theme==2.0.0
         pip install nbconvert==7.12.0
+        pip install notebook
 
     - name: Install Pandoc
       run: |
@@ -39,6 +40,9 @@ jobs:
       run: |
         cd docs
         bash gen_api.sh
+        cd notebooks
+        jupyter nbconvert --to notebook --execute --inplace --allow-errors *.ipynb
+        cd ../
         make html  # Or sphinx-build command based on your setup
         cd ../
 

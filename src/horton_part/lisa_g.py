@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -22,23 +21,22 @@
 Module for Global Linear Iterative Stockholder Analysis (LISA-G) partitioning scheme.
 """
 
-import numpy as np
-import cvxopt
-from scipy.linalg import LinAlgWarning
-from scipy.sparse.linalg import spsolve
-from scipy.sparse import SparseEfficiencyWarning
-from scipy.optimize import minimize, LinearConstraint, SR1
-import warnings
-import time
 import logging
+import time
+import warnings
 
+import cvxopt
+import numpy as np
+from scipy.linalg import LinAlgWarning
+from scipy.optimize import SR1, LinearConstraint, minimize
+from scipy.sparse import SparseEfficiencyWarning
+from scipy.sparse.linalg import spsolve
+
+from .core.basis import BasisFuncHelper
 from .core.cache import just_once
-from .utils import (
-    check_pro_atom_parameters,
-)
 from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
-from .core.basis import BasisFuncHelper
+from .utils import check_pro_atom_parameters
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -46,12 +44,12 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
 __all__ = [
     "AbstractGlobalLinearISAWPart",
-    "GlobalLinearISA101WPart",
-    "GlobalLinearISA104WPart",
-    "GlobalLinearISA201WPart",
-    "GlobalLinearISA206WPart",
-    "GlobalLinearISA301WPart",
-    "GlobalLinearISA302WPart",
+    "GLisaConvexOptWPart",
+    "GLisaConvexOptNWPart",
+    "GLisaSelfConsistentWPart",
+    "GLisaDIISWPart",
+    "GLisaTrustConstrainWPart",
+    "GLisaTrustConstrainNWPart",
 ]
 
 logger = logging.getLogger(__name__)
@@ -90,7 +88,6 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
-    name = "lisa_g"
     density_cutoff = 1e-15
     allow_neg_pars = False
 
@@ -143,9 +140,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         )
 
         if basis_func_json_file is not None:
-            logger.info(
-                f"Load basis functions from custom json file: {basis_func_json_file}"
-            )
+            logger.info(f"Load basis functions from custom json file: {basis_func_json_file}")
             self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
         else:
             logger.info(f"Load {basis_func_type} basis functions")
@@ -184,21 +179,22 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
         propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        return self.bs_helper.compute_proatom_dens(
-            self.numbers[iatom], propars, rgrid.points, 1
-        )
-
-    @property
-    def local_grid_radius(self):
-        return self._local_grid_radius
+        return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
 
     @property
     def maxiter(self):
+        """The maximum iterations."""
         return self._maxiter
 
     @property
     def threshold(self):
+        """The convergence threshold."""
         return self._threshold
+
+    @property
+    def local_grid_radius(self):
+        """The cutoff radius for local grid."""
+        return self._local_grid_radius
 
     def _init_log_scheme(self):
         info_list = [
@@ -242,9 +238,9 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         propars[:] = 1.0
         for iatom in range(self.natom):
-            propars[
-                self._ranges[iatom] : self._ranges[iatom + 1]
-            ] = self.bs_helper.get_initial(self.numbers[iatom])
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = self.bs_helper.get_initial(
+                self.numbers[iatom]
+            )
         self._evaluate_basis_functions()
         return propars
 
@@ -257,9 +253,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
             bs_funcs[:, :] = np.array(
                 [
-                    self.bs_helper.compute_proshell_dens(
-                        self.numbers[iatom], ishell, 1.0, r
-                    )
+                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
                     for ishell in range(nshell)
                 ]
             )
@@ -292,9 +286,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                 spline = atgrid.spherical_average(at_weights * dens)
                 r = atgrid.rgrid.points
                 spherical_average = spline(r)
-                pseudo_population = atgrid.rgrid.integrate(
-                    4 * np.pi * r**2 * spherical_average
-                )
+                pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
                 charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
     @just_once
@@ -387,8 +379,84 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         """
         return self.cache.load("propars")
 
+    def _working_matrix(self, rho, rho0, nb_par, nderiv=0, density_cutoff=1e-15):
+        """
+        Compute the working matrix for optimization, based on molecular and pro-molecule densities, and pro-atom parameters.
 
-class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
+        Parameters
+        ----------
+        rho : ndarray
+            Molecular density on grids.
+        rho0 : ndarray
+            Pro-molecule density on grids.
+        nb_par: int
+            The number of parameters in total.
+        nderiv : int, optional
+            Order of derivatives to be computed (0, 1, or 2). Default is 0.
+
+        Returns
+        -------
+        float or tuple
+            If nderiv is 0, returns the objective function value.
+            If nderiv is 1, returns a tuple (objective function value, gradient).
+            If nderiv is 2, returns a tuple (objective function value, gradient, hessian).
+
+        Raises
+        ------
+        ValueError
+            If `nderiv` is not 0, 1, or 2.
+
+        Notes
+        -----
+        This function computes the objective function and its derivatives for a given set of molecular
+        densities and pro-atom parameters. The function supports up to the second derivative calculation.
+        Numerical stability for division by `rho0` is ensured by adding a small constant to `rho0`.
+
+        """
+        sick = (rho < density_cutoff) | (rho0 < density_cutoff)
+        ratio = np.divide(rho, rho0, out=np.zeros_like(rho), where=~sick)
+        ln_ratio = np.log(ratio, out=np.zeros_like(ratio), where=~sick)
+
+        objective_function = self.grid.integrate(rho * ln_ratio)
+
+        if nderiv == 0:
+            return objective_function
+
+        gradient = np.zeros((nb_par,))
+        hessian = np.zeros((nb_par, nb_par))
+
+        for i in range(nb_par):
+            with np.errstate(all="ignore"):
+                df_integrand = self.rho_x_pro_shells[i, :] / rho0
+            df_integrand[sick] = 0.0
+            gradient[i] = -self.grid.integrate(df_integrand)
+
+            if nderiv > 1:
+                for j in range(i, nb_par):
+                    # Only compute Hessian matrix on a local grid not on full molecular grid.
+                    if (
+                        np.linalg.norm(self.pro_shell_centers[i] - self.pro_shell_centers[j])
+                        > self.local_grid_radius
+                    ):
+                        hessian[i, j] = 0
+                    else:
+                        with np.errstate(all="ignore"):
+                            hess_integrand = df_integrand * self.pro_shells[j, :] / rho0
+                        hess_integrand[sick] = 0.0
+                        hessian[i, j] = self.grid.integrate(hess_integrand)
+                    hessian[j, i] = hessian[i, j]
+
+        if nderiv == 1:
+            return objective_function, gradient
+        elif nderiv == 2:
+            return objective_function, gradient, hessian
+        else:
+            raise ValueError(
+                f"nderiv value of {nderiv} is not supported. Only 0, 1, or 2 are valid."
+            )
+
+
+class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
     name = "lisa_g_101"
     allow_neg_pars = False
 
@@ -450,92 +518,15 @@ class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
         )
         return propars
 
-    def _working_matrix(self, rho, rho0, nb_par, nderiv=0, density_cutoff=1e-15):
-        """
-        Compute the working matrix for optimization, based on molecular and pro-molecule densities, and pro-atom parameters.
 
-        Parameters
-        ----------
-        rho : ndarray
-            Molecular density on grids.
-        rho0 : ndarray
-            Pro-molecule density on grids.
-        nb_par: int
-            The number of parameters in total.
-        nderiv : int, optional
-            Order of derivatives to be computed (0, 1, or 2). Default is 0.
-
-        Returns
-        -------
-        float or tuple
-            If nderiv is 0, returns the objective function value.
-            If nderiv is 1, returns a tuple (objective function value, gradient).
-            If nderiv is 2, returns a tuple (objective function value, gradient, hessian).
-
-        Raises
-        ------
-        ValueError
-            If `nderiv` is not 0, 1, or 2.
-
-        Notes
-        -----
-        This function computes the objective function and its derivatives for a given set of molecular
-        densities and pro-atom parameters. The function supports up to the second derivative calculation.
-        Numerical stability for division by `rho0` is ensured by adding a small constant to `rho0`.
-
-        """
-        sick = (rho < density_cutoff) | (rho0 < density_cutoff)
-        ratio = np.divide(rho, rho0, out=np.zeros_like(rho), where=~sick)
-        ln_ratio = np.log(ratio, out=np.zeros_like(ratio), where=~sick)
-
-        objective_function = self.grid.integrate(rho * ln_ratio)
-
-        if nderiv == 0:
-            return objective_function
-
-        gradient = np.zeros((nb_par,))
-        hessian = np.zeros((nb_par, nb_par))
-
-        for i in range(nb_par):
-            with np.errstate(all="ignore"):
-                df_integrand = self.rho_x_pro_shells[i, :] / rho0
-            df_integrand[sick] = 0.0
-            gradient[i] = -self.grid.integrate(df_integrand)
-
-            if nderiv > 1:
-                for j in range(i, nb_par):
-                    # Only compute Hessian matrix on a local grid not on full molecular grid.
-                    if (
-                        np.linalg.norm(
-                            self.pro_shell_centers[i] - self.pro_shell_centers[j]
-                        )
-                        > self.local_grid_radius
-                    ):
-                        hessian[i, j] = 0
-                    else:
-                        with np.errstate(all="ignore"):
-                            hess_integrand = df_integrand * self.pro_shells[j, :] / rho0
-                        hess_integrand[sick] = 0.0
-                        hessian[i, j] = self.grid.integrate(hess_integrand)
-                    hessian[j, i] = hessian[i, j]
-
-        if nderiv == 1:
-            return objective_function, gradient
-        elif nderiv == 2:
-            return objective_function, gradient, hessian
-        else:
-            raise ValueError(
-                f"nderiv value of {nderiv} is not supported. Only 0, 1, or 2 are valid."
-            )
-
-
-class GlobalLinearISA104WPart(GlobalLinearISA101WPart):
+class GLisaConvexOptNWPart(GLisaConvexOptWPart):
     name = "lisa_g_104"
     allow_neg_pars = True
 
 
-class GlobalLinearISA201WPart(GlobalLinearISA101WPart):
+class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
     name = "lisa_g_201"
+    allow_neg_pars = False
 
     def _opt_propars(self):
         # 1. load molecular and pro-molecule density from cache
@@ -584,8 +575,9 @@ class GlobalLinearISA201WPart(GlobalLinearISA101WPart):
         return all_propars
 
 
-class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
+class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
     name = "lisa_g_206"
+    allow_neg_pars = True
     diis_size = 8
 
     def _opt_propars(self):
@@ -607,14 +599,13 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
             for iatom in range(self.natom):
                 # 2. load old propars
                 propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                self.bs_helper.exponents[self.numbers[iatom]]
 
                 # 3. compute basis functions on molecule grid
                 fun_val = []
                 local_grid = self.local_grids[iatom]
                 indices = local_grid.indices
                 for k, c_ak in enumerate(propars.copy()):
-                    g_ak = self.cache.load(("pro_shell", iatom, k))
+                    g_ak = self.load_pro_shell(iatom, k)
                     rho0_ak = g_ak * c_ak
 
                     with np.errstate(all="ignore"):
@@ -625,10 +616,7 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
                     ishell += 1
 
                 # 4. get new propars using fixed-points
-                # new_propars[:] = np.asarray(fun_val)
-                all_fun_vals[
-                    self._ranges[iatom] : self._ranges[iatom + 1]
-                ] = np.asarray(fun_val)
+                all_fun_vals[self._ranges[iatom] : self._ranges[iatom + 1]] = np.asarray(fun_val)
 
             history_propars.append(all_propars)
 
@@ -670,9 +658,7 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
                 rhs = np.zeros(B_dim)
                 rhs[-1] = -1
                 coeff = spsolve(B, rhs)
-                all_propars = np.einsum(
-                    "i, ip->p", coeff[:-1], np.asarray(propars_prev)
-                )
+                all_propars = np.einsum("i, ip->p", coeff[:-1], np.asarray(propars_prev))
 
                 if (np.isnan(all_propars)).any():
                     all_propars = all_fun_vals
@@ -685,7 +671,7 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
         raise RuntimeError("Error: inner iteration is not converge!")
 
 
-class GlobalLinearISA301WPart(GlobalLinearISA101WPart):
+class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
     name = "lisa_g_301"
     allow_neg_pars = False
 
@@ -752,6 +738,6 @@ class GlobalLinearISA301WPart(GlobalLinearISA101WPart):
         return optresult.x
 
 
-class GlobalLinearISA302WPart(GlobalLinearISA301WPart):
+class GLisaTrustConstrainNWPart(GLisaTrustConstrainWPart):
     name = "lisa_g_302"
     allow_neg_pars = True
