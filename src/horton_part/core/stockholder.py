@@ -181,6 +181,7 @@ class AbstractStockholderWPart(WPart):
         raise NotImplementedError
 
     def get_proatom_rho(self, index, *args, **kwargs):
+        """Get pro-atom density for atom `iatom`."""
         raise NotImplementedError
 
     def fix_proatom_rho(self, index, rho, deriv):
@@ -260,6 +261,12 @@ class AbstractStockholderWPart(WPart):
             at_weights = self.cache.load("at_weights", index)
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
+            # logger.debug("weights:")
+            # logger.debug(at_weights)
+            # logger.debug("Negative weights:")
+            # logger.debug(at_weights[at_weights<-1e-5])
+            # logger.debug("Weights > 1:")
+            # logger.debug(at_weights[at_weights>1+1e-5])
         t2 = time.time()
 
         if "history_time_update_promolecule" not in self.time_usage:

@@ -655,28 +655,43 @@ def opt_propars_fixed_points_newton(
     -------
 
     """
-    # if log.do_medium:
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
 
     oldpro = None
     change = 1e100
+
+    if logger.level <= logging.DEBUG:
+        diff = rho[:-1] - rho[1:]
+        logger.debug(" Check monotonicity of density ".center(80, "*"))
+        if len(diff[diff < -1e-5]):
+            logger.debug(
+                "The spherical average density is not monotonically decreasing."
+            )
+            logger.debug(
+                "The different between densities on two neighboring points are negative:"
+            )
+            logger.debug(diff[diff < -1e-5])
+        else:
+            logger.debug("Pass.")
+
     for irep in range(1000):
-        pro_shells, pro, sick, ratio, lnratio = compute_quantities(
+        _, pro, sick, ratio, _ = compute_quantities(
             rho, propars, bs_funcs, density_cutoff
         )
         integrand = bs_funcs * ratio
-        check_pro_atom_parameters(
-            propars, total_population=float(np.sum(pro)), pro_atom_density=pro
-        )
+        logger.debug(" Optimized pro-atom parameters:")
+        logger.debug(propars)
 
         # check for convergence
         if oldpro is not None:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
-        # if log.do_medium:
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
+            # check_pro_atom_parameters(
+            #     propars, total_population=float(np.sum(pro)), pro_atom_density=pro
+            # )
             return propars
 
         # update propars
@@ -684,9 +699,11 @@ def opt_propars_fixed_points_newton(
             grad_integrand = integrand / pro
         grad_integrand[:, sick] = 0.0
 
-        grad = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
+        jacob = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
         h = 1 - np.einsum("kp,p->k", integrand, weights)
-        delta = solve(grad, -h, assume_a="sym")
+        delta = solve(jacob, -h, assume_a="sym")
+        logger.debug(" delta:")
+        logger.debug(delta)
         propars += delta
         oldpro = pro
     raise RuntimeError("Inner loop: Newton does not converge!")

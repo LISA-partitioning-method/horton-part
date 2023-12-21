@@ -36,8 +36,9 @@ from .core.cache import just_once
 from .utils import (
     check_pro_atom_parameters,
 )
-from .lisa import LinearISAWPart
 from .core.logging import deflist
+from .core.stockholder import AbstractStockholderWPart
+from .core.basis import BasisFuncHelper
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -56,32 +57,165 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-class AbstractGlobalLinearISAWPart(LinearISAWPart):
+# def _opt_propars(self):
+#     if self._solver in [1, 101]:
+#         new_propars = self._update_propars_lisa_101()
+#     elif self._solver == 104:
+#         warnings.warn(
+#             "The slolver 104 with allowing negative parameters problematic, "
+#             "because the negative density could be easily found."
+#         )
+#         new_propars = self._update_propars_lisa_101(allow_neg_pars=True)
+#     elif self._solver in [2, 201]:
+#         new_propars = self._update_propars_lisa_201()
+#     elif self._solver in [202, 206]:
+#         warnings.warn(
+#             "The slolver 206 with allowing negative parameters problematic, "
+#             "because the negative density could be easily found."
+#         )
+#         new_propars = self._update_propars_lisa_206(self.diis_size)
+#     elif self._solver in [3, 301]:
+#         new_propars = self._update_propars_lisa_301(
+#             gtol=self._threshold, allow_neg_pars=False
+#         )
+#     elif self._solver == 302:
+#         warnings.warn(
+#             "The slolver 302 with allowing negative parameters problematic, "
+#             "because the negative density could be easily found."
+#         )
+#         new_propars = self._update_propars_lisa_301(gtol=self._threshold)
+#     else:
+#         raise NotImplementedError
+#     return new_propars
+
+
+class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
     name = "lisa_g"
-    use_global_method = True
     density_cutoff = 1e-15
     allow_neg_pars = False
 
+    def __init__(
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        spindens=None,
+        lmax=3,
+        threshold=1e-6,
+        maxiter=500,
+        local_grid_radius=np.inf,
+        basis_func_type="gauss",
+        basis_func_json_file=None,
+    ):
+        """
+        Construct LISA for given arguments.
+
+        **Optional arguments:** (that are not defined in ``WPart``)
+
+        Parameters
+        ----------
+        threshold: float
+             The procedure is considered to be converged when the maximum
+             change of the charges between two iterations drops below this
+             threshold.
+        maxiter: int
+             The maximum number of iterations. If no convergence is reached
+             in the end, no warning is given.
+             Reduce the CPU cost at the expense of more memory consumption.
+        """
+        self._local_grid_radius = local_grid_radius
+        self._maxiter = maxiter
+        self._threshold = threshold
+        self.func_type = basis_func_type
+
+        AbstractStockholderWPart.__init__(
+            self,
+            coordinates,
+            numbers,
+            pseudo_numbers,
+            grid,
+            moldens,
+            spindens,
+            True,
+            lmax,
+        )
+
+        if basis_func_json_file is not None:
+            logger.info(
+                f"Load basis functions from custom json file: {basis_func_json_file}"
+            )
+            self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
+        else:
+            logger.info(f"Load {basis_func_type} basis functions")
+            self.bs_helper = BasisFuncHelper.from_function_type(basis_func_type)
+
+    def get_rgrid(self, index):
+        """Load radial grid."""
+        return self.get_grid(index).rgrid
+
+    def compute_change(self, propars1, propars2):
+        """Compute the difference between an old and a new proatoms"""
+        # Compute mean-square deviation
+        msd = 0.0
+        for index in range(self.natom):
+            rgrid = self.get_rgrid(index)
+            rho1, deriv1 = self.get_proatom_rho(index, propars1)
+            rho2, deriv2 = self.get_proatom_rho(index, propars2)
+            delta = rho1 - rho2
+            msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
+        return np.sqrt(msd)
+
+    def get_proatom_rho(self, iatom, propars=None):
+        """Get pro-atom density for atom `iatom`.
+
+        If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
+
+        Parameters
+        ----------
+        iatom: int
+            The index of atom `iatom`.
+        propars: np.array
+            The pro-atom parameters.
+
+        """
+        if propars is None:
+            propars = self.cache.load("propars")
+        rgrid = self.get_rgrid(iatom)
+        propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+        return self.bs_helper.compute_proatom_dens(
+            self.numbers[iatom], propars, rgrid.points, 1
+        )
+
+    @property
+    def local_grid_radius(self):
+        return self._local_grid_radius
+
+    @property
+    def maxiter(self):
+        return self._maxiter
+
+    @property
+    def threshold(self):
+        return self._threshold
+
     def _init_log_scheme(self):
-        # if log.do_medium:
         info_list = [
             ("Scheme", "Linear Iterative Stockholder"),
-            ("Outer loop convergence threshold", "%.1e" % self._threshold),
-            ("Using global ISA", self.use_global_method),
+            ("Outer loop convergence threshold", "%.1e" % self.threshold),
+            ("Using global ISA", True),
         ]
 
         info_list.extend(
             [
-                ("Maximum outer iterations", self._maxiter),
-                ("lmax", self._lmax),
-                ("Solver", self._solver),
+                ("Maximum outer iterations", self.maxiter),
+                ("lmax", self.lmax),
                 ("Basis function type", self.func_type),
-                ("Local grid radius", self._local_grid_radius),
+                ("Local grid radius", self.local_grid_radius),
                 ("Allow negative parameters", self.allow_neg_pars),
             ]
         )
-        if self._solver in [202, 206]:
-            info_list.append(("DIIS size", self.diis_size))
         deflist(logger, info_list)
         # biblio.cite(
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
@@ -90,36 +224,45 @@ class AbstractGlobalLinearISAWPart(LinearISAWPart):
     def _finalize_propars(self):
         self._cache.load("charges")
 
-    # def _opt_propars(self):
-    #     if self._solver in [1, 101]:
-    #         new_propars = self._update_propars_lisa_101()
-    #     elif self._solver == 104:
-    #         warnings.warn(
-    #             "The slolver 104 with allowing negative parameters problematic, "
-    #             "because the negative density could be easily found."
-    #         )
-    #         new_propars = self._update_propars_lisa_101(allow_neg_pars=True)
-    #     elif self._solver in [2, 201]:
-    #         new_propars = self._update_propars_lisa_201()
-    #     elif self._solver in [202, 206]:
-    #         warnings.warn(
-    #             "The slolver 206 with allowing negative parameters problematic, "
-    #             "because the negative density could be easily found."
-    #         )
-    #         new_propars = self._update_propars_lisa_206(self.diis_size)
-    #     elif self._solver in [3, 301]:
-    #         new_propars = self._update_propars_lisa_301(
-    #             gtol=self._threshold, allow_neg_pars=False
-    #         )
-    #     elif self._solver == 302:
-    #         warnings.warn(
-    #             "The slolver 302 with allowing negative parameters problematic, "
-    #             "because the negative density could be easily found."
-    #         )
-    #         new_propars = self._update_propars_lisa_301(gtol=self._threshold)
-    #     else:
-    #         raise NotImplementedError
-    #     return new_propars
+    def _init_propars(self):
+        """Initial pro-atom parameters and cache lists."""
+        self.history_propars = []
+        self.history_charges = []
+        self.history_entropies = []
+        self.history_time_update_at_weights = []
+        self.history_time_update_propars_atoms = []
+
+        self._ranges = [0]
+        self._nshells = []
+        for iatom in range(self.natom):
+            nshell = self.bs_helper.get_nshell(self.numbers[iatom])
+            self._ranges.append(self._ranges[-1] + nshell)
+            self._nshells.append(nshell)
+        ntotal = self._ranges[-1]
+        propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
+        propars[:] = 1.0
+        for iatom in range(self.natom):
+            propars[
+                self._ranges[iatom] : self._ranges[iatom + 1]
+            ] = self.bs_helper.get_initial(self.numbers[iatom])
+        self._evaluate_basis_functions()
+        return propars
+
+    @just_once
+    def _evaluate_basis_functions(self):
+        for iatom in range(self.natom):
+            rgrid = self.get_rgrid(iatom)
+            r = rgrid.points
+            nshell = self._ranges[iatom + 1] - self._ranges[iatom]
+            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
+            bs_funcs[:, :] = np.array(
+                [
+                    self.bs_helper.compute_proshell_dens(
+                        self.numbers[iatom], ishell, 1.0, r
+                    )
+                    for ishell in range(nshell)
+                ]
+            )
 
     @just_once
     def do_partitioning(self):
@@ -156,23 +299,6 @@ class AbstractGlobalLinearISAWPart(LinearISAWPart):
 
     @just_once
     def eval_pro_shells(self):
-        raise NotImplementedError
-
-    def _opt_propars(self):
-        raise NotImplementedError
-
-
-class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
-    name = "lisa_g_101"
-    allow_neg_pars = False
-
-    def compute_promol_dens(self, propars):
-        """Compute pro-molecule density based on pro-atom parameters."""
-        self.eval_pro_shells()
-        return np.einsum("np,n->p", self.cache.load("pro_shells"), propars)
-
-    @just_once
-    def eval_pro_shells(self):
         """Evaluate pro-shell functions on molecular grids."""
         nshell = len(self.cache.load("propars"))
         pro_shells = self.cache.load("pro_shells", alloc=(nshell, self.grid.size))[0]
@@ -184,31 +310,90 @@ class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
             centers[iatom] = self.coordinates[iatom, :]
             number = self.numbers[iatom]
             for ishell in range(self.bs_helper.get_nshell(number)):
+                # Note: evaluate pro_shell on a local grid.
                 g_ai = self.cache.load(
-                    "pro-shell", iatom, ishell, alloc=len(self.radial_distances[iatom])
+                    "pro_shell", iatom, ishell, alloc=len(self.radial_distances[iatom])
                 )[0]
                 g_ai[:] = self.bs_helper.compute_proshell_dens(
                     number, ishell, 1.0, self.radial_distances[iatom], 0
                 )
                 pro_shells[index, self.local_grids[iatom].indices] = g_ai
-                # g_ai = self.cache.load("pro-shell", iatom, ishell, alloc=len(indices))[
-                #     0
-                # ]
-                # g_ai[:] = self.bs_helper.compute_proshell_dens(
-                #     number, ishell, 1.0, self.radial_distances[iatom], 0
-                # )
-
                 index += 1
 
-        rho = self._moldens
-        rho_x_pro_shells = self.cache.load(
-            "rho*pro_shells", alloc=(nshell, self.grid.size)
-        )[0]
-        rho_x_pro_shells[:] = rho[None, :] * pro_shells[:, :]
+        rho_g = self.cache.load("rho*pro_shells", alloc=(nshell, self.grid.size))[0]
+        rho_g[:] = self._moldens[None, :] * pro_shells[:, :]
+
+    def calc_promol_dens(self, propars):
+        """Compute pro-molecule density based on pro-atom parameters."""
+        return np.einsum("np,n->p", self.pro_shells, propars)
 
     def _opt_propars(self):
-        rho = self._moldens
-        propars = self.cache.load("propars")
+        """Optimize pro-atom parameters."""
+        raise NotImplementedError
+
+    @property
+    def pro_shells(self):
+        """All basis function values on the molecular grid.
+
+        It has a shape of (M, N) where `M` is the total number of basis functions and `N` is the number of
+        grid points.
+        """
+        self.eval_pro_shells()
+        return self.cache.load("pro_shells")
+
+    @property
+    def pro_shell_centers(self):
+        """The coordinates of the center for each basis function.
+
+        It has a shape of (N, 3) where `N` is the total number of basis functions.
+        """
+        self.eval_pro_shells()
+        return self.cache.load("pro_shell_centers")
+
+    @property
+    def rho_x_pro_shells(self):
+        r"""The intermediate quantity: :math:`\rho(r) \times g_{ak}`.
+
+        It has a shape of (M, N) where `M` is the total number of basis functions and `N` is the number of
+        grid points.
+        """
+        self.eval_pro_shells()
+        return self.cache.load("rho*pro_shells")
+
+    def load_pro_shell(self, iatom, ishell):
+        """Load one set of basis function values on a local grid.
+
+        Parameters
+        ----------
+        iatom: int
+            The index of the atom in the molecule.
+        ishell: int
+            The index of the basis function for atom `iatom`.
+
+        Returns
+        -------
+        np.array
+            The basis function values on the local grid with a shape of (N, ), where `N` is the number of points
+            in the local grid.
+        """
+        self.eval_pro_shells()
+        return self.cache.load(("pro_shell", iatom, ishell))
+
+    @property
+    def propars(self):
+        """Load all pro-atom parameters.
+
+        It has a shape of (M, ) where `M` is the total nuber of basis functions.
+        """
+        return self.cache.load("propars")
+
+
+class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
+    name = "lisa_g_101"
+    allow_neg_pars = False
+
+    def _opt_propars(self):
+        rho, propars = self._moldens, self.propars
 
         nb_par = len(propars)
         if self.allow_neg_pars:
@@ -227,7 +412,7 @@ class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
             if x is None:
                 return 0, cvxopt.matrix(propars[:])
             x = np.asarray(x).flatten()
-            rho0 = self.compute_promol_dens(x)
+            rho0 = self.calc_promol_dens(x)
             #
             # Note: the propars and pro-mol density could be negative during the optimization.
             #
@@ -259,7 +444,7 @@ class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
         propars[:] = np.asarray(opt_CVX["x"]).flatten()
         check_pro_atom_parameters(
             propars,
-            pro_atom_density=self.compute_promol_dens(propars),
+            pro_atom_density=self.calc_promol_dens(propars),
             total_population=mol_pop,
             check_monotonicity=False,
         )
@@ -308,29 +493,30 @@ class GlobalLinearISA101WPart(AbstractGlobalLinearISAWPart):
         if nderiv == 0:
             return objective_function
 
-        pro_shells = self.cache.load("pro_shells")
-        rho_x_pro_shells = self.cache.load("rho*pro_shells")
-        centers = self.cache.load("pro_shell_centers")
-
         gradient = np.zeros((nb_par,))
         hessian = np.zeros((nb_par, nb_par))
 
         for i in range(nb_par):
             with np.errstate(all="ignore"):
-                df_integrand = rho_x_pro_shells[i, :] / rho0
+                df_integrand = self.rho_x_pro_shells[i, :] / rho0
             df_integrand[sick] = 0.0
             gradient[i] = -self.grid.integrate(df_integrand)
 
             if nderiv > 1:
                 for j in range(i, nb_par):
-                    if np.linalg.norm(centers[i] - centers[j]) > self.local_grid_radius:
+                    # Only compute Hessian matrix on a local grid not on full molecular grid.
+                    if (
+                        np.linalg.norm(
+                            self.pro_shell_centers[i] - self.pro_shell_centers[j]
+                        )
+                        > self.local_grid_radius
+                    ):
                         hessian[i, j] = 0
                     else:
                         with np.errstate(all="ignore"):
-                            hess_integrand = df_integrand * pro_shells[j, :] / rho0
+                            hess_integrand = df_integrand * self.pro_shells[j, :] / rho0
                         hess_integrand[sick] = 0.0
                         hessian[i, j] = self.grid.integrate(hess_integrand)
-
                     hessian[j, i] = hessian[i, j]
 
         if nderiv == 1:
@@ -348,126 +534,34 @@ class GlobalLinearISA104WPart(GlobalLinearISA101WPart):
     allow_neg_pars = True
 
 
-class GlobalLinearISA301WPart(GlobalLinearISA101WPart):
-    name = "lisa_g_301"
-    allow_neg_pars = False
-
-    def _opt_propars(self):
-        """Optimize the promodel using the trust-constr minimizer from SciPy."""
-        rho = self._moldens
-
-        # Compute the total population
-        pop = self.grid.integrate(rho)
-        logger.info("Integral of density:", pop)
-        pars0 = self.cache.load("propars")
-        nb_par = len(pars0)
-
-        def cost_grad(x):
-            rho0 = self.compute_promol_dens(x)
-            f, df = self._working_matrix(rho, rho0, nb_par, 1)
-            # f += self.grid.integrate(rho * np.log(rho))
-            f += self.grid.integrate(rho0) - pop
-            df += 1
-            return f, df
-
-        # Optimize parameters within the bounds.
-        if self.allow_neg_pars:
-            bounds = None
-            constraint = LinearConstraint(np.ones((1, nb_par)), pop, pop)
-            hess = SR1()
-        else:
-            bounds = [(0.0, 200)] * len(pars0)
-            constraint = None
-            hess = SR1()
-
-        rho0_history = []
-
-        def callback(_current_pars, opt_result):
-            rho0 = self.compute_promol_dens(_current_pars)
-            rho0_history.append(rho0)
-
-            if len(rho0_history) >= 2:
-                pre_rho0 = rho0_history[-2]
-                change = np.sqrt(self.grid.integrate((rho0 - pre_rho0) ** 2))
-                return change < self._threshold and opt_result["status"]
-
-        optresult = minimize(
-            cost_grad,
-            pars0,
-            method="trust-constr",
-            jac=True,
-            hess=hess,
-            bounds=bounds,
-            constraints=constraint,
-            callback=callback,
-            options={"gtol": self._threshold, "maxiter": self._maxiter, "verbose": 5},
-        )
-
-        # Check for convergence.
-        logger.info(f'Optimizer message: "{optresult.message}"')
-        if not optresult.success:
-            raise RuntimeError("Convergence failure.")
-
-        rho0 = self.compute_promol_dens(optresult.x)
-        constrain = self.grid.integrate(rho0) - pop
-        logger.info(f"Constraint: {constrain}")
-        logger.info("Optimized parameters: ")
-        logger.info(optresult.x)
-        return optresult.x
-
-
-class GlobalLinearISA302WPart(GlobalLinearISA301WPart):
-    name = "lisa_g_302"
-    allow_neg_pars = True
-
-
 class GlobalLinearISA201WPart(GlobalLinearISA101WPart):
     name = "lisa_g_201"
 
-    # @just_once
-    # def eval_pro_shells(self):
-    #     """Evaluate pro-shell functions on (local) molecular grids for the self-consistent method."""
-    #     for iatom in range(self.natom):
-    #         number = self.numbers[iatom]
-    #         indices = self.local_grids[iatom].indices
-    #         for ishell in range(self.bs_helper.get_nshell(number)):
-    #             g_ai = self.cache.load("pro-shell", iatom, ishell, alloc=len(indices))[
-    #                 0
-    #             ]
-    #             g_ai[:] = self.bs_helper.compute_proshell_dens(
-    #                 number, ishell, 1.0, self.radial_distances[iatom], 0
-    #             )
-
     def _opt_propars(self):
         # 1. load molecular and pro-molecule density from cache
-        rho = self._moldens
-        self.eval_pro_shells()
-        all_propars = self.cache.load("propars")
+        rho, all_propars = self._moldens, self.propars
         old_propars = all_propars.copy()
 
         logger.info("Iteration       Change")
 
         counter = 0
         while True:
-            old_rho0 = self.compute_promol_dens(old_propars)
+            old_rho0 = self.calc_promol_dens(old_propars)
             sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
-            # sick = (rho < density_cutoff * self.natom) | (
-            #         old_rho0 < density_cutoff * self.natom
-            # )
 
             ishell = 0
             for iatom in range(self.natom):
                 # 2. load old propars
                 propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                alphas = self.bs_helper.exponents[self.numbers[iatom]]
 
                 # 3. compute basis functions on molecule grid
                 new_propars = []
                 local_grid = self.local_grids[iatom]
                 indices = local_grid.indices
-                for k, (pop, alpha) in enumerate(zip(propars.copy(), alphas)):
-                    g_ak = self.cache.load(("pro-shell", iatom, k))
-                    rho0_ak = g_ak * pop
+                for k, c_ak in enumerate(propars.copy()):
+                    # g_ak = self.cache.load(("pro_shell", iatom, k))
+                    g_ak = self.load_pro_shell(iatom, k)
+                    rho0_ak = g_ak * c_ak
 
                     with np.errstate(all="ignore"):
                         integrand = rho[indices] * rho0_ak / old_rho0[indices]
@@ -479,8 +573,6 @@ class GlobalLinearISA201WPart(GlobalLinearISA101WPart):
                 # 4. get new propars using fixed-points
                 propars[:] = np.asarray(new_propars)
 
-            # rho0 = self.compute_promol_dens(all_propars)
-            # change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
             change = self.compute_change(all_propars, old_propars)
             if counter % 10 == 0:
                 logger.info("%9i   %10.5e" % (counter, change))
@@ -494,12 +586,11 @@ class GlobalLinearISA201WPart(GlobalLinearISA101WPart):
 
 class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
     name = "lisa_g_206"
+    diis_size = 8
 
     def _opt_propars(self):
         # 1. load molecular and pro-molecule density from cache
-        rho = self._moldens
-        self.eval_pro_shells()
-        all_propars = self.cache.load("propars")
+        rho, all_propars = self._moldens, self.propars
 
         logger.info("Iteration       Change")
 
@@ -508,7 +599,7 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
         start_diis_iter = self.diis_size + 1
 
         for counter in range(1000):
-            old_rho0 = self.compute_promol_dens(all_propars)
+            old_rho0 = self.calc_promol_dens(all_propars)
             sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
 
             all_fun_vals = np.zeros_like(all_propars)
@@ -516,15 +607,15 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
             for iatom in range(self.natom):
                 # 2. load old propars
                 propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                alphas = self.bs_helper.exponents[self.numbers[iatom]]
+                self.bs_helper.exponents[self.numbers[iatom]]
 
                 # 3. compute basis functions on molecule grid
                 fun_val = []
                 local_grid = self.local_grids[iatom]
                 indices = local_grid.indices
-                for k, (pop, alpha) in enumerate(zip(propars.copy(), alphas)):
-                    g_ak = self.cache.load(("pro-shell", iatom, k))
-                    rho0_ak = g_ak * pop
+                for k, c_ak in enumerate(propars.copy()):
+                    g_ak = self.cache.load(("pro_shell", iatom, k))
+                    rho0_ak = g_ak * c_ak
 
                     with np.errstate(all="ignore"):
                         integrand = rho[indices] * rho0_ak / old_rho0[indices]
@@ -543,7 +634,7 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
 
             # Build DIIS Residual
             diis_r = all_propars - all_fun_vals
-            rho0 = self.compute_promol_dens(all_fun_vals)
+            rho0 = self.calc_promol_dens(all_fun_vals)
             change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
 
             # Compute drms
@@ -592,3 +683,75 @@ class GlobalLinearISA206WPart(GlobalLinearISA201WPart):
                 warnings.warn("Negative parameters found!")
 
         raise RuntimeError("Error: inner iteration is not converge!")
+
+
+class GlobalLinearISA301WPart(GlobalLinearISA101WPart):
+    name = "lisa_g_301"
+    allow_neg_pars = False
+
+    def _opt_propars(self):
+        """Optimize the promodel using the trust-constr minimizer from SciPy."""
+        rho = self._moldens
+        rho, pars0 = self._moldens, self.propars
+
+        # Compute the total population
+        pop = self.grid.integrate(rho)
+        logger.info("Integral of density:", pop)
+        nb_par = len(pars0)
+
+        def cost_grad(x):
+            rho0 = self.calc_promol_dens(x)
+            f, df = self._working_matrix(rho, rho0, nb_par, 1)
+            f += self.grid.integrate(rho0) - pop
+            df += 1
+            return f, df
+
+        # Optimize parameters within the bounds.
+        if self.allow_neg_pars:
+            bounds = None
+            constraint = LinearConstraint(np.ones((1, nb_par)), pop, pop)
+            hess = SR1()
+        else:
+            bounds = [(0.0, 200)] * len(pars0)
+            constraint = None
+            hess = SR1()
+
+        rho0_history = []
+
+        def callback(_current_pars, opt_result):
+            rho0 = self.calc_promol_dens(_current_pars)
+            rho0_history.append(rho0)
+
+            if len(rho0_history) >= 2:
+                pre_rho0 = rho0_history[-2]
+                change = np.sqrt(self.grid.integrate((rho0 - pre_rho0) ** 2))
+                return change < self._threshold and opt_result["status"]
+
+        optresult = minimize(
+            cost_grad,
+            pars0,
+            method="trust-constr",
+            jac=True,
+            hess=hess,
+            bounds=bounds,
+            constraints=constraint,
+            callback=callback,
+            options={"gtol": self._threshold, "maxiter": self._maxiter, "verbose": 5},
+        )
+
+        # Check for convergence.
+        logger.info(f'Optimizer message: "{optresult.message}"')
+        if not optresult.success:
+            raise RuntimeError("Convergence failure.")
+
+        rho0 = self.calc_promol_dens(optresult.x)
+        constrain = self.grid.integrate(rho0) - pop
+        logger.info(f"Constraint: {constrain}")
+        logger.info("Optimized parameters: ")
+        logger.info(optresult.x)
+        return optresult.x
+
+
+class GlobalLinearISA302WPart(GlobalLinearISA301WPart):
+    name = "lisa_g_302"
+    allow_neg_pars = True

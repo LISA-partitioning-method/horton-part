@@ -49,9 +49,11 @@ def main():
         raise ValueError(f"Invalid log level: {args.log}")
 
     if log_level > logging.DEBUG:
-        logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
+        logging.basicConfig(level=log_level, format="%(levelname)s:    %(message)s")
     else:
-        logging.basicConfig(level=log_level)
+        logging.basicConfig(
+            level=log_level, format="%(name)s - %(levelname)s:    %(message)s"
+        )
 
     logger.info("*" * width)
     logger.info(f"Reade grid and density data from {args.filename}")
