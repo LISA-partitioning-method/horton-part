@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -22,24 +21,22 @@
 Module for Linear Iterative Stockholder Analysis (L-ISA) partitioning scheme.
 """
 
-import numpy as np
-import cvxopt
-from scipy.linalg import solve, LinAlgWarning, eigh
-from scipy.sparse.linalg import spsolve
-from scipy.sparse import SparseEfficiencyWarning
-from scipy.optimize import minimize, LinearConstraint, SR1
-import warnings
 import logging
+import warnings
+
+import cvxopt
+import numpy as np
+from scipy.linalg import LinAlgWarning, eigh, solve
+from scipy.optimize import SR1, LinearConstraint, minimize
+from scipy.sparse import SparseEfficiencyWarning
+from scipy.sparse.linalg import spsolve
+
+from .core.basis import BasisFuncHelper
 
 # from .core.log import log, biblio
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
-from .utils import (
-    compute_quantities,
-    check_pro_atom_parameters,
-    check_for_pro_error,
-)
-from .core.basis import BasisFuncHelper
+from .utils import check_for_pro_error, check_pro_atom_parameters, compute_quantities
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -48,6 +45,13 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
 __all__ = [
     "LinearISAWPart",
+    "LisaConvexOptWPart",
+    "LisaConvexOptNWPart",
+    "LisaSelfConsistentWPart",
+    "LisaDIISWPart",
+    "LisaNewtonWPart",
+    "LisaTrustConstraintExpWPart",
+    "LisaTrustConstraintImpWPart",
     "opt_propars_fixed_points_sc",
     "opt_propars_fixed_points_diis",
     "opt_propars_fixed_points_newton",
@@ -107,7 +111,6 @@ class LinearISAWPart(GaussianISAWPart):
     """
 
     name = "lisa"
-    use_global_method = False
 
     def __init__(
         self,
@@ -163,9 +166,7 @@ class LinearISAWPart(GaussianISAWPart):
         )
 
         if basis_func_json_file is not None:
-            logger.info(
-                f"Load basis functions from custom json file: {basis_func_json_file}"
-            )
+            logger.info(f"Load basis functions from custom json file: {basis_func_json_file}")
             self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
         else:
             logger.info(f"Load {basis_func_type} basis functions")
@@ -180,7 +181,7 @@ class LinearISAWPart(GaussianISAWPart):
                 "Inner loop convergence threshold",
                 "%.1e" % self._inner_threshold,
             ),
-            ("Using global ISA", self.use_global_method),
+            ("Using global ISA", False),
         ]
 
         if self._solver in [104, 202, 203, 204, 206]:
@@ -281,9 +282,48 @@ class LinearISAWPart(GaussianISAWPart):
             raise NotImplementedError
 
 
-def opt_propars_fixed_points_sc(
-    bs_funcs, rho, propars, points, weights, threshold, density_cutoff
-):
+class _LisaOptimizationPart(LinearISAWPart):
+    def __init__(self, *args, solver_id, **kwargs):
+        kwargs["solver"] = solver_id
+        super().__init__(*args, **kwargs)
+
+
+class LisaConvexOptWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=101, **kwargs)
+
+
+class LisaConvexOptNWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=104, **kwargs)
+
+
+class LisaSelfConsistentWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=201, **kwargs)
+
+
+class LisaNewtonWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=203, **kwargs)
+
+
+class LisaDIISWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=206, **kwargs)
+
+
+class LisaTrustConstraintImpWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=301, **kwargs)
+
+
+class LisaTrustConstraintExpWPart(_LisaOptimizationPart):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, solver_id=302, **kwargs)
+
+
+def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
 
@@ -509,9 +549,7 @@ def diis(c_values, r_values, max_history):
 
     turn_off_diis = False
     nb_coeff = len(coeffs[:-1])
-    if nb_coeff > 2 and np.allclose(
-        coeffs[:-1], np.ones_like(coeffs[:-1]) / nb_coeff, rtol=1e-3
-    ):
+    if nb_coeff > 2 and np.allclose(coeffs[:-1], np.ones_like(coeffs[:-1]) / nb_coeff, rtol=1e-3):
         turn_off_diis = True
         logger.info("turn off DIIS")
 
@@ -665,20 +703,14 @@ def opt_propars_fixed_points_newton(
         diff = rho[:-1] - rho[1:]
         logger.debug(" Check monotonicity of density ".center(80, "*"))
         if len(diff[diff < -1e-5]):
-            logger.debug(
-                "The spherical average density is not monotonically decreasing."
-            )
-            logger.debug(
-                "The different between densities on two neighboring points are negative:"
-            )
+            logger.debug("The spherical average density is not monotonically decreasing.")
+            logger.debug("The different between densities on two neighboring points are negative:")
             logger.debug(diff[diff < -1e-5])
         else:
             logger.debug("Pass.")
 
     for irep in range(1000):
-        _, pro, sick, ratio, _ = compute_quantities(
-            rho, propars, bs_funcs, density_cutoff
-        )
+        _, pro, sick, ratio, _ = compute_quantities(rho, propars, bs_funcs, density_cutoff)
         integrand = bs_funcs * ratio
         logger.debug(" Optimized pro-atom parameters:")
         logger.debug(propars)

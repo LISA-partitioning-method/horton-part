@@ -220,6 +220,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
     def _finalize_propars(self):
         self._cache.load("charges")
 
+    # TODO: this function is repeated as it is already defined in ISAWPart class.
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
         self.history_propars = []
@@ -244,6 +245,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         self._evaluate_basis_functions()
         return propars
 
+    # TODO: this function is repeated as it is already defined in ISAWPart class.
     @just_once
     def _evaluate_basis_functions(self):
         for iatom in range(self.natom):
