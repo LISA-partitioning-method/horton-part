@@ -255,6 +255,17 @@ class LinearISAWPart(GaussianISAWPart):
             return opt_propars_fixed_points_newton(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
+        elif self._solver == 204:
+            return opt_propars_fixed_points_diis_pos(
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                diis_size=self.diis_size,
+            )
         elif self._solver in [3, 301]:
             # same as LISA-102 but with constraint implicitly, slower than 302
             return opt_propars_minimization_trust_constr(
@@ -354,7 +365,7 @@ def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, thresho
 
     Returns
     -------
-    np.ndarray
+    1D np.ndarray
         Optimized proatom parameters.
 
     Raises
@@ -368,9 +379,9 @@ def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, thresho
     In each iteration, the basis functions and current parameters are used to compute
     updated parameters, assessing convergence against the specified threshold.
     """
-    oldpro = None
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
+    oldpro = None
     for irep in range(int(1e10)):
         pro_shells, pro, sick, ratio, lnratio = compute_quantities(
             rho, propars, bs_funcs, density_cutoff
@@ -378,7 +389,6 @@ def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, thresho
 
         # the partitions and the updated parameters
         propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
-        check_pro_atom_parameters(propars)
 
         # check for convergence
         if oldpro is None:
@@ -386,8 +396,10 @@ def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, thresho
         else:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
+
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
+            check_pro_atom_parameters(propars)
             return propars
         oldpro = pro
     raise RuntimeError("Error: Inner iteration is not converge!")
@@ -397,10 +409,7 @@ def opt_propars_fixed_points_sc_one_step(
     bs_funcs, rho, propars, points, weights, threshold, density_cutoff
 ):
     r"""
-    Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
+    Optimize parameters for proatom density functions using a self-consistent (SC) method.
 
     .. math::
 
@@ -408,20 +417,31 @@ def opt_propars_fixed_points_sc_one_step(
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
 
     Returns
     -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
 
     """
     pro_shells, pro, sick, ratio, lnratio = compute_quantities(
@@ -444,31 +464,38 @@ def opt_propars_fixed_points_sc_convex(
     sc_iter_limit=1000,
 ):
     r"""
-    Optimize parameters for proatom density functions using LISA-2 with self-consistent (SC) method.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+    Optimize parameters for proatom density functions using a mixing of self-consistent (SC) method and convex
+    optimization method.
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+    sc_iter_limit: int
+        The number of iteration steps of self-consistent method.
 
     Returns
     -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
 
     """
     oldpro = None
@@ -490,8 +517,7 @@ def opt_propars_fixed_points_sc_convex(
         else:
             error = oldpro - pro
             change = np.sqrt(np.einsum("i,i,i->", weights, error, error))
-        # if log.do_medium:
-        #     log(f"            {irep+1:<4}    {change:.3e}")
+        logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             return propars
         oldpro = pro
@@ -500,7 +526,6 @@ def opt_propars_fixed_points_sc_convex(
         return opt_propars_minimization_fast(
             bs_funcs, rho, propars, points, weights, threshold, density_cutoff
         )
-    # raise RuntimeError("Error: Inner iteration is not converge!")
 
 
 def diis(c_values, r_values, max_history):
@@ -577,31 +602,37 @@ def opt_propars_fixed_points_diis(
     diis_size=8,
 ):
     r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+    Optimize parameters for proatom density functions using direct inversion in an iterative space (DIIS).
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+    diis_size : int
+        The size of DIIS subspace.
 
     Returns
     -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
 
     """
     history_diis = []
@@ -662,35 +693,167 @@ def opt_propars_fixed_points_diis(
     raise RuntimeError("Error: inner iteration is not converge!")
 
 
+def opt_propars_fixed_points_diis_pos(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    density_cutoff,
+    diis_size=8,
+):
+    r"""
+    Optimize parameters for pro-atom density functions using the DIIS method, ensuring that the parameters are
+    non-negative.
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+    diis_size : int
+        The size of DIIS subspace.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    Notes
+    -----
+    The problem of this method is that the matrix `P` is usually singular.
+
+    """
+    history_diis = []
+    history_propars = []
+    start_diis_iter = diis_size + 1
+
+    # if log.do_medium:
+    logger.debug("            Iter.    dRMS      ")
+    logger.debug("            -----    ------    ")
+
+    npar = len(propars)
+    for irep in range(1000):
+        pro_shells, pro, sick, ratio, lnratio = compute_quantities(
+            rho, propars, bs_funcs, density_cutoff
+        )
+
+        integrands = pro_shells * ratio
+        fun_val = np.einsum("ip,p->i", integrands, weights)
+
+        # Build DIIS Residual
+        diis_r = propars - fun_val
+        # Compute drms
+        drms = np.linalg.norm(diis_r)
+
+        # if log.do_medium:
+        logger.debug(f"           {irep:<4}    {drms:.6E}")
+        if drms < threshold:
+            return propars
+
+        # Append trail & residual vectors to lists
+        if irep >= start_diis_iter - diis_size:
+            history_propars.append(fun_val)
+            history_diis.append(diis_r)
+
+        if irep >= start_diis_iter:
+            # Build B matrix
+            propars_prev = history_propars[-diis_size:]
+            diis_prev = history_diis[-diis_size:]
+
+            space_size = len(propars_prev)
+            tmp = np.einsum("ip,jp->ij", diis_prev, diis_prev)
+            P = cvxopt.matrix(tmp)
+            # TODO: P could be singular.
+
+            vec_b = np.zeros((space_size, 1), float)
+            q = cvxopt.matrix(vec_b)
+
+            # Linear inequality constraints
+            tmp_G = np.asarray(propars_prev).T
+            assert tmp_G.shape == (npar, space_size)
+            G = cvxopt.matrix(tmp_G)
+            h = cvxopt.matrix(0.0, (npar, 1))
+
+            # Linear equality constraints
+            A = cvxopt.matrix(1.0, (1, space_size))
+            b = cvxopt.matrix(1.0, (1, 1))
+
+            # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
+            opt_CVX = cvxopt.solvers.qp(
+                P,
+                q,
+                G,
+                h,
+                A,
+                b,
+                initvals=propars,
+                options={"feastol": threshold},
+                # options={"show_progress": log.do_medium, "feastol": threshold},
+            )
+            coeff = opt_CVX["x"]
+            propars = np.einsum("i, ip->p", coeff, np.asarray(propars_prev))
+            if (np.isnan(propars)).any():
+                propars = fun_val
+        else:
+            propars = fun_val
+
+        check_pro_atom_parameters(propars)
+
+    raise RuntimeError("Error: inner iteration is not converge!")
+
+
 def opt_propars_fixed_points_newton(
     bs_funcs, rho, propars, points, weights, threshold, density_cutoff
 ):
     r"""
-    Optimize parameters for proatom density functions using MBIS Lagrange.
-
-    The parameters can be computed analytically in this way. which should give the same results
-    as the L-ISA algorithms.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+    Optimize parameters for pro-atom density functions using Newton method
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
 
     Returns
     -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
 
     """
     logger.debug("            Iter.    Change    ")
@@ -721,9 +884,9 @@ def opt_propars_fixed_points_newton(
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            # check_pro_atom_parameters(
-            #     propars, total_population=float(np.sum(pro)), pro_atom_density=pro
-            # )
+            check_pro_atom_parameters(
+                propars, total_population=float(np.sum(pro)), pro_atom_density=pro
+            )
             return propars
 
         # update propars
@@ -751,6 +914,40 @@ def opt_propars_minimization_fast(
     density_cutoff,
     allow_neg_params=False,
 ):
+    """
+    Optimize parameters for pro-atom density functions using convex optimization method.
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+    allow_neg_params : bool (optional)
+        Whether negative parameters are allowed. The default is `False`.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
     nprim = len(propars)
     if allow_neg_params:
         matrix_constraint_ineq = None
@@ -844,6 +1041,41 @@ def opt_propars_minimization_trust_constr(
     density_cutoff,
     explicit_constr=True,
 ):
+    """
+    Optimize parameters for pro-atom density functions using trust-region method.
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+    explicit_constr : bool (optional)
+        Whether adding an explicit constraint for the atomic population. The default is `False`.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+
+    """
     nprim = len(propars)
     pop = np.einsum("i,i", weights, rho)
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -21,21 +20,18 @@
 """Gaussian Iterative Stockholder Analysis (GISA) partitioning"""
 
 
-import numpy as np
-from scipy.optimize import least_squares
-import quadprog
-import cvxopt
-
-# from cvxopt.solvers import qp
-from .core.iterstock import AbstractISAWPart
-from .core.logging import deflist
-
-# from .core.log import log, biblio
-from .core.basis import BasisFuncHelper
-from .utils import check_pro_atom_parameters
-from .core.cache import just_once
 import logging
 
+import cvxopt
+import numpy as np
+import quadprog
+from scipy.optimize import least_squares
+
+from .core.basis import BasisFuncHelper
+from .core.cache import just_once
+from .core.iterstock import AbstractISAWPart
+from .core.logging import deflist
+from .utils import check_pro_atom_parameters
 
 __all__ = ["GaussianISAWPart"]
 
@@ -135,9 +131,7 @@ class GaussianISAWPart(AbstractISAWPart):
             propars = self.cache.load("propars")
         rgrid = self.get_rgrid(iatom)
         propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        return self.bs_helper.compute_proatom_dens(
-            self.numbers[iatom], propars, rgrid.points, 1
-        )
+        return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
 
     def eval_proatom(self, index, output, grid):
         """Evaluate function on a local grid.
@@ -173,9 +167,9 @@ class GaussianISAWPart(AbstractISAWPart):
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         propars[:] = 1.0
         for iatom in range(self.natom):
-            propars[
-                self._ranges[iatom] : self._ranges[iatom + 1]
-            ] = self.bs_helper.get_initial(self.numbers[iatom])
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = self.bs_helper.get_initial(
+                self.numbers[iatom]
+            )
         self._evaluate_basis_functions()
         return propars
 
@@ -190,9 +184,7 @@ class GaussianISAWPart(AbstractISAWPart):
         spherical_average = spline(points)
 
         # assign as new propars
-        propars = self.cache.load("propars")[
-            self._ranges[iatom] : self._ranges[iatom + 1]
-        ]
+        propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
         bs_funcs = self.cache.load("bs_funcs", iatom)
 
         # use truncated grids if local_grid_radius != np.inf
@@ -245,19 +237,15 @@ class GaussianISAWPart(AbstractISAWPart):
             bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
             bs_funcs[:, :] = np.array(
                 [
-                    self.bs_helper.compute_proshell_dens(
-                        self.numbers[iatom], ishell, 1.0, r
-                    )
+                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
                     for ishell in range(nshell)
                 ]
             )
 
 
-def _constrained_least_squares_quadprog(
-    bs_funcs, rho, propars, points, weights, alphas, threshold
-):
+def _constrained_least_squares_quadprog(bs_funcs, rho, propars, points, weights, alphas, threshold):
     r"""
-    Optimize parameters for proatom density functions.
+    Optimize parameters for proatom density functions using quadratic programming.
 
     .. math::
 
@@ -273,20 +261,34 @@ def _constrained_least_squares_quadprog(
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    alphas : 1D np.ndarray
+        The Gaussian exponential coefficients.
+    threshold : float
+        The convergence threshold of the optimization method.
 
     Returns
     -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
 
     """
 
@@ -313,23 +315,18 @@ def _constrained_least_squares_quadprog(
     pop = np.einsum("i,i", weights, rho)
     vector_constraint[0] = pop
 
-    propars_qp = quadprog.solve_qp(
-        G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1
-    )[0]
+    propars_qp = quadprog.solve_qp(G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1)[0]
     check_pro_atom_parameters(propars_qp, total_population=float(pop))
     return propars_qp
 
 
-def _constrained_least_squares(
-    bs_funcs, rho, propars, points, weights, alphas, threshold
-):
+def _constrained_least_squares(bs_funcs, rho, propars, points, weights, alphas, threshold):
     r"""
-    Optimize parameters for proatom density functions.
+    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
 
     .. math::
 
         N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
 
         G = \frac{1}{2} c^T S c - c^T b
 
@@ -340,20 +337,33 @@ def _constrained_least_squares(
 
     Parameters
     ----------
-    rho:
-        Atomic spherical-average density, i.e.,
-        :math:`\langle \rho_A \rangle(|\vec{r}-\vec{r}_A|)`.
-    propars:
-        Parameters array.
-    rgrid:
-        Radial grid.
-    alphas:
-        Exponential coefficients of Gaussian primitive functions.
-    threshold:
-        Threshold for convergence.
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    alphas : 1D np.ndarray
+        The Gaussian exponential coefficients.
+    threshold : float
+        The convergence threshold of the optimization method.
 
     Returns
     -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
 
     """
 
@@ -361,20 +371,46 @@ def _constrained_least_squares(
         pro = np.sum(x[:, None] * bs_funcs, axis=0)
         return weights * np.abs(pro - rho)
 
-    res = least_squares(
-        _obj_func,
-        x0=propars,
-        bounds=(0, np.inf),
-        # verbose=2 if log.level >= 2 else log.level,
-        gtol=threshold,
-    )
+    res = least_squares(_obj_func, x0=propars, bounds=(0, np.inf), gtol=threshold)
     check_pro_atom_parameters(res.x)
     return res.x
 
 
-def _constrained_least_cvxopt(
-    bs_funcs, rho, propars, points, weights, alphas, threshold
-):
+def _constrained_least_cvxopt(bs_funcs, rho, propars, points, weights, alphas, threshold):
+    """
+    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    alphas : 1D np.ndarray
+        The Gaussian exponential coefficients.
+    threshold : float
+        The convergence threshold of the optimization method.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
     nprim, npt = bs_funcs.shape
 
     S = (
