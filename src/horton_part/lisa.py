@@ -26,6 +26,7 @@ import warnings
 
 import cvxopt
 import numpy as np
+import qpsolvers
 from scipy.linalg import LinAlgWarning, eigh, solve
 from scipy.optimize import SR1, LinearConstraint, minimize
 from scipy.sparse import SparseEfficiencyWarning
@@ -780,36 +781,34 @@ def opt_propars_fixed_points_diis_pos(
             diis_prev = history_diis[-diis_size:]
 
             space_size = len(propars_prev)
-            tmp = np.einsum("ip,jp->ij", diis_prev, diis_prev)
-            P = cvxopt.matrix(tmp)
-            # TODO: P could be singular.
+            P = np.einsum("ip,jp->ij", diis_prev, diis_prev)
+            # Note: P could be singular.
+            P = 0.5 * (P + P.T)
 
-            vec_b = np.zeros((space_size, 1), float)
-            q = cvxopt.matrix(vec_b)
+            q = np.zeros((space_size, 1), float)
 
             # Linear inequality constraints
-            tmp_G = np.asarray(propars_prev).T
-            assert tmp_G.shape == (npar, space_size)
-            G = cvxopt.matrix(tmp_G)
-            h = cvxopt.matrix(0.0, (npar, 1))
+            G = -np.asarray(propars_prev).T
+            assert G.shape == (npar, space_size)
+            h = np.zeros((1, npar))
 
             # Linear equality constraints
-            A = cvxopt.matrix(1.0, (1, space_size))
-            b = cvxopt.matrix(1.0, (1, 1))
+            A = np.ones((1, space_size))
+            b = np.ones((1, 1))
 
             # initial_values = cvxopt.matrix(np.array([1.0] * nprim).reshape((nprim, 1)))
-            opt_CVX = cvxopt.solvers.qp(
+            coeff = qpsolvers.solve_qp(
                 P,
                 q,
                 G,
                 h,
                 A,
                 b,
-                initvals=propars,
-                options={"feastol": threshold},
-                # options={"show_progress": log.do_medium, "feastol": threshold},
+                solver="osqp",
+                eps_rel=threshold,
+                eps_abs=threshold * 10,
+                eps_prim_inf=threshold,
             )
-            coeff = opt_CVX["x"]
             propars = np.einsum("i, ip->p", coeff, np.asarray(propars_prev))
             if (np.isnan(propars)).any():
                 propars = fun_val
