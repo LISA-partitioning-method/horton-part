@@ -32,6 +32,7 @@ dependencies = [
     "scipy<=1.10.1",
     "quadprog==0.1.11",
     "cvxopt==1.3.1",
+    "qpsolvers",
     "qc-grid@git+https://github.com/yingxingcheng/grid",
     "qc-iodata@git+https://github.com/yingxingcheng/iodata",
     "gbasis@git+https://github.com/yingxingcheng/gbasis",
