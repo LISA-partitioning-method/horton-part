@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -26,13 +25,13 @@
 """
 
 import time
-import numpy as np
 
+import numpy as np
 
 __all__ = ["JustOnceClass", "just_once", "Cache"]
 
 
-class JustOnceClass(object):
+class JustOnceClass:
     """Base class for classes with methods that should never be executed twice.
 
     In typically applications, these methods get called many times, but
@@ -53,14 +52,14 @@ class JustOnceClass(object):
     """
 
     def __init__(self):
-        self._done_just_once = set([])
+        self._done_just_once = set()
         self.time_usage = {}
 
     def __clear__(self):
         self.clear()
 
     def clear(self):
-        self._done_just_once = set([])
+        self._done_just_once = set()
 
 
 def just_once(fn):
@@ -93,12 +92,12 @@ def _normalize_alloc(alloc):
 def _normalize_tags(tags):
     """Normalize the tags argument of the CacheItem constructor"""
     if tags is None:
-        return set([])
+        return set()
     else:
         return set(tags)
 
 
-class CacheItem(object):
+class CacheItem:
     """A container for an object stored in a Cache instance"""
 
     def __init__(self, value, tags=None):
@@ -171,7 +170,7 @@ class CacheItem(object):
         return True
 
 
-class NoDefault(object):
+class NoDefault:
     pass
 
 
@@ -188,7 +187,7 @@ def _normalize_key(key):
     return key
 
 
-class Cache(object):
+class Cache:
     """Object that stores previously computed results.
 
     The cache behaves like a dictionary with some extra features that can be
@@ -289,9 +288,7 @@ class Cache(object):
                 "The optional arguments alloc and default can not be used at the same time."
             )
         if tags is not None and alloc is None:
-            raise TypeError(
-                "The tags argument is only allowed when the alloc argument is present."
-            )
+            raise TypeError("The tags argument is only allowed when the alloc argument is present.")
         if len(kwargs) > 0:
             raise TypeError("Unknown optional arguments: %s" % list(kwargs.keys()))
 

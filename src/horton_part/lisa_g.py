@@ -1,5 +1,5 @@
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -18,7 +18,18 @@
 #
 # --
 """
-Module for Global Linear Iterative Stockholder Analysis (LISA-G) partitioning scheme.
+Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning scheme.
+
+Optimization Problem Schemes
+============================
+
+- Convex optimization (LISA-101)
+- Trust-region methods with constraints
+    - Implicit constraints (LSIA-301)
+    - Explicit constraints (LSIA-302)
+- Fixed-point methods
+    - Alternating method (LISA-201)
+    - DIIS (LISA-202)
 """
 
 import logging
@@ -66,12 +77,12 @@ logger = logging.getLogger(__name__)
 #         new_propars = self._update_propars_lisa_101(allow_neg_pars=True)
 #     elif self._solver in [2, 201]:
 #         new_propars = self._update_propars_lisa_201()
-#     elif self._solver in [202, 206]:
+#     elif self._solver in [202]:
 #         warnings.warn(
-#             "The slolver 206 with allowing negative parameters problematic, "
+#             "The slolver 202 with allowing negative parameters problematic, "
 #             "because the negative density could be easily found."
 #         )
-#         new_propars = self._update_propars_lisa_206(self.diis_size)
+#         new_propars = self._update_propars_lisa_202(self.diis_size)
 #     elif self._solver in [3, 301]:
 #         new_propars = self._update_propars_lisa_301(
 #             gtol=self._threshold, allow_neg_pars=False
@@ -578,7 +589,7 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
 
 
 class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
-    name = "lisa_g_206"
+    name = "lisa_g_202"
     allow_neg_pars = True
     diis_size = 8
 

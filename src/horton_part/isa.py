@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -21,13 +20,14 @@
 """Gaussian Iterative Stockholder Analysis (GISA) partitioning"""
 
 
+import logging
+
 import numpy as np
+
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
 
 # from .core.log import log, biblio
-
-import logging
 
 
 __all__ = ["ISAWPart"]
@@ -109,8 +109,6 @@ class ISAWPart(AbstractISAWPart):
         propars[self._ranges[index] : self._ranges[index + 1]] = spherical_average
 
         # compute the new charge
-        pseudo_population = atgrid.rgrid.integrate(
-            4 * np.pi * r**2 * spherical_average
-        )
+        pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[index] = self.pseudo_numbers[index] - pseudo_population

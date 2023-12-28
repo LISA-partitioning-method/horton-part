@@ -2,7 +2,8 @@ Modules;Description
 :func:`Becke<horton_part.becke>`; Becke partitioning method
 :func:`Hirshfeld<horton_part.hirshfeld>`; Hirshfeld partitioning method
 :func:`Hirshfeld-I<horton_part.hirshfeld_i>`; Iterative Hirshfeld partitioning method
-:func:`MBIS<horton_part.mbis>`; Minimal Basis Iterative Stockholder method
-:func:`GISA<horton_part.gisa>`; Gaussian iterative stockholder approach
-:func:`L-ISA<horton_part.lisa>`; Linear approximation of the ISA method
-:func:`GLISA<horton_part.lisa_g>`; Global linear approximation of the ISA method
+:func:`ISA<horton_part.isa>`; Iterative Stockholder analysis (ISA) method
+:func:`MBIS<horton_part.mbis>`; Minimal Basis Iterative Stockholder (MBIS) method
+:func:`GISA<horton_part.gisa>`; Gaussian iterative stockholder approach (GISA)
+:func:`L-ISA<horton_part.lisa>`; Linear approximation of the ISA method (L-ISA)
+:func:`GL-ISA<horton_part.lisa_g>`; Global linear approximation of the ISA method (GL-ISA)

@@ -1,5 +1,5 @@
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -76,28 +76,13 @@ class LinearISAWPart(GaussianISAWPart):
     Optimization Problem Schemes
     ============================
 
-    Local Optimization Problem
-    --------------------------
-
     - Convex optimization (LISA-101)
     - Trust-region methods with constraints
         - Implicit constraints (LSIA-301)
         - Explicit constraints (LSIA-302)
     - Fixed-point methods
         - Alternating/self-consistent method (LISA-201)
-        - DIIS (LISA-202, LISA-206)
-        - Newton method (LISA-203)
-
-    Global Optimization Problem
-    ---------------------------
-
-    - Convex optimization (LISA-101)
-    - Trust-region methods with constraints
-        - Implicit constraints (LSIA-301)
-        - Explicit constraints (LSIA-302)
-    - Fixed-point methods
-        - Alternating method (LISA-201)
-        - DIIS (LISA-202, LISA-206)
+        - DIIS (LISA-202)
         - Newton method (LISA-203)
 
 
@@ -126,7 +111,7 @@ class LinearISAWPart(GaussianISAWPart):
         maxiter=500,
         inner_threshold=1e-8,
         local_grid_radius=np.inf,
-        solver=1,
+        solver_id=1,
         diis_size=8,
         basis_func_type="gauss",
         basis_func_json_file=None,
@@ -163,7 +148,7 @@ class LinearISAWPart(GaussianISAWPart):
             maxiter,
             inner_threshold,
             local_grid_radius,
-            solver,
+            solver_id,
         )
 
         if basis_func_json_file is not None:
@@ -185,7 +170,7 @@ class LinearISAWPart(GaussianISAWPart):
             ("Using global ISA", False),
         ]
 
-        if self._solver in [104, 202, 203, 204, 206]:
+        if self._solver_id in [104, 202, 203, 204]:
             allow_negative_params = True
         else:
             allow_negative_params = False
@@ -194,13 +179,13 @@ class LinearISAWPart(GaussianISAWPart):
             [
                 ("Maximum outer iterations", self._maxiter),
                 ("lmax", self._lmax),
-                ("Solver", self._solver),
+                ("Solver", self._solver_id),
                 ("Basis function type", self.func_type),
                 ("Local grid radius", self._local_grid_radius),
                 ("Allow negative parameters", allow_negative_params),
             ]
         )
-        if self._solver in [202, 206]:
+        if self._solver_id in [202]:
             info_list.append(("DIIS size", self.diis_size))
         deflist(logger, info_list)
         # biblio.cite(
@@ -218,28 +203,28 @@ class LinearISAWPart(GaussianISAWPart):
         threshold,
         density_cutoff=1e-15,
     ):
-        if self._solver in [1, 101]:
+        if self._solver_id in [1, 101]:
             return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        if self._solver == 104:
+        if self._solver_id == 104:
             # no robust: HF, SiH4
             return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff, True
             )
-        elif self._solver in [2, 201]:
+        elif self._solver_id in [2, 201]:
             return opt_propars_fixed_points_sc(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 20101:
+        elif self._solver_id == 20101:
             return opt_propars_fixed_points_sc_one_step(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 2011:
+        elif self._solver_id == 2011:
             return opt_propars_fixed_points_sc_convex(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver in [202, 206]:
+        elif self._solver_id in [202]:
             # for large diis_size, it is also not robust
             return opt_propars_fixed_points_diis(
                 bs_funcs,
@@ -251,12 +236,12 @@ class LinearISAWPart(GaussianISAWPart):
                 density_cutoff,
                 diis_size=self.diis_size,
             )
-        elif self._solver == 203:
+        elif self._solver_id == 203:
             # not robust
             return opt_propars_fixed_points_newton(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 204:
+        elif self._solver_id == 204:
             return opt_propars_fixed_points_diis_pos(
                 bs_funcs,
                 rho,
@@ -267,7 +252,7 @@ class LinearISAWPart(GaussianISAWPart):
                 density_cutoff,
                 diis_size=self.diis_size,
             )
-        elif self._solver in [3, 301]:
+        elif self._solver_id in [3, 301]:
             # same as LISA-102 but with constraint implicitly, slower than 302
             return opt_propars_minimization_trust_constr(
                 bs_funcs,
@@ -279,7 +264,7 @@ class LinearISAWPart(GaussianISAWPart):
                 density_cutoff,
                 explicit_constr=False,
             )
-        elif self._solver == 302:
+        elif self._solver_id == 302:
             # use `trust_constr` in SciPy with constraint explicitly
             return opt_propars_minimization_trust_constr(
                 bs_funcs,
@@ -322,7 +307,7 @@ class LisaNewtonWPart(_LisaOptimizationPart):
 
 class LisaDIISWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=206, **kwargs)
+        super().__init__(*args, solver_id=202, **kwargs)
 
 
 class LisaTrustConstraintImpWPart(_LisaOptimizationPart):

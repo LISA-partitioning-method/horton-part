@@ -1,5 +1,26 @@
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
+#
+# This file is part of HORTON-PART
+#
+# HORTON-PART is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+#
+# HORTON-PART is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <http://www.gnu.org/licenses/>
+#
+# --
 import argparse
+import logging
 import sys
+
 import numpy as np
 from gbasis.evals.eval import evaluate_basis
 from gbasis.evals.eval_deriv import evaluate_deriv_basis
@@ -9,8 +30,6 @@ from grid.molgrid import MolGrid
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 from iodata import load_one
-import logging
-
 
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
@@ -85,9 +104,7 @@ def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids):
     becke._radii[54] = 3.5
     oned = GaussChebyshev(nrad)
     rgrid = BeckeRTransform(1e-4, 1.5).transform_1d_grid(oned)
-    grid = MolGrid.from_size(
-        atnums, atcoords, rgrid, nang, becke, store=store_atgrids, rotate=0
-    )
+    grid = MolGrid.from_size(atnums, atcoords, rgrid, nang, becke, store=store_atgrids, rotate=0)
     assert np.isfinite(grid.points).all()
     assert np.isfinite(grid.weights).all()
     assert (grid.weights >= 0).all()
@@ -121,8 +138,7 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
     if one_rdm is None:
         if iodata.mo is None:
             raise ValueError(
-                "The input file lacks wavefunction data with which "
-                "the density can be computed."
+                "The input file lacks wavefunction data with which " "the density can be computed."
             )
         coeffs, occs = iodata.mo.coeffs, iodata.mo.occs
         one_rdm = np.dot(coeffs * occs, coeffs.T)
@@ -156,9 +172,7 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
             logger.info("  basis_gradient")
             basis_gradient_grid = np.array(
                 [
-                    evaluate_deriv_basis(
-                        basis, points[istart:iend], orders, coord_type=coord_types
-                    )
+                    evaluate_deriv_basis(basis, points[istart:iend], orders, coord_type=coord_types)
                     for orders in np.identity(3, dtype=int)
                 ]
             )
@@ -174,9 +188,7 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
             )
         if orbitals:
             logger.info("  orbitals")
-            result["orbitals"][istart:iend] = np.einsum(
-                "bo,bp->po", iodata.mo.coeffs, basis_grid
-            )
+            result["orbitals"][istart:iend] = np.einsum("bo,bp->po", iodata.mo.coeffs, basis_grid)
             if gradient:
                 logger.info("  orbitals gradient")
                 result["orbitals_gradient"][istart:iend] = np.einsum(
@@ -306,8 +318,7 @@ def parse_args(args):
         "--chunk-size",
         type=int,
         default=10000,
-        help="Number points on which the density is computed in one pass. "
-        "[default=%(default)s]",
+        help="Number points on which the density is computed in one pass. " "[default=%(default)s]",
     )
     # parser.add_argument(
     #     "-s",

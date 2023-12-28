@@ -1,16 +1,14 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -19,11 +17,13 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-import numpy as np
-import pytest
 import json
 import os
 import tempfile
+
+import numpy as np
+import pytest
+
 from horton_part.core.basis import BasisFuncHelper, evaluate_function, load_params
 
 
@@ -45,9 +45,7 @@ def test_load_params():
     }
 
     # Create a temporary file
-    with tempfile.NamedTemporaryFile(
-        mode="w+", delete=False, suffix=".json"
-    ) as tmpfile:
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tmpfile:
         json.dump(sample_data, tmpfile)
         tmpfile_path = tmpfile.name  # Store the file path to use it later
 
@@ -143,9 +141,7 @@ def test_BasisFuncHelper_from_function_type_gauss(gauss_helper):
     assert gauss_helper.get_initial(1) == pytest.approx(
         [0.04588955, 0.26113177, 0.47966863, 0.21331515]
     )
-    assert gauss_helper.get_order(1) == pytest.approx(
-        np.ones(gauss_helper.get_nshell(1)) * 2
-    )
+    assert gauss_helper.get_order(1) == pytest.approx(np.ones(gauss_helper.get_nshell(1)) * 2)
 
     assert gauss_helper.get_exponent(6) == pytest.approx(
         [148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]

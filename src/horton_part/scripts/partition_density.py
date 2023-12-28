@@ -1,11 +1,32 @@
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
+#
+# This file is part of HORTON-PART
+#
+# HORTON-PART is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+#
+# HORTON-PART is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <http://www.gnu.org/licenses/>
+#
+# --
 import argparse
-import sys
-import numpy as np
-from grid.molgrid import MolGrid
-from grid.basegrid import OneDGrid
-from grid.atomgrid import AtomGrid
-from horton_part import wpart_schemes
 import logging
+import sys
+
+import numpy as np
+from grid.atomgrid import AtomGrid
+from grid.basegrid import OneDGrid
+from grid.molgrid import MolGrid
+
+from horton_part import wpart_schemes
 
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
@@ -51,9 +72,7 @@ def main():
     if log_level > logging.DEBUG:
         logging.basicConfig(level=log_level, format="%(levelname)s:    %(message)s")
     else:
-        logging.basicConfig(
-            level=log_level, format="%(name)s - %(levelname)s:    %(message)s"
-        )
+        logging.basicConfig(level=log_level, format="%(name)s - %(levelname)s:    %(message)s")
 
     logger.info("*" * width)
     logger.info(f"Reade grid and density data from {args.filename}")
@@ -78,11 +97,11 @@ def main():
     }
 
     if args.type in ["gisa", "lisa", "lisa_g"]:
-        kwargs["solver"] = args.solver
+        kwargs["solver_id"] = args.solver_id
         if args.type in ["lisa"]:
             kwargs["basis_func_type"] = args.func_type
             kwargs["basis_func_json_file"] = args.func_file
-            if args.solver > 200:
+            if args.solver_id > 200:
                 kwargs["diis_size"] = args.diis_size
 
     part = wpart_schemes(args.type)(**kwargs)
@@ -132,7 +151,7 @@ def main():
     part_data["lmax"] = args.lmax
     part_data["maxiter"] = args.maxiter
     part_data["threshold"] = args.threshold
-    part_data["solver"] = args.solver
+    part_data["solver_id"] = args.solver_id
     part_data["charges"] = part.cache["charges"]
 
     if "lisa_g" not in args.type:
@@ -140,9 +159,7 @@ def main():
         part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
         part_data["time_update_promolecule"] = part._cache["time_update_promolecule"]
         part_data["time_compute_at_weights"] = part._cache["time_compute_at_weights"]
-        part_data["time_update_propars_atoms"] = part._cache[
-            "time_update_propars_atoms"
-        ]
+        part_data["time_update_propars_atoms"] = part._cache["time_update_propars_atoms"]
         part_data["niter"] = part.cache["niter"]
         part_data["history_charges"] = part.cache["history_charges"]
         part_data["history_propars"] = part.cache["history_propars"]
@@ -218,7 +235,7 @@ def parse_args():
         help="The maximum angular momentum in multipole expansions. [default=%(default)s]",
     )
     parser.add_argument(
-        "--solver",
+        "--solver_id",
         type=int,
         default=2,
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",

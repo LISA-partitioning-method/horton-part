@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -21,16 +20,16 @@
 """Density-based partitioning (fuzzy atoms-in-molecules) package"""
 
 
-from .core import *
 from .becke import *
+from .core import *
+from .gisa import *
 from .hirshfeld import *
 from .hirshfeld_i import *
-from .mbis import *
-from .mulliken import *
 from .isa import *
-from .gisa import *
 from .lisa import *
 from .lisa_g import *
+from .mbis import *
+from .mulliken import *
 from .utils import *
 
 try:

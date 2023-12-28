@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -22,7 +21,6 @@
 
 
 import numpy as np
-
 
 __all__ = ["partition_mulliken", "get_mulliken_operators"]
 

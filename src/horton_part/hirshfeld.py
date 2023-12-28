@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -22,8 +21,8 @@
 import logging
 
 from .core.cache import just_once
-from .core.stockholder import AbstractStockholderWPart
 from .core.logging import deflist
+from .core.stockholder import AbstractStockholderWPart
 
 # from .core.log import log, biblio
 
@@ -49,9 +48,7 @@ def check_proatomdb(numbers, pseudo_numbers, proatomdb):
 
 def do_dispersion(part):
     if part.lmax < 3:
-        logger.warning(
-            "Skip computing dispersion coefficients because lmax=%i<3" % part.lmax
-        )
+        logger.warning("Skip computing dispersion coefficients because lmax=%i<3" % part.lmax)
         # biblio.cite(
         #     "tkatchenko2009",
         #     "the method to evaluate atoms-in-molecules C6 parameters",
@@ -107,9 +104,7 @@ def do_dispersion(part):
     }
 
     volumes, new_volumes = part._cache.load("volumes", alloc=part.natom, tags="o")
-    volume_ratios, new_volume_ratios = part._cache.load(
-        "volume_ratios", alloc=part.natom, tags="o"
-    )
+    volume_ratios, new_volume_ratios = part._cache.load("volume_ratios", alloc=part.natom, tags="o")
     c6s, new_c6s = part._cache.load("c6s", alloc=part.natom, tags="o")
 
     if new_volumes or new_volume_ratios or new_c6s:

@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -23,14 +22,13 @@
 import os
 import shutil
 import tempfile
-import numpy as np
-
 from contextlib import contextmanager
 
-from horton_part.core.proatomdb import ProAtomRecord
-from grid import PowerRTransform, UniformInteger
+import numpy as np
 import pytest
+from grid import PowerRTransform, UniformInteger
 
+from horton_part.core.proatomdb import ProAtomRecord
 
 __all__ = [
     "get_fn",
@@ -44,7 +42,7 @@ __all__ = [
 
 def get_fn(fn):
     cur_pth = os.path.split(__file__)[0]
-    return "{0}/cached/{1}".format(cur_pth, fn)
+    return f"{cur_pth}/cached/{fn}"
 
 
 def load_molecule_npz(filename, spin_dens=False):
@@ -71,9 +69,7 @@ def get_atoms_npz(numbers, max_cation, max_anion, rtf_type, level):
             if level is None:
                 filename = get_fn("atom_Z%.2i_N%.2i_%s.npz" % (number, nelec, rtf_type))
             else:
-                filename = get_fn(
-                    "atom_%s_Z%.2i_N%.2i_%s.npz" % (level, number, nelec, rtf_type)
-                )
+                filename = get_fn("atom_%s_Z%.2i_N%.2i_%s.npz" % (level, number, nelec, rtf_type))
             if os.path.isfile(filename):
                 filepaths.append(filename)
     return filepaths

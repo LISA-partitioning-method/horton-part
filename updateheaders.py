@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -21,9 +20,9 @@
 # --
 
 
-from glob import glob
-from fnmatch import fnmatch
 import os
+from fnmatch import fnmatch
+from glob import glob
 
 
 def strip_header(lines, closing):
@@ -57,7 +56,7 @@ def fix_python(fn, lines, header_lines):
     for hline in header_lines[::-1]:
         lines.insert(0, ("# " + hline).strip() + "\n")
     # add a source code encoding line
-    lines.insert(0, "# -*- coding: utf-8 -*-\n")
+    # lines.insert(0, "# -*- coding: utf-8 -*-\n")
     if do_shebang:
         lines.insert(0, "#!/usr/bin/env python\n")
 
@@ -97,7 +96,9 @@ def iter_subdirs(root):
 
 
 def main():
-    source_dirs = [".", "doc", "data"] + list(iter_subdirs("src/horton_part"))
+    source_dirs = (
+        [".", "doc", "data"] + list(iter_subdirs("src/horton_part")) + list(iter_subdirs("tests"))
+    )
 
     fixers = [
         ("*.py", fix_python),

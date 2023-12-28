@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -21,13 +20,14 @@
 """Iterative Hirshfeld (HI) partitioning"""
 
 
-import numpy as np
 import logging
 
+import numpy as np
+
 from .core.cache import just_once
-from .hirshfeld import check_proatomdb, do_dispersion
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
+from .hirshfeld import check_proatomdb, do_dispersion
 
 # from .core.log import log, biblio
 
@@ -130,13 +130,9 @@ class HirshfeldIWPart(AbstractISAWPart):
         if pseudo_pop == 1 or x == 0.0:
             return self.proatomdb.get_rho(number, {icharge: 1 - x}, do_deriv=True)
         elif pseudo_pop > 1:
-            return self.proatomdb.get_rho(
-                number, {icharge: 1 - x, icharge + 1: x}, do_deriv=True
-            )
+            return self.proatomdb.get_rho(number, {icharge: 1 - x, icharge + 1: x}, do_deriv=True)
         elif pseudo_pop <= 0:
-            raise ValueError(
-                "Requesting a pro-atom with a negative (pseudo) population"
-            )
+            raise ValueError("Requesting a pro-atom with a negative (pseudo) population")
 
     def get_somefn(self, index, spline, key, label, grid):
         key = key + (index, id(grid))
@@ -148,9 +144,7 @@ class HirshfeldIWPart(AbstractISAWPart):
     def get_isolated(self, index, charge, grid):
         number = self.numbers[index]
         spline = self.proatomdb.get_spline(number, charge)
-        return self.get_somefn(
-            index, spline, ("isolated", charge), "isolated q=%+i" % charge, grid
-        )
+        return self.get_somefn(index, spline, ("isolated", charge), "isolated q=%+i" % charge, grid)
 
     def eval_proatom(self, index, output, grid):
         # Greedy version of eval_proatom
@@ -161,9 +155,7 @@ class HirshfeldIWPart(AbstractISAWPart):
         if pseudo_pop > 1 and x != 0.0:
             output += self.get_isolated(index, icharge + 1, grid) * x
         elif pseudo_pop <= 0:
-            raise ValueError(
-                "Requesting a pro-atom with a negative (pseudo) population"
-            )
+            raise ValueError("Requesting a pro-atom with a negative (pseudo) population")
         output += 1e-100
 
     def _init_propars(self):

@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-# HORTON: Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2017 The HORTON Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
-# This file is part of HORTON.
+# This file is part of HORTON-PART
 #
-# HORTON is free software; you can redistribute it and/or
+# HORTON-PART is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 3
 # of the License, or (at your option) any later version.
 #
-# HORTON is distributed in the hope that it will be useful,
+# HORTON-PART is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -22,26 +21,23 @@
 
 import numpy as np
 import pytest
+from grid import BeckeWeights, ExpRTransform, MolGrid, UniformInteger
 
-from grid import ExpRTransform, BeckeWeights, MolGrid, UniformInteger
 from horton_part.core.proatomdb import ProAtomDB
 from horton_part.utils import wpart_schemes
+
 from .common import (
-    load_molecule_npz,
-    load_atoms_npz,
     check_names,
     check_proatom_splines,
+    load_atoms_npz,
+    load_molecule_npz,
     reorder_rows,
 )
 
 
-def check_water_hf_sto3g(
-    scheme, expecting, needs_padb=True, check_spline=True, **kwargs
-):
+def check_water_hf_sto3g(scheme, expecting, needs_padb=True, check_spline=True, **kwargs):
     if needs_padb:
-        records = load_atoms_npz(
-            numbers=[8, 6, 1], max_cation=1, max_anion=-1, level="hf_sto3g"
-        )
+        records = load_atoms_npz(numbers=[8, 6, 1], max_cation=1, max_anion=-1, level="hf_sto3g")
         kwargs["proatomdb"] = ProAtomDB(records)
     # load molecule data
     coords, nums, pseudo_nums, dens, points = load_molecule_npz(
@@ -72,16 +68,12 @@ def check_water_hf_sto3g(
 
 
 def test_hirshfeld_water_hf_sto3g_local():
-    expecting = np.array(
-        [-0.246171541212, 0.123092011074, 0.123079530138]
-    )  # from HiPart
+    expecting = np.array([-0.246171541212, 0.123092011074, 0.123079530138])  # from HiPart
     check_water_hf_sto3g("h", expecting, local=True)
 
 
 def test_hirshfeld_water_hf_sto3g_global():
-    expecting = np.array(
-        [-0.246171541212, 0.123092011074, 0.123079530138]
-    )  # from HiPart
+    expecting = np.array([-0.246171541212, 0.123092011074, 0.123079530138])  # from HiPart
     check_water_hf_sto3g("h", expecting, local=False)
 
 
@@ -96,20 +88,14 @@ def test_hirshfeld_i_water_hf_sto3g_global():
 
 
 def test_is_water_hf_sto3g():
-    expecting = np.array(
-        [-0.490017586929, 0.245018706885, 0.244998880045]
-    )  # From HiPart
+    expecting = np.array([-0.490017586929, 0.245018706885, 0.244998880045])  # From HiPart
     check_water_hf_sto3g("is", expecting, needs_padb=False)
 
 
 def test_mbis_water_hf_sto3g():
     expecting = np.array([-0.61891067, 0.3095756, 0.30932584])
-    wpart = check_water_hf_sto3g(
-        "mbis", expecting, needs_padb=False, check_spline=False
-    )
-    assert wpart["charges"] == pytest.approx(
-        wpart["valence_charges"] + wpart["core_charges"]
-    )
+    wpart = check_water_hf_sto3g("mbis", expecting, needs_padb=False, check_spline=False)
+    assert wpart["charges"] == pytest.approx(wpart["valence_charges"] + wpart["core_charges"])
     assert (wpart["core_charges"] > 0).all()
     assert (wpart["valence_charges"] < 0).all()
     assert (wpart["valence_widths"] > 0).all()
@@ -117,9 +103,7 @@ def test_mbis_water_hf_sto3g():
 
 def check_msa_hf_lan(scheme, expecting, needs_padb=True, **kwargs):
     if needs_padb:
-        records = load_atoms_npz(
-            numbers=[14, 8, 1], max_cation=4, max_anion=-2, level="hf_lan"
-        )
+        records = load_atoms_npz(numbers=[14, 8, 1], max_cation=4, max_anion=-2, level="hf_lan")
         kwargs["proatomdb"] = ProAtomDB(records)
     # load molecule data
     coords, nums, pseudo_nums, dens, points = load_molecule_npz(

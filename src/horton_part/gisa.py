@@ -1,5 +1,5 @@
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -56,7 +56,7 @@ class GaussianISAWPart(AbstractISAWPart):
         maxiter=500,
         inner_threshold=1e-8,
         local_grid_radius=np.inf,
-        solver=1,
+        solver_id=1,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -71,11 +71,10 @@ class GaussianISAWPart(AbstractISAWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self._solver = solver
+        self._solver_id = solver_id
         self.bs_helper = BasisFuncHelper.from_function_type("gauss")
 
-        AbstractISAWPart.__init__(
-            self,
+        super().__init__(
             coordinates,
             numbers,
             pseudo_numbers,
@@ -102,7 +101,7 @@ class GaussianISAWPart(AbstractISAWPart):
                 ),
                 ("Maximum iterations", self._maxiter),
                 ("lmax", self._lmax),
-                ("Solver", self._solver),
+                ("Solver", self._solver_id),
             ],
         )
         # biblio.cite(
@@ -213,15 +212,15 @@ class GaussianISAWPart(AbstractISAWPart):
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
     def _opt_propars(self, bs_funcs, rho, propars, points, weights, alphas, threshold):
-        if self._solver == 1:
+        if self._solver_id == 1:
             return _constrained_least_squares_quadprog(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver == 2:
+        elif self._solver_id == 2:
             return _constrained_least_squares(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver == 3:
+        elif self._solver_id == 3:
             return _constrained_least_cvxopt(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )

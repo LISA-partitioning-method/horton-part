@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-# HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
-# Copyright (C) 2011-2023 The HORTON-PART Development Team
+# HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2023-2024 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -21,14 +20,13 @@
 """Minimal Basis Iterative Stockholder (MBIS) partitioning"""
 
 
-import numpy as np
 import logging
+
+import numpy as np
 
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
-
 from .utils import check_pro_atom_parameters
-
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
 
@@ -113,7 +111,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
 
 
 class MBISWPart(AbstractISAWPart):
-    """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
+    """Minimal Basis Iterative Stockholder (MBIS)"""
 
     name = "mbis"
 
@@ -203,9 +201,9 @@ class MBISWPart(AbstractISAWPart):
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         for iatom in range(self.natom):
-            propars[
-                self._ranges[iatom] : self._ranges[iatom + 1]
-            ] = _get_initial_mbis_propars(self.numbers[iatom])
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = _get_initial_mbis_propars(
+                self.numbers[iatom]
+            )
         return propars
 
     def _update_propars_atom(self, iatom):
@@ -220,9 +218,7 @@ class MBISWPart(AbstractISAWPart):
         # spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
 
         # assign as new propars
-        my_propars = self.cache.load("propars")[
-            self._ranges[iatom] : self._ranges[iatom + 1]
-        ]
+        my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
         my_propars[:] = _opt_mbis_propars(
             spherical_average, my_propars.copy(), rgrid, self._inner_threshold
         )
