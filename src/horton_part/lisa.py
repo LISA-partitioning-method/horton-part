@@ -280,44 +280,44 @@ class LinearISAWPart(GaussianISAWPart):
 
 
 class _LisaOptimizationPart(LinearISAWPart):
-    def __init__(self, *args, solver_id, **kwargs):
-        kwargs["solver"] = solver_id
+    def __init__(self, *args, _solver_id, **kwargs):
+        kwargs["solver_id"] = _solver_id
         super().__init__(*args, **kwargs)
 
 
 class LisaConvexOptWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=101, **kwargs)
+        super().__init__(*args, _solver_id=101, **kwargs)
 
 
 class LisaConvexOptNWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=104, **kwargs)
+        super().__init__(*args, _solver_id=104, **kwargs)
 
 
 class LisaSelfConsistentWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=201, **kwargs)
+        super().__init__(*args, _solver_id=201, **kwargs)
 
 
 class LisaNewtonWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=203, **kwargs)
+        super().__init__(*args, _solver_id=203, **kwargs)
 
 
 class LisaDIISWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=202, **kwargs)
+        super().__init__(*args, _solver_id=202, **kwargs)
 
 
 class LisaTrustConstraintImpWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=301, **kwargs)
+        super().__init__(*args, _solver_id=301, **kwargs)
 
 
 class LisaTrustConstraintExpWPart(_LisaOptimizationPart):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, solver_id=302, **kwargs)
+        super().__init__(*args, _solver_id=302, **kwargs)
 
 
 def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):

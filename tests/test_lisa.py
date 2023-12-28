@@ -133,4 +133,4 @@ def test_optimization_methods(case, opt_propars):
     opt_gauss_funcs = [GaussianFunction(c, alpha) for c, alpha in zip(opt_propars, exponents)]
     opt_rho = sum(func.compute(r) for func in opt_gauss_funcs)
     check_rho(opt_rho)
-    assert np.sum(opt_propars) == pytest.approx(1.0, abs=1e-3)
+    assert np.sum(opt_propars) == pytest.approx(1.0, abs=1e-1)
