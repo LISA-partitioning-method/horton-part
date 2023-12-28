@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -20,16 +19,13 @@
 # --
 """Iterative Stockholder Analysis (ISA) partitioning"""
 
-
-from __future__ import print_function
+import logging
+import time
 
 import numpy as np
-import logging
 
 from .cache import just_once
 from .stockholder import AbstractStockholderWPart
-import time
-
 
 __all__ = ["AbstractISAWPart"]
 
@@ -73,9 +69,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
 
         """
         self._threshold = threshold
-        self._inner_threshold = (
-            inner_threshold if inner_threshold < threshold else threshold
-        )
+        self._inner_threshold = inner_threshold if inner_threshold < threshold else threshold
         self._maxiter = maxiter
         self._local_grid_radius = local_grid_radius
         AbstractStockholderWPart.__init__(

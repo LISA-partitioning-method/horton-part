@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON: Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2017 The HORTON Development Team
 #
@@ -21,7 +20,6 @@
 
 
 import numpy as np
-
 from numpy.testing import assert_almost_equal, assert_equal
 
 from horton_part.mulliken import get_mulliken_operators
@@ -119,9 +117,7 @@ def test_mulliken_operators_water_sto3g():
     for operator in operators:
         assert_equal(operator, operator.T)
     # compute Mulliken charges
-    populations = np.array(
-        [np.einsum("ab,ba", operator, dm_full) for operator in operators]
-    )
+    populations = np.array([np.einsum("ab,ba", operator, dm_full) for operator in operators])
     charges = numbers - populations
     # check Mulliken charges
     assert_almost_equal(charges.sum(), 0.0, decimal=6)

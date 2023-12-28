@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -21,16 +20,14 @@
 """Base classes for (atoms-in-molecules) partitioning algorithms"""
 
 
-import numpy as np
-
-from .cache import JustOnceClass, just_once, Cache
-from .logging import deflist
-from ..utils import typecheck_geo
-
-# from .log import log
 import logging
+
+import numpy as np
 from grid import AtomGrid
 
+from ..utils import typecheck_geo
+from .cache import Cache, JustOnceClass, just_once
+from .logging import deflist
 
 __all__ = ["Part", "WPart"]
 
@@ -39,42 +36,33 @@ logger = logging.getLogger(__name__)
 
 class Part(JustOnceClass):
     name = None
-    # linear = False  # whether the populations are linear in the density matrix.
 
-    def __init__(
-        self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax
-    ):
+    def __init__(self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax):
         """
-        **Arguments:**
-
+        Parameters
+        ----------
         coordinates
              An array (N, 3) with centers for the atom-centered grids.
-
-        numbers
+        numbers : 1D np.ndarray
              An array (N,) with atomic numbers.
-
-        pseudo_numbers
+        pseudo_numbers : 1D np.ndarray
              An array (N,) with effective charges. When set to None, this
              defaults to``numbers.astype(float)``.
-
-        grid
-             The integration grid
-
-        moldens
+        grid : Grid
+             A Molecular integration grid. This must be a BeckeMolGrid
+             instance with mode=='keep' or mode=='only'.
+        moldens : 1D np.ndarray
              The spin-summed electron density on the grid.
-
-        spindens
-             The spin difference density on the grid. (Can be None)
-
-        local
-             Whether or not to use local (non-periodic) subgrids for atomic
-             integrals.
-
-        lmax
+        spindens : 1D np.ndarray or None
+             The spin difference density on the grid.
+        local : bool
+             If ``True``: use the proper atomic grid for each AIM integral.
+             If ``False``: use the entire molecular grid for each AIM integral.
+        lmax : int
              The maximum angular momentum in multipole expansions.
         """
         # Init base class
-        JustOnceClass.__init__(self)
+        super().__init__()
 
         # Some type checking for first three arguments
         natom, coordinates, numbers, pseudo_numbers = typecheck_geo(
@@ -171,12 +159,52 @@ class Part(JustOnceClass):
             return self._subgrids[index]
 
     def get_moldens(self, index=None, output=None):
+        """
+        Retrieves the molecular electron density (moldens) on the atomic grid.
+
+        This method converts the molecular electron density to the atomic grid specified
+        by the index. If an output array is provided, the result is stored in that array.
+
+        Parameters
+        ----------
+        index : int or None, optional
+            The index of the atom for which the electron density is required.
+            If None, electron density for all atoms is considered. Default is None.
+        output : np.ndarray or None, optional
+            An optional array to store the resulting electron density.
+            If provided, the result is saved in this array. Default is None.
+
+        Returns
+        -------
+        np.ndarray
+            The molecular electron density on the atomic grid.
+        """
         result = self.to_atomic_grid(index, self._moldens)
         if output is not None:
             output[:] = result
         return result
 
     def get_spindens(self, index=None, output=None):
+        """
+        Retrieves the spin density (spindens) on the atomic grid.
+
+        This method converts the spin density to the atomic grid specified by the index.
+        If an output array is provided, the result is stored in that array.
+
+        Parameters
+        ----------
+        index : int or None, optional
+            The index of the atom for which the spin density is required.
+            If None, spin density for all atoms is considered. Default is None.
+        output : np.ndarray or None, optional
+            An optional array to store the resulting spin density.
+            If provided, the result is saved in this array. Default is None.
+
+        Returns
+        -------
+        np.ndarray
+            The spin density on the atomic grid.
+        """
         result = self.to_atomic_grid(index, self._spindens)
         if output is not None:
             output[:] = result
@@ -192,19 +220,19 @@ class Part(JustOnceClass):
         raise NotImplementedError
 
     def to_atomic_grid(self, index, data):
+        """Load atomic contribution of molecular properties."""
         raise NotImplementedError
 
     def compute_pseudo_population(self, index):
+        """Compute pseudo population"""
         grid = self.get_grid(index)
         dens = self.get_moldens(index)
         at_weights = self.cache.load("at_weights", index)
-        # wcor = self.get_wcor(index)
-        # wcor = np.ones_like(at_weights) if wcor is None else wcor
-        wcor = np.ones_like(at_weights)
-        return grid.integrate(at_weights, dens, wcor)
+        return grid.integrate(at_weights, dens)
 
     @just_once
     def do_partitioning(self):
+        """Run partitioning."""
         self.update_at_weights()
 
     do_partitioning.names = []
@@ -215,12 +243,13 @@ class Part(JustOnceClass):
 
     @just_once
     def do_populations(self):
+        """Compute atomic populations."""
         populations, new = self.cache.load("populations", alloc=self.natom, tags="o")
         if new:
             self.do_partitioning()
-            pseudo_populations = self.cache.load(
-                "pseudo_populations", alloc=self.natom, tags="o"
-            )[0]
+            pseudo_populations = self.cache.load("pseudo_populations", alloc=self.natom, tags="o")[
+                0
+            ]
             print("Computing atomic populations.")
             for i in range(self.natom):
                 pseudo_populations[i] = self.compute_pseudo_population(i)
@@ -229,6 +258,7 @@ class Part(JustOnceClass):
 
     @just_once
     def do_charges(self):
+        """Compute atomic charges."""
         charges, new = self._cache.load("charges", alloc=self.natom, tags="o")
         if new:
             self.do_populations()
@@ -238,10 +268,9 @@ class Part(JustOnceClass):
 
     @just_once
     def do_spin_charges(self):
+        """Compute atomic spin charges."""
         if self._spindens is not None:
-            spin_charges, new = self._cache.load(
-                "spin_charges", alloc=self.natom, tags="o"
-            )
+            spin_charges, new = self._cache.load("spin_charges", alloc=self.natom, tags="o")
             self.do_partitioning()
             print("Computing atomic spin charges.")
             for index in range(self.natom):
@@ -255,6 +284,12 @@ class Part(JustOnceClass):
 
     @just_once
     def do_moments(self):
+        """
+        Compute atomic multiple moments.
+
+        Calculates various types of multipoles, including Cartesian, Spherical, and Radial moments.
+        The order of the moments is determined by the `lmax` parameter.
+        """
         ncart = get_ncart_cumul(self.lmax)
         cartesian_multipoles, new1 = self._cache.load(
             "cartesian_multipoles", alloc=(self.natom, ncart), tags="o"
@@ -344,35 +379,26 @@ class WPart(Part):
         lmax=3,
     ):
         """
-        **Arguments:**
-
+        Parameters
+        ----------
         coordinates
              An array (N, 3) with centers for the atom-centered grids.
-
-        numbers
+        numbers : 1D np.ndarray
              An array (N,) with atomic numbers.
-
-        pseudo_numbers
+        pseudo_numbers : 1D np.ndarray
              An array (N,) with effective charges. When set to None, this
              defaults to``numbers.astype(float)``.
-
-        grid
+        grid : Grid
              A Molecular integration grid. This must be a BeckeMolGrid
              instance with mode=='keep' or mode=='only'.
-
-        moldens
+        moldens : 1D np.ndarray
              The spin-summed electron density on the grid.
-
-        **Optional arguments:**
-
-        spindens
+        spindens : 1D np.ndarray or None, optional
              The spin difference density on the grid.
-
-        local
+        local : bool, optional
              If ``True``: use the proper atomic grid for each AIM integral.
              If ``False``: use the entire molecular grid for each AIM integral.
-
-        lmax
+        lmax : int, optional
              The maximum angular momentum in multipole expansions.
         """
         if local and grid.atgrids is None:
@@ -380,8 +406,7 @@ class WPart(Part):
                 "Atomic grids are discarded from molecular grid object, "
                 "but are needed for local integrations."
             )
-        Part.__init__(
-            self,
+        super().__init__(
             coordinates,
             numbers,
             pseudo_numbers,
@@ -393,10 +418,7 @@ class WPart(Part):
         )
 
     def _init_log_base(self):
-        # if log.do_medium:
-        logger.info(
-            "Performing a density-based AIM analysis with a wavefunction as input."
-        )
+        logger.info("Performing a density-based AIM analysis with a wavefunction as input.")
         deflist(
             logger,
             [
@@ -417,10 +439,9 @@ class WPart(Part):
 
     @just_once
     def do_density_decomposition(self):
+        """Compute density decomposition."""
         if not self.local:
-            logger.warning(
-                "Skip density decomposition because no local grids were found."
-            )
+            logger.warning("Skip density decomposition because no local grids were found.")
             return
 
         for index in range(self.natom):
@@ -434,9 +455,7 @@ class WPart(Part):
                 at_weights = self.cache.load("at_weights", index)
                 assert atgrid.l_max >= self.lmax
                 splines = atgrid.radial_component_splines(moldens * at_weights)
-                density_decomp = dict(
-                    ("spline_%05i" % j, spl) for j, spl in enumerate(splines)
-                )
+                density_decomp = {"spline_%05i" % j: spl for j, spl in enumerate(splines)}
                 self.cache.dump(key, density_decomp, tags="o")
 
     # @just_once

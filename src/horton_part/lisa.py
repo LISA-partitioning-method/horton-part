@@ -57,7 +57,7 @@ __all__ = [
     "opt_propars_fixed_points_diis",
     "opt_propars_fixed_points_newton",
     "opt_propars_minimization_trust_constr",
-    "opt_propars_minimization_fast",
+    "opt_propars_convex_opt",
 ]
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class LinearISAWPart(GaussianISAWPart):
     electron density partitioning in molecules using various L-ISA schemes. L-ISA
     is a method for dividing the electron density of a molecule into atomic
     contributions. This class offers a variety of schemes for this
-    partitioning, both at local and global optimization levels.
+    partitioning, both at local [1]_ and global optimization levels.
 
     Optimization Problem Schemes
     ============================
@@ -219,12 +219,12 @@ class LinearISAWPart(GaussianISAWPart):
         density_cutoff=1e-15,
     ):
         if self._solver in [1, 101]:
-            return opt_propars_minimization_fast(
+            return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
         if self._solver == 104:
             # no robust: HF, SiH4
-            return opt_propars_minimization_fast(
+            return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff, True
             )
         elif self._solver in [2, 201]:
@@ -524,7 +524,7 @@ def opt_propars_fixed_points_sc_convex(
         oldpro = pro
     else:
         warnings.warn("Inner iteration is not converge! Using LISA-I scheme.")
-        return opt_propars_minimization_fast(
+        return opt_propars_convex_opt(
             bs_funcs, rho, propars, points, weights, threshold, density_cutoff
         )
 
@@ -903,7 +903,7 @@ def opt_propars_fixed_points_newton(
     raise RuntimeError("Inner loop: Newton does not converge!")
 
 
-def opt_propars_minimization_fast(
+def opt_propars_convex_opt(
     bs_funcs,
     rho,
     propars,
@@ -1014,13 +1014,17 @@ def opt_propars_minimization_fast(
         d2f = z[0] * cvxopt.matrix(d2f)
         return f, df, d2f
 
+    show_progress = 0
+    if logger.level >= logging.DEBUG:
+        show_progress = 3
+
     opt_CVX = cvxopt.solvers.cp(
         obj_func,
         G=matrix_constraint_ineq,
         h=vector_constraint_ineq,
         A=matrix_constraint_eq,
         b=vector_constraint_eq,
-        options={"show_progress": 3, "feastol": threshold},
+        options={"show_progress": show_progress, "feastol": threshold},
         # options={"show_progress": log.do_medium, "feastol": threshold},
     )
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -18,17 +17,20 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
+import logging
 
 
-def deflist(logger, l):
+def deflist(logger: logging.Logger, l: list) -> None:
     """Print a definition list.
 
     Parameters
     ----------
+    logger:
+        The logger.
     l : list
         A list of keyword and value pairs. A table will be printed where the first
         column contains the keywords and the second column contains (wrapped) values.
     """
     widest = max(len(item[0]) for item in l)
     for name, value in l:
-        logger.info("  %s : %s" % (name.ljust(widest), value))
+        logger.info(f"  {name.ljust(widest)} : {value}")

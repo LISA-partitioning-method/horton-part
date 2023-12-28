@@ -85,14 +85,16 @@ Modules
     :maxdepth: 1
     :caption: Quick Start
 
-    ./notebooks/from_command_line.ipynb
+    ./notebooks/quick_start.ipynb
 
 
 .. toctree::
     :maxdepth: 1
     :caption: Example Tutorials
 
-    ./notebooks/from_api.ipynb
+    ./notebooks/isa.ipynb
+    ./notebooks/hirshfeld.ipynb
+    ./notebooks/mulliken.ipynb
 
 
 .. toctree::

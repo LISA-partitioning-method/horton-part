@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -20,20 +19,14 @@
 # --
 """Becke partitioning"""
 
-
-from __future__ import print_function
+import logging
 
 import numpy as np
+from grid.becke import BeckeWeights
 
-# from grid.becke import BeckeWeights
 from .core.base import WPart
 from .core.logging import deflist
 from .utils import angstrom, radius_becke, radius_covalent
-
-# from .core.log import biblio, log
-from grid.becke import BeckeWeights
-import logging
-
 
 __all__ = ["BeckeWPart"]
 

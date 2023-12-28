@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -21,24 +20,18 @@
 """Pro-atom databases"""
 
 
-from __future__ import print_function
-
-import numpy as np
 import logging
 
-# from .wrapper import CubicSpline
-from scipy.interpolate import CubicSpline, CubicHermiteSpline
+import numpy as np
 from grid import OneDGrid
-
-# from .log import log
-
+from scipy.interpolate import CubicHermiteSpline, CubicSpline
 
 __all__ = ["ProAtomRecord", "ProAtomDB"]
 
 logger = logging.getLogger(__name__)
 
 
-class ProAtomRecord(object):
+class ProAtomRecord:
     """A single proatomic density record"""
 
     def __init__(
@@ -181,9 +174,7 @@ class ProAtomRecord(object):
                 result.append(radii[-1])
             else:
                 # linear interpolation
-                x = (populations[i] - popint[index]) / (
-                    popint[index - 1] - popint[index]
-                )
+                x = (populations[i] - popint[index]) / (popint[index - 1] - popint[index])
                 result.append(x * radii[index - 1] + (1 - x) * radii[index])
         return indexes, result
 
@@ -196,9 +187,7 @@ class ProAtomRecord(object):
         self._rho = self._rho[:npoint]
         if self._deriv is not None:
             self._deriv = self._deriv[:npoint]
-        self._rgrid = OneDGrid(
-            self._rgrid.points[:npoint], self._rgrid.weights[:npoint]
-        )
+        self._rgrid = OneDGrid(self._rgrid.points[:npoint], self._rgrid.weights[:npoint])
 
     def __eq__(self, other):
         return (
@@ -209,9 +198,7 @@ class ProAtomRecord(object):
             and (
                 (self.deriv is None and other.deriv is None)
                 or (
-                    self.deriv is not None
-                    and other.deriv is not None
-                    and self.deriv == other.deriv
+                    self.deriv is not None and other.deriv is not None and self.deriv == other.deriv
                 ).all()
             )
             and self.rgrid == other.rgrid
@@ -223,7 +210,7 @@ class ProAtomRecord(object):
         return not self.__eq__(other)
 
 
-class ProAtomDB(object):
+class ProAtomDB:
     def __init__(self, records):
         """
         Parameters
@@ -248,7 +235,7 @@ class ProAtomDB(object):
 
         # Store attribtues
         self._records = records
-        self._map = dict(((r.number, r.charge), r) for r in records)
+        self._map = {(r.number, r.charge): r for r in records}
 
         # check that all records of a given element have the same rgrid
         self._rgrid_map = {}
@@ -261,8 +248,7 @@ class ProAtomDB(object):
                 # compare
                 if not np.allclose(rgrid.points, r.rgrid.points):
                     raise ValueError(
-                        "All proatoms of a given element must have the same radial "
-                        "grid."
+                        "All proatoms of a given element must have the same radial " "grid."
                     )
 
                 # if rgrid != r.rgrid:
@@ -302,11 +288,7 @@ class ProAtomDB(object):
         return result
 
     def get_charges(self, number, safe=False):
-        result = [
-            r.charge
-            for r in self._records
-            if r.number == number and (r.safe or (not safe))
-        ]
+        result = [r.charge for r in self._records if r.number == number and (r.safe or (not safe))]
         result.sort(reverse=True)
         return result
 
@@ -461,6 +443,5 @@ class ProAtomDB(object):
                 r.rho[:] *= nel_integer / nel_before
                 nel_after = rgrid.integrate(r.rho)
                 logger.info(
-                    "%4i     %+3i    %15.8e   %15.8e"
-                    % (number, charge, nel_before, nel_after)
+                    "%4i     %+3i    %15.8e   %15.8e" % (number, charge, nel_before, nel_after)
                 )

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -21,24 +20,19 @@
 """Base classes for all stockholder partitioning schemes"""
 
 
-import numpy as np
+import logging
 import time
 import warnings
-import logging
 
-from .base import WPart, just_once
+import numpy as np
+from scipy.interpolate import CubicHermiteSpline, CubicSpline
 
-from scipy.interpolate import CubicSpline, CubicHermiteSpline
-
+from .base import WPart
+from .cache import just_once
 
 __all__ = ["AbstractStockholderWPart"]
 
 logger = logging.getLogger(__name__)
-
-
-def eval_spline_grid(spline, grid, center):
-    r = np.linalg.norm(grid.points - center, axis=1)
-    return spline(r)
 
 
 class AbstractStockholderWPart(WPart):
@@ -112,9 +106,7 @@ class AbstractStockholderWPart(WPart):
         self.pt_indices_relative_to_atom.append(relative_indices)
 
         # Calculate radial distances from each point in the local grid to the atom's center
-        radial_distances = np.linalg.norm(
-            local_grid.points - self.coordinates[index], axis=1
-        )
+        radial_distances = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
         self.radial_distances.append(radial_distances)
 
     def _log_grid_info(self):
@@ -129,13 +121,9 @@ class AbstractStockholderWPart(WPart):
         for i, local_grid in enumerate(self.local_grids):
             logger.info(f" Atom {i} ".center(80, "*"))
             atom_grid = self.get_grid(i)
-            dist = np.sqrt(
-                np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2)
-            )
+            dist = np.sqrt(np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2))
             logger.info(f"|-- Local grid size: {local_grid.size}")
-            reduced_atom_grid_size = len(
-                atom_grid.points[dist <= self.local_grid_radius]
-            )
+            reduced_atom_grid_size = len(atom_grid.points[dist <= self.local_grid_radius])
             logger.info(f"|-- Atom grid size: {reduced_atom_grid_size}")
             reduced_mol_grid_size += reduced_atom_grid_size
             rgrid = self.get_rgrid(i)
@@ -160,6 +148,38 @@ class AbstractStockholderWPart(WPart):
         logger.info(" ")
 
     def update_pro(self, index, proatdens, promoldens):
+        """
+        Update the pro-molecule density arrays based on the pro-atom density for a specified atom index.
+
+        This method evaluates the pro-atom density for the specified atom index over either a local grid
+        (if defined) or the global grid. The evaluated density is then used to update the pro-molecule
+        density array. This process contributes to constructing the complete pro-molecule density profile
+        by accumulating contributions from individual atoms.
+
+        Parameters
+        ----------
+        index : int
+            The index of the atom for which the pro-atom and pro-molecule densities are to be updated.
+        proatdens : 1D np.ndarray
+            The array representing the pro-atom density. This array is updated with the new density values
+            for the specified atom.
+        promoldens : 1D np.ndarray
+            The array representing the pro-molecule density. This array accumulates the density contributions
+            from each atom, including the one specified by `index`.
+
+        Notes
+        -----
+        The method checks if `local_grids` attribute is available. If so, it uses the local grid specific
+        to the atom index for density evaluation. Otherwise, it defaults to using the global grid.
+
+        The `eval_proatom` method is used to evaluate the pro-atom density, which is then used to update
+        the `proatdens` and `promoldens` arrays. A small constant (1e-100) is added to `promoldens` to avoid
+        zero values, especially important for iterative methods requiring non-zero initial values.
+
+        If `local_grids` is not present, the method employs the global grid for density evaluation and updates
+        the `proatdens` array using the `to_atomic_grid` method.
+
+        """
         if hasattr(self, "local_grids"):
             local_grid = self.local_grids[index]
             work = np.zeros((local_grid.size,))
@@ -177,25 +197,40 @@ class AbstractStockholderWPart(WPart):
             proatdens[:] = self.to_atomic_grid(index, work)
 
     def get_rgrid(self, index):
-        """Load radial grid."""
+        """Load radial grid.
+
+        Parameters
+        ----------
+        index: int
+            The atom index.
+        """
         raise NotImplementedError
 
     def get_proatom_rho(self, index, *args, **kwargs):
-        """Get pro-atom density for atom `iatom`."""
+        """Get pro-atom density for atom `iatom`.
+
+        Parameters
+        ----------
+        index : int
+            The atom index
+        *args :
+            Variable length argument list, used for passing non-keyworded arguments.
+        **kwargs :
+            Arbitrary keyword arguments, used for passing additional data.
+
+        """
         raise NotImplementedError
 
     def fix_proatom_rho(self, index, rho, deriv):
         """Check if the radial density for the proatom is correct and fix as needed.
 
-        **Arguments:**
-
-        index
+        Parameters
+        ----------
+        index: int
              The atom for which this proatom rho is created.
-
-        rho
+        rho: 1D np.ndarray
              The radial density
-
-        deriv
+        deriv: int
              the derivative of the radial density or None.
         """
         rgrid = self.get_rgrid(index)
@@ -207,15 +242,44 @@ class AbstractStockholderWPart(WPart):
             deriv = None
             error = rgrid.integrate(rho) - original
             logger.info(
-                "                Pro-atom not positive everywhere. Lost %.1e electrons"
-                % error
+                "                Pro-atom not positive everywhere. Lost %.1e electrons" % error
             )
         return rho, deriv
 
     def get_proatom_spline(self, index, *args, **kwargs):
+        """
+        Create and return a spline representation of the radial density for a given atomic index.
+
+        This method first retrieves the radial density and its derivatives for the specified atomic index.
+        It then ensures the correctness of these values and constructs a spline representation based
+        on the radial grid points.
+
+        Parameters
+        ----------
+        index : int
+            The index of the atom for which the radial density spline is to be calculated.
+        *args :
+            Variable length argument list, used for passing non-keyworded arguments.
+        **kwargs :
+            Arbitrary keyword arguments, used for passing additional data.
+
+        Returns
+        -------
+        CubicSpline or CubicHermiteSpline
+            A spline representation of the radial density. If derivatives are available,
+            a `CubicHermiteSpline` is returned. Otherwise, a `CubicSpline` is used.
+
+        Notes
+        -----
+        The method internally calls `get_proatom_rho` to obtain the radial density (`rho`) and its
+        derivatives (`deriv`), and `fix_proatom_rho` to validate and potentially correct these values.
+        It also uses `get_rgrid` to acquire the radial grid points (`rgrid.points`). The spline is
+        constructed with these grid points and density values, with the type of spline depending on
+        the availability of derivative information.
+
+        """
         # Get the radial density
         rho, deriv = self.get_proatom_rho(index, *args, **kwargs)
-
         # Double check and fix if needed
         rho, deriv = self.fix_proatom_rho(index, rho, deriv)
 
@@ -227,10 +291,75 @@ class AbstractStockholderWPart(WPart):
             return CubicHermiteSpline(rgrid.points, rho, deriv, True)
 
     def eval_spline(self, index, spline, output, grid, label="noname"):
+        """
+        Evaluate a given spline at radial distances from a specified atom center and store the results in the output array.
+
+        This method calculates the radial distances from the specified atom center to each point in the provided grid.
+        It then evaluates the provided spline function at these distances, storing the results in the given output array.
+
+        Parameters
+        ----------
+        index : int
+            The index of the atom whose center is used for calculating radial distances.
+        spline : callable
+            The spline function to be evaluated. This should be a function that takes an array of radial distances
+            and returns the corresponding spline values.
+        output : 1D ndarray
+            The array where the evaluated spline values will be stored. This array is modified in-place.
+        grid : Grid
+            An object representing the grid points. It should have an attribute `points` which is an array of
+            grid point coordinates.
+        label : str, optional
+            A label for identification purposes, defaults to "noname".
+
+        Notes
+        -----
+        The method computes the Euclidean norm (radial distance) from the atom center, specified by `index`, to each
+        point in the grid. The spline function is then evaluated at these distances. The results are stored directly
+        in the `output` array, overwriting any existing data.
+
+        """
         center = self.coordinates[index]
-        output[:] = eval_spline_grid(spline, grid, center)
+        r = np.linalg.norm(grid.points - center, axis=1)
+        output[:] = spline(r)
 
     def eval_proatom(self, index, output, grid):
+        """
+        Evaluate the radial density of a proatom on a given grid and store the results in the output array.
+
+        This method computes the radial density for a specified atomic index by using a spline representation
+        of the radial density. The computed values are then stored in the provided output array. A small
+        constant is added to the output to avoid zero values, which is crucial for certain methods that
+        require non-zero initial values.
+
+        Parameters
+        ----------
+        index : int
+            The index of the atom for which the radial density is to be evaluated.
+        output : 1D ndarray
+            The array where the evaluated radial density values will be stored. This array is modified in-place.
+        grid : Grid
+            The grid points where the radial density is to be evaluated.
+
+        Notes
+        -----
+        The method begins by obtaining a spline representation of the radial density using `get_proatom_spline`.
+        It then uses `eval_spline` to evaluate this spline over the provided grid, storing the results in the
+        `output` array. The output is then modified by adding a small constant (1e-100) to each element to ensure
+        non-zero values, which is crucial for certain iterative self-consistent field methods like ISA.
+
+        A check is performed using `np.isfinite` to ensure that all values in the output array are finite.
+
+        Warnings
+        --------
+        The addition of a small constant to the output is a workaround for certain limitations in ISA methods
+        and might need to be adjusted based on specific use cases.
+
+        See Also
+        --------
+        grid.Grid
+
+        """
         spline = self.get_proatom_spline(index)
         output[:] = 0.0
         self.eval_spline(index, spline, output, grid, label="proatom")
@@ -241,6 +370,7 @@ class AbstractStockholderWPart(WPart):
         assert np.isfinite(output).all()
 
     def update_at_weights(self):
+        """See ``Part.update_at_weights``."""
         # This will reconstruct the promolecular density and atomic weights
         # based on the current proatomic splines.
         promoldens = self.cache.load("promoldens", alloc=self.grid.size)[0]
@@ -276,6 +406,7 @@ class AbstractStockholderWPart(WPart):
         self.time_usage["history_time_compute_at_weights"].append(t2 - t1)
 
     def do_prosplines(self):
+        """Do pro-atom splines"""
         for index in range(self.natom):
             # density
             key = ("spline_prodensity", index)

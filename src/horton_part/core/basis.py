@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # HORTON-PART: GRID for Helpful Open-source Research TOol for N-fermion systems.
 # Copyright (C) 2011-2023 The HORTON-PART Development Team
 #
@@ -18,12 +17,13 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
+"""Module for handling basis functions used in GISA and LISA schemes."""
 
+import json
 
 import numpy as np
-from scipy.special import gamma
-import json
 from importlib_resources import files
+from scipy.special import gamma
 
 __all__ = ["BasisFuncHelper", "evaluate_function", "load_params"]
 
@@ -206,15 +206,11 @@ class BasisFuncHelper:
 
     def get_initial(self, number, ishell=None):
         """Get initial value for an atom for its `ishell` basis function."""
-        return (
-            self.initials[number] if ishell is None else self.initials[number][ishell]
-        )
+        return self.initials[number] if ishell is None else self.initials[number][ishell]
 
     def get_exponent(self, number, ishell=None):
         """Get exponent coefficient for an atom for its `ishell` basis function."""
-        return (
-            self.exponents[number] if ishell is None else self.exponents[number][ishell]
-        )
+        return self.exponents[number] if ishell is None else self.exponents[number][ishell]
 
     def compute_proshell_dens(self, number, ishell, population, points, nderiv=0):
         """Compute pro-shell density on points for an atom."""
