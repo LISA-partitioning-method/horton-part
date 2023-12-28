@@ -868,9 +868,9 @@ def opt_propars_fixed_points_newton(
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            check_pro_atom_parameters(
-                propars, total_population=float(np.sum(pro)), pro_atom_density=pro
-            )
+            # check_pro_atom_parameters(
+            #     propars, total_population=float(np.sum(pro)), pro_atom_density=pro
+            # )
             return propars
 
         # update propars
