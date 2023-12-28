@@ -92,7 +92,13 @@ Modules
     :maxdepth: 1
     :caption: Example Tutorials
 
+    ./notebooks/setup.rst
     ./notebooks/isa.ipynb
+    ./notebooks/gisa.ipynb
+    ./notebooks/mbis.ipynb
+    ./notebooks/lisa.ipynb
+    ./notebooks/lisa_g.ipynb
+
     ./notebooks/hirshfeld.ipynb
     ./notebooks/mulliken.ipynb
 
