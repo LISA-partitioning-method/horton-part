@@ -27,9 +27,9 @@ from grid.rtransform import BeckeRTransform
 
 from horton_part.lisa import (
     opt_propars_convex_opt,
-    opt_propars_fixed_points_diis,
-    opt_propars_fixed_points_sc,
-    opt_propars_minimization_trust_constr,
+    opt_propars_diis,
+    opt_propars_self_consistent,
+    opt_propars_trust_region,
 )
 
 
@@ -82,9 +82,9 @@ def check_rho(rho):
     "opt_propars",
     [
         opt_propars_convex_opt,
-        opt_propars_minimization_trust_constr,
-        opt_propars_fixed_points_sc,
-        opt_propars_fixed_points_diis,
+        opt_propars_trust_region,
+        opt_propars_self_consistent,
+        opt_propars_diis,
         # Newton failed
         # opt_propars_fixed_points_newton,
     ],
@@ -112,7 +112,7 @@ def test_optimization_methods(case, opt_propars):
     # bs_funcs = np.asarray(gauss_funcs)
     bs_funcs = np.asarray([func.compute(r) for func in gauss_funcs])
     kwargs = {}
-    if opt_propars == opt_propars_fixed_points_diis:
+    if opt_propars == opt_propars_diis:
         kwargs["diis_size"] = 10
 
     local_r = local_rgrid.points

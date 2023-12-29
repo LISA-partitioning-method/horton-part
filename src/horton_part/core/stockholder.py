@@ -36,12 +36,14 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractStockholderWPart(WPart):
+    """Abstract Stockholder partitioning class."""
+
     def _init_subgrids(self):
         WPart._init_subgrids(self)
         self.initial_local_grids()
 
     @property
-    def local_grid_radius(self):
+    def radius_cutoff(self):
         """
         Get the radius of the local grid sphere.
 
@@ -83,7 +85,7 @@ class AbstractStockholderWPart(WPart):
         """Compute grid properties for a specific atom."""
         # Extract local grid around the atom within a user-defined radius
         local_grid = self.grid.get_localgrid(
-            center=self.coordinates[index], radius=self.local_grid_radius
+            center=self.coordinates[index], radius=self.radius_cutoff
         )
         self.local_grids.append(local_grid)
 
@@ -123,13 +125,13 @@ class AbstractStockholderWPart(WPart):
             atom_grid = self.get_grid(i)
             dist = np.sqrt(np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2))
             logger.info(f"|-- Local grid size: {local_grid.size}")
-            reduced_atom_grid_size = len(atom_grid.points[dist <= self.local_grid_radius])
+            reduced_atom_grid_size = len(atom_grid.points[dist <= self.radius_cutoff])
             logger.info(f"|-- Atom grid size: {reduced_atom_grid_size}")
             reduced_mol_grid_size += reduced_atom_grid_size
             rgrid = self.get_rgrid(i)
             r = rgrid.points
             if len(r) == len(atom_grid.degrees):
-                r_mask = r <= self.local_grid_radius
+                r_mask = r <= self.radius_cutoff
                 degrees = np.asarray(atom_grid.degrees)[r_mask]
                 degrees_str = [str(d) for d in degrees]
                 logger.info(f"   |-- Radial grid size: {len(r[r_mask])}")

@@ -93,16 +93,16 @@ def main():
         "lmax": args.lmax,
         "maxiter": args.maxiter,
         "threshold": args.threshold,
-        "local_grid_radius": args.local_grid_radius,
+        "radius_cutoff": args.radius_cutoff,
     }
 
     if args.type in ["gisa", "lisa", "lisa_g"]:
-        kwargs["solver_id"] = args.solver_id
+        kwargs["solver"] = args.solver
+        kwargs["solver_kwargs"] = {}
         if args.type in ["lisa"]:
-            kwargs["basis_func_type"] = args.func_type
-            kwargs["basis_func_json_file"] = args.func_file
-            if args.solver_id > 200:
-                kwargs["diis_size"] = args.diis_size
+            kwargs["basis_func"] = args.func_file or args.basis_func
+            if args.solver > 200:
+                kwargs["solver_kwargs"]["diis_size"] = args.diis_size
 
     part = wpart_schemes(args.type)(**kwargs)
     part.do_partitioning()
@@ -151,7 +151,7 @@ def main():
     part_data["lmax"] = args.lmax
     part_data["maxiter"] = args.maxiter
     part_data["threshold"] = args.threshold
-    part_data["solver_id"] = args.solver_id
+    part_data["solver"] = args.solver
     part_data["charges"] = part.cache["charges"]
 
     if "lisa_g" not in args.type:
@@ -204,7 +204,7 @@ def parse_args():
         help="Number of angular grid points. [default=%(default)s]",
     )
     parser.add_argument(
-        "--func_type",
+        "--basis_func",
         type=str,
         default="gauss",
         choices=["gauss", "slater"],
@@ -235,7 +235,7 @@ def parse_args():
         help="The maximum angular momentum in multipole expansions. [default=%(default)s]",
     )
     parser.add_argument(
-        "--solver_id",
+        "--solver",
         type=int,
         default=2,
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",
@@ -247,10 +247,10 @@ def parse_args():
         help="The number of previous iterations info used in DIIS. [default=%(default)s]",
     )
     parser.add_argument(
-        "--local_grid_radius",
+        "--radius_cutoff",
         type=float,
         default=np.inf,
-        help="The radius for local atomic grid [default=%(default)s]",
+        help="The radius cutoff of local atomic grid [default=%(default)s]",
     )
     parser.add_argument(
         "--output",
@@ -258,12 +258,6 @@ def parse_args():
         type=str,
         default="partitioning.npz",
     )
-    # parser.add_argument(
-    #     "--verbose",
-    #     type=int,
-    #     default=3,
-    #     help="The level for printing output information. [default=%(default)s]",
-    # )
     parser.add_argument(
         "--log",
         default="INFO",

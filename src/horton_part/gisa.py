@@ -33,13 +33,21 @@ from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
 from .utils import check_pro_atom_parameters
 
-__all__ = ["GaussianISAWPart"]
+__all__ = [
+    "GaussianISAWPart",
+    "opt_propars_leastsq_scipy",
+    "opt_propars_qp_cvxopt",
+    "opt_propars_qp_quadprog",
+]
+
+# TODO: the quadratic programming problem can be solved systematically in qpsolvers, where
+# different solvers have been implemented.
 
 logger = logging.getLogger(__name__)
 
 
 class GaussianISAWPart(AbstractISAWPart):
-    """Iterative Stockholder Partitioning with Becke-Lebedev grids"""
+    """Iterative Stockholder Partitioning with Becke-Lebedev grids."""
 
     name = "gisa"
 
@@ -55,24 +63,24 @@ class GaussianISAWPart(AbstractISAWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        local_grid_radius=np.inf,
-        solver_id=1,
+        radius_cutoff=np.inf,
+        solver=1,
+        solver_kwargs=None,
     ):
         """
-        **Optional arguments:** (that are not defined in ``WPart``)
+        Initial function.
 
-        threshold
-             The procedure is considered to be converged when the maximum
-             change of the charges between two iterations drops below this
-             threshold.
+        **Optional arguments:** (that are not defined in :class:`horton_part.core.itertock.AbstractISAWPart`)
 
-        maxiter
-             The maximum number of iterations. If no convergence is reached
-             in the end, no warning is given.
-             Reduce the CPU cost at the expense of more memory consumption.
+        Parameters
+        ----------
+        solver : int
+            The solver id.
+
         """
-        self._solver_id = solver_id
-        self.bs_helper = BasisFuncHelper.from_function_type("gauss")
+        self._solver = solver
+        self._solver_kwargs = solver_kwargs or {}
+        self._bs_helper = None
 
         super().__init__(
             coordinates,
@@ -81,13 +89,19 @@ class GaussianISAWPart(AbstractISAWPart):
             grid,
             moldens,
             spindens,
-            True,
-            lmax,
-            threshold,
-            maxiter,
-            inner_threshold,
-            local_grid_radius,
+            lmax=lmax,
+            threshold=threshold,
+            maxiter=maxiter,
+            inner_threshold=inner_threshold,
+            radius_cutoff=radius_cutoff,
         )
+
+    @property
+    def bs_helper(self):
+        """A basis function helper."""
+        if self._bs_helper is None:
+            self._bs_helper = BasisFuncHelper.from_function_type()
+        return self._bs_helper
 
     def _init_log_scheme(self):
         deflist(
@@ -101,7 +115,7 @@ class GaussianISAWPart(AbstractISAWPart):
                 ),
                 ("Maximum iterations", self._maxiter),
                 ("lmax", self._lmax),
-                ("Solver", self._solver_id),
+                ("Solver", self._solver),
             ],
         )
         # biblio.cite(
@@ -187,7 +201,7 @@ class GaussianISAWPart(AbstractISAWPart):
         bs_funcs = self.cache.load("bs_funcs", iatom)
 
         # use truncated grids if local_grid_radius != np.inf
-        r_mask = points <= self.local_grid_radius
+        r_mask = points <= self.radius_cutoff
         points = points[r_mask]
         rho = spherical_average[r_mask]
         weights = rgrid.weights[r_mask]
@@ -212,18 +226,27 @@ class GaussianISAWPart(AbstractISAWPart):
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
     def _opt_propars(self, bs_funcs, rho, propars, points, weights, alphas, threshold):
-        if self._solver_id == 1:
-            return _constrained_least_squares_quadprog(
+        if callable(self._solver):
+            return self._solver(
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                **self._solver_kwargs,
+            )
+
+        if self._solver == 1:
+            return opt_propars_qp_quadprog(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver_id == 2:
-            return _constrained_least_squares(
+        elif self._solver == 2:
+            return opt_propars_leastsq_scipy(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
-        elif self._solver_id == 3:
-            return _constrained_least_cvxopt(
-                bs_funcs, rho, propars, points, weights, alphas, threshold
-            )
+        elif self._solver == 3:
+            return opt_propars_qp_cvxopt(bs_funcs, rho, propars, points, weights, alphas, threshold)
         else:
             raise NotImplementedError
 
@@ -242,7 +265,7 @@ class GaussianISAWPart(AbstractISAWPart):
             )
 
 
-def _constrained_least_squares_quadprog(bs_funcs, rho, propars, points, weights, alphas, threshold):
+def opt_propars_qp_quadprog(bs_funcs, rho, propars, points, weights, alphas, threshold):
     r"""
     Optimize parameters for proatom density functions using quadratic programming.
 
@@ -290,7 +313,6 @@ def _constrained_least_squares_quadprog(bs_funcs, rho, propars, points, weights,
 
 
     """
-
     nprim = len(propars)
     S = (
         2
@@ -319,63 +341,7 @@ def _constrained_least_squares_quadprog(bs_funcs, rho, propars, points, weights,
     return propars_qp
 
 
-def _constrained_least_squares(bs_funcs, rho, propars, points, weights, alphas, threshold):
-    r"""
-    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-        G = \frac{1}{2} c^T S c - c^T b
-
-        S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
-        = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
-
-        b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
-
-    Parameters
-    ----------
-    bs_funcs : 2D np.ndarray
-        Basis functions array with shape (M, N), where 'M' is the number of basis functions
-        and 'N' is the number of grid points.
-    rho : 1D np.ndarray
-        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
-    propars : 1D np.ndarray
-        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
-    points : 1D np.ndarray
-        Radial coordinates of grid points, with shape (N,).
-    weights : 1D np.ndarray
-        Weights for integration, including the angular part (4πr²), with shape (N,).
-    threshold : float
-        Convergence threshold for the iterative process.
-    alphas : 1D np.ndarray
-        The Gaussian exponential coefficients.
-    threshold : float
-        The convergence threshold of the optimization method.
-
-    Returns
-    -------
-    1D np.ndarray
-        Optimized proatom parameters.
-
-    Raises
-    ------
-    RuntimeError
-        If the inner iteration does not converge.
-
-    """
-
-    def _obj_func(x):
-        pro = np.sum(x[:, None] * bs_funcs, axis=0)
-        return weights * np.abs(pro - rho)
-
-    res = least_squares(_obj_func, x0=propars, bounds=(0, np.inf), gtol=threshold)
-    check_pro_atom_parameters(res.x)
-    return res.x
-
-
-def _constrained_least_cvxopt(bs_funcs, rho, propars, points, weights, alphas, threshold):
+def opt_propars_qp_cvxopt(bs_funcs, rho, propars, points, weights, alphas, threshold):
     """
     Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
 
@@ -450,3 +416,59 @@ def _constrained_least_cvxopt(bs_funcs, rho, propars, points, weights, alphas, t
     new_propars = np.asarray(opt_CVX["x"]).flatten()
     check_pro_atom_parameters(new_propars, total_population=float(pop))
     return new_propars
+
+
+def opt_propars_leastsq_scipy(bs_funcs, rho, propars, points, weights, alphas, threshold):
+    r"""
+    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
+
+    .. math::
+
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+        G = \frac{1}{2} c^T S c - c^T b
+
+        S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
+        = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
+
+        b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    alphas : 1D np.ndarray
+        The Gaussian exponential coefficients.
+    threshold : float
+        The convergence threshold of the optimization method.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
+
+    def _obj_func(x):
+        pro = np.sum(x[:, None] * bs_funcs, axis=0)
+        return weights * np.abs(pro - rho)
+
+    res = least_squares(_obj_func, x0=propars, bounds=(0, np.inf), gtol=threshold)
+    check_pro_atom_parameters(res.x)
+    return res.x

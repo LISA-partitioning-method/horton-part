@@ -20,8 +20,7 @@
 """
 Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning scheme.
 
-Optimization Problem Schemes
-============================
+**Optimization Problem Schemes**
 
 - Convex optimization (LISA-101)
 - Trust-region methods with constraints
@@ -203,7 +202,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         return self._threshold
 
     @property
-    def local_grid_radius(self):
+    def radius_cutoff(self):
         """The cutoff radius for local grid."""
         return self._local_grid_radius
 
@@ -219,7 +218,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                 ("Maximum outer iterations", self.maxiter),
                 ("lmax", self.lmax),
                 ("Basis function type", self.func_type),
-                ("Local grid radius", self.local_grid_radius),
+                ("Local grid radius", self.radius_cutoff),
                 ("Allow negative parameters", self.allow_neg_pars),
             ]
         )
@@ -449,7 +448,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                     # Only compute Hessian matrix on a local grid not on full molecular grid.
                     if (
                         np.linalg.norm(self.pro_shell_centers[i] - self.pro_shell_centers[j])
-                        > self.local_grid_radius
+                        > self.radius_cutoff
                     ):
                         hessian[i, j] = 0
                     else:
@@ -690,7 +689,6 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
 
     def _opt_propars(self):
         """Optimize the promodel using the trust-constr minimizer from SciPy."""
-        rho = self._moldens
         rho, pars0 = self._moldens, self.propars
 
         # Compute the total population

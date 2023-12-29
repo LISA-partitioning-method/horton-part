@@ -33,8 +33,6 @@ from scipy.sparse import SparseEfficiencyWarning
 from scipy.sparse.linalg import spsolve
 
 from .core.basis import BasisFuncHelper
-
-# from .core.log import log, biblio
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
 from .utils import check_for_pro_error, check_pro_atom_parameters, compute_quantities
@@ -46,17 +44,10 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
 __all__ = [
     "LinearISAWPart",
-    "LisaConvexOptWPart",
-    "LisaConvexOptNWPart",
-    "LisaSelfConsistentWPart",
-    "LisaDIISWPart",
-    "LisaNewtonWPart",
-    "LisaTrustConstraintExpWPart",
-    "LisaTrustConstraintImpWPart",
-    "opt_propars_fixed_points_sc",
-    "opt_propars_fixed_points_diis",
-    "opt_propars_fixed_points_newton",
-    "opt_propars_minimization_trust_constr",
+    "opt_propars_self_consistent",
+    "opt_propars_diis",
+    "opt_propars_newton",
+    "opt_propars_trust_region",
     "opt_propars_convex_opt",
 ]
 
@@ -67,14 +58,13 @@ class LinearISAWPart(GaussianISAWPart):
     r"""
     Implements the Linear Iterative Stockholder Analysis (L-ISA) partitioning scheme.
 
-    This class extends `GaussianISAWPart` and specializes in performing
+    This class extends ``GaussianISAWPart`` and specializes in performing
     electron density partitioning in molecules using various L-ISA schemes. L-ISA
     is a method for dividing the electron density of a molecule into atomic
     contributions. This class offers a variety of schemes for this
     partitioning, both at local [1]_ and global optimization levels.
 
-    Optimization Problem Schemes
-    ============================
+    **Optimization Problem Schemes**
 
     - Convex optimization (LISA-101)
     - Trust-region methods with constraints
@@ -88,11 +78,11 @@ class LinearISAWPart(GaussianISAWPart):
 
     See Also
     --------
-    horton_part.GaussianISAWPart : Parent class from which this class is derived.
+    horton_part.lisa_g : Global Linear approximation of ISA.
 
     References
     ----------
-    .. [1] TODO
+    .. [1] Benda R., et al. Multi-center decomposition of molecular densities: A mathematical perspective.
 
     """
 
@@ -110,14 +100,13 @@ class LinearISAWPart(GaussianISAWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        local_grid_radius=np.inf,
-        solver_id=1,
-        diis_size=8,
-        basis_func_type="gauss",
-        basis_func_json_file=None,
+        radius_cutoff=np.inf,
+        solver=101,
+        solver_kwargs=None,
+        basis_func="gauss",
     ):
         """
-        Construct LISA for given arguments.
+        LISA initial function.
 
         **Optional arguments:** (that are not defined in ``WPart``)
 
@@ -132,8 +121,11 @@ class LinearISAWPart(GaussianISAWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self.func_type = basis_func_type
-        self.diis_size = diis_size
+        self.basis_func = basis_func
+        if self.basis_func in ["gauss", "slater"]:
+            self._func_type = self.basis_func.upper()
+        else:
+            self._func_type = "Customized"
 
         GaussianISAWPart.__init__(
             self,
@@ -147,16 +139,23 @@ class LinearISAWPart(GaussianISAWPart):
             threshold,
             maxiter,
             inner_threshold,
-            local_grid_radius,
-            solver_id,
+            radius_cutoff,
+            solver,
+            solver_kwargs,
         )
 
-        if basis_func_json_file is not None:
-            logger.info(f"Load basis functions from custom json file: {basis_func_json_file}")
-            self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
-        else:
-            logger.info(f"Load {basis_func_type} basis functions")
-            self.bs_helper = BasisFuncHelper.from_function_type(basis_func_type)
+    @property
+    def bs_helper(self):
+        """A basis function helper."""
+        if self._bs_helper is None:
+            bs_name = self.basis_func.lower()
+            if bs_name in ["gauss", "slater"]:
+                logger.info(f"Load {bs_name.upper()} basis functions")
+                self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
+            else:
+                logger.info(f"Load basis functions from custom json file: {self.basis_func}")
+                self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
+        return self._bs_helper
 
     def _init_log_scheme(self):
         # if log.do_medium:
@@ -170,7 +169,7 @@ class LinearISAWPart(GaussianISAWPart):
             ("Using global ISA", False),
         ]
 
-        if self._solver_id in [104, 202, 203, 204]:
+        if self._solver in [104, 202, 203, 204]:
             allow_negative_params = True
         else:
             allow_negative_params = False
@@ -179,14 +178,16 @@ class LinearISAWPart(GaussianISAWPart):
             [
                 ("Maximum outer iterations", self._maxiter),
                 ("lmax", self._lmax),
-                ("Solver", self._solver_id),
-                ("Basis function type", self.func_type),
-                ("Local grid radius", self._local_grid_radius),
+                ("Solver", self._solver),
+                ("Basis function type", self._func_type),
+                ("Local grid radius", self._radius_cutoff),
                 ("Allow negative parameters", allow_negative_params),
             ]
         )
-        if self._solver_id in [202]:
-            info_list.append(("DIIS size", self.diis_size))
+        if self._solver in [202]:
+            # info_list.append(("DIIS size", self.diis_size))
+            # TODO: add info for solver kwargs.
+            pass
         deflist(logger, info_list)
         # biblio.cite(
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
@@ -203,30 +204,8 @@ class LinearISAWPart(GaussianISAWPart):
         threshold,
         density_cutoff=1e-15,
     ):
-        if self._solver_id in [1, 101]:
-            return opt_propars_convex_opt(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
-            )
-        if self._solver_id == 104:
-            # no robust: HF, SiH4
-            return opt_propars_convex_opt(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff, True
-            )
-        elif self._solver_id in [2, 201]:
-            return opt_propars_fixed_points_sc(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
-            )
-        elif self._solver_id == 20101:
-            return opt_propars_fixed_points_sc_one_step(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
-            )
-        elif self._solver_id == 2011:
-            return opt_propars_fixed_points_sc_convex(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
-            )
-        elif self._solver_id in [202]:
-            # for large diis_size, it is also not robust
-            return opt_propars_fixed_points_diis(
+        if callable(self._solver):
+            return self._solver(
                 bs_funcs,
                 rho,
                 propars,
@@ -234,14 +213,49 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
-                diis_size=self.diis_size,
+                **self._solver_kwargs,
             )
-        elif self._solver_id == 203:
-            # not robust
-            return opt_propars_fixed_points_newton(
+
+        if self._solver == 101:
+            return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver_id == 204:
+        if self._solver == 104:
+            # no robust: HF, SiH4
+            return opt_propars_convex_opt(
+                bs_funcs, rho, propars, points, weights, threshold, density_cutoff, True
+            )
+        elif self._solver == 201:
+            return opt_propars_self_consistent(
+                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+            )
+        elif self._solver == 20101:
+            return opt_propars_fixed_points_sc_one_step(
+                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+            )
+        elif self._solver == 2011:
+            return opt_propars_fixed_points_sc_convex(
+                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+            )
+        elif self._solver == 202:
+            # for large diis_size, it is also not robust
+            return opt_propars_diis(
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                **self._solver_kwargs
+                # diis_size=self.diis_size,
+            )
+        elif self._solver == 203:
+            # not robust
+            return opt_propars_newton(
+                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+            )
+        elif self._solver == 204:
             return opt_propars_fixed_points_diis_pos(
                 bs_funcs,
                 rho,
@@ -250,11 +264,12 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
-                diis_size=self.diis_size,
+                **self._solver_kwargs
+                # diis_size=self.diis_size,
             )
-        elif self._solver_id in [3, 301]:
+        elif self._solver == 301:
             # same as LISA-102 but with constraint implicitly, slower than 302
-            return opt_propars_minimization_trust_constr(
+            return opt_propars_trust_region(
                 bs_funcs,
                 rho,
                 propars,
@@ -264,9 +279,9 @@ class LinearISAWPart(GaussianISAWPart):
                 density_cutoff,
                 explicit_constr=False,
             )
-        elif self._solver_id == 302:
+        elif self._solver == 302:
             # use `trust_constr` in SciPy with constraint explicitly
-            return opt_propars_minimization_trust_constr(
+            return opt_propars_trust_region(
                 bs_funcs,
                 rho,
                 propars,
@@ -279,48 +294,7 @@ class LinearISAWPart(GaussianISAWPart):
             raise NotImplementedError
 
 
-class _LisaOptimizationPart(LinearISAWPart):
-    def __init__(self, *args, _solver_id, **kwargs):
-        kwargs["solver_id"] = _solver_id
-        super().__init__(*args, **kwargs)
-
-
-class LisaConvexOptWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=101, **kwargs)
-
-
-class LisaConvexOptNWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=104, **kwargs)
-
-
-class LisaSelfConsistentWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=201, **kwargs)
-
-
-class LisaNewtonWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=203, **kwargs)
-
-
-class LisaDIISWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=202, **kwargs)
-
-
-class LisaTrustConstraintImpWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=301, **kwargs)
-
-
-class LisaTrustConstraintExpWPart(_LisaOptimizationPart):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, _solver_id=302, **kwargs)
-
-
-def opt_propars_fixed_points_sc(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
+def opt_propars_self_consistent(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
 
@@ -577,7 +551,7 @@ def diis(c_values, r_values, max_history):
     return c_new, turn_off_diis
 
 
-def opt_propars_fixed_points_diis(
+def opt_propars_diis(
     bs_funcs,
     rho,
     propars,
@@ -805,9 +779,7 @@ def opt_propars_fixed_points_diis_pos(
     raise RuntimeError("Error: inner iteration is not converge!")
 
 
-def opt_propars_fixed_points_newton(
-    bs_funcs, rho, propars, points, weights, threshold, density_cutoff
-):
+def opt_propars_newton(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
 
@@ -1019,7 +991,7 @@ def opt_propars_convex_opt(
     return new_propars
 
 
-def opt_propars_minimization_trust_constr(
+def opt_propars_trust_region(
     bs_funcs,
     rho,
     propars,

@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractISAWPart(AbstractStockholderWPart):
+    """Abstract Iterative Stockholder Analysis class."""
+
     def __init__(
         self,
         coordinates,
@@ -43,35 +45,37 @@ class AbstractISAWPart(AbstractStockholderWPart):
         spindens=None,
         local=True,
         lmax=3,
+        # New parameters added
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        local_grid_radius=np.inf,
+        radius_cutoff=np.inf,
     ):
         """
-        **Optional arguments:** (that are not defined in ``WPart``)
+        Initial function.
 
-        threshold
+        **Optional arguments:** (that are not defined in :class:`horton_part.core.base.WPart`)
+
+        Parameters
+        ----------
+        threshold : float
              The procedure is considered to be converged when the maximum
              change of the charges between two iterations drops below this
              threshold.
-
-        maxiter
+        maxiter : int
              The maximum number of iterations. If no convergence is reached
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
-
-        inner_threshold
+        inner_threshold : float
             The threshold for inner local optimization problem.
-
-        local_grid_radius
+        radius_cutoff : float
             The radius of the sphere where the local grids are considered.
 
         """
         self._threshold = threshold
         self._inner_threshold = inner_threshold if inner_threshold < threshold else threshold
         self._maxiter = maxiter
-        self._local_grid_radius = local_grid_radius
+        self._radius_cutoff = radius_cutoff
         AbstractStockholderWPart.__init__(
             self,
             coordinates,
@@ -85,7 +89,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         )
 
     @property
-    def local_grid_radius(self):
+    def radius_cutoff(self):
         """
         Get the radius of the local grid sphere.
 
@@ -102,9 +106,9 @@ class AbstractISAWPart(AbstractStockholderWPart):
         ValueError
             If the local grid radius is not set or out of an expected range.
         """
-        if self._local_grid_radius is None or self._local_grid_radius < 0:
+        if self._radius_cutoff is None or self._radius_cutoff < 0:
             raise ValueError("Local grid radius is not properly set.")
-        return self._local_grid_radius
+        return self._radius_cutoff
 
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
