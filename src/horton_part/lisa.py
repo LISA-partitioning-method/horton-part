@@ -148,13 +148,21 @@ class LinearISAWPart(GaussianISAWPart):
     def bs_helper(self):
         """A basis function helper."""
         if self._bs_helper is None:
-            bs_name = self.basis_func.lower()
-            if bs_name in ["gauss", "slater"]:
-                logger.info(f"Load {bs_name.upper()} basis functions")
-                self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
+            if isinstance(self.basis_func, str):
+                bs_name = self.basis_func.lower()
+                if bs_name in ["gauss", "slater"]:
+                    logger.info(f"Load {bs_name.upper()} basis functions")
+                    self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
+                else:
+                    logger.info(f"Load basis functions from custom json file: {self.basis_func}")
+                    self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
+            elif isinstance(self.basis_func, BasisFuncHelper):
+                self._bs_helper = self.basis_func
             else:
-                logger.info(f"Load basis functions from custom json file: {self.basis_func}")
-                self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
+                raise NotImplementedError(
+                    "The type of basis_func should be one of string or class BasisFuncHelper."
+                )
+
         return self._bs_helper
 
     def _init_log_scheme(self):
@@ -169,10 +177,13 @@ class LinearISAWPart(GaussianISAWPart):
             ("Using global ISA", False),
         ]
 
-        if self._solver in [104, 202, 203, 204]:
-            allow_negative_params = True
+        if isinstance(self._solver, int):
+            if self._solver in [104, 202, 203, 204]:
+                allow_negative_params = True
+            else:
+                allow_negative_params = False
         else:
-            allow_negative_params = False
+            allow_negative_params = "Unknown"
 
         info_list.extend(
             [
