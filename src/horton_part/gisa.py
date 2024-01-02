@@ -25,7 +25,7 @@ import logging
 import cvxopt
 import numpy as np
 import quadprog
-from scipy.optimize import least_squares
+from scipy.optimize import minimize
 
 from .core.basis import BasisFuncHelper
 from .core.cache import just_once
@@ -35,9 +35,9 @@ from .utils import check_pro_atom_parameters
 
 __all__ = [
     "GaussianISAWPart",
-    "opt_propars_leastsq_scipy",
-    "opt_propars_qp_cvxopt",
     "opt_propars_qp_quadprog",
+    "opt_propars_qp_scipy",
+    "opt_propars_qp_cvxopt",
 ]
 
 # TODO: the quadratic programming problem can be solved systematically in qpsolvers, where
@@ -233,18 +233,18 @@ class GaussianISAWPart(AbstractISAWPart):
                 propars,
                 points,
                 weights,
+                alphas,
                 threshold,
                 **self._solver_kwargs,
             )
 
         if self._solver == 1:
+            # TODO: the initial values are set to zero for all propars and no threshold setting is available.
             return opt_propars_qp_quadprog(
                 bs_funcs, rho, propars, points, weights, alphas, threshold
             )
         elif self._solver == 2:
-            return opt_propars_leastsq_scipy(
-                bs_funcs, rho, propars, points, weights, alphas, threshold
-            )
+            return opt_propars_qp_scipy(bs_funcs, rho, propars, points, weights, alphas, threshold)
         elif self._solver == 3:
             return opt_propars_qp_cvxopt(bs_funcs, rho, propars, points, weights, alphas, threshold)
         else:
@@ -263,6 +263,32 @@ class GaussianISAWPart(AbstractISAWPart):
                     for ishell in range(nshell)
                 ]
             )
+
+
+def _prepare_quantities(bs_funcs, rho, propars, weights, alphas):
+    nprim = len(propars)
+    G = (
+        2
+        / np.pi**1.5
+        * (alphas[:, None] * alphas[None, :]) ** 1.5
+        / (alphas[:, None] + alphas[None, :]) ** 1.5
+    )
+
+    a = np.zeros(nprim, float)
+    for k in range(nprim):
+        a[k] = 2 * np.einsum("i,i,i", weights, bs_funcs[k], rho)
+
+    # Construct linear equality or inequality constraints
+    C = np.zeros([nprim, nprim + 1])
+    # First column : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k)= N_a
+    C[:, 0] = np.ones(nprim)
+    # Other K_a columns : correspond to the INEQUALITY constraints c_(a,k) >=0
+    C[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
+    b = np.zeros(nprim + 1)
+    # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
+    pop = np.einsum("i,i", weights, rho)
+    b[0] = pop
+    return G, a, C, b
 
 
 def opt_propars_qp_quadprog(bs_funcs, rho, propars, points, weights, alphas, threshold):
@@ -313,32 +339,85 @@ def opt_propars_qp_quadprog(bs_funcs, rho, propars, points, weights, alphas, thr
 
 
     """
-    nprim = len(propars)
-    S = (
-        2
-        / np.pi**1.5
-        * (alphas[:, None] * alphas[None, :]) ** 1.5
-        / (alphas[:, None] + alphas[None, :]) ** 1.5
+    G, a, C, b = _prepare_quantities(bs_funcs, rho, propars, weights, alphas)
+    result = quadprog.solve_qp(G=G, a=a, C=C, b=b, meq=1)[0]
+    check_pro_atom_parameters(result, total_population=float(b[0]))
+    return result
+
+
+def opt_propars_qp_scipy(bs_funcs, rho, propars, points, weights, alphas, threshold):
+    r"""
+    Optimize parameters for proatom density functions using quadratic programming.
+
+    .. math::
+
+        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
+
+
+        G = \frac{1}{2} c^T S c - c^T b
+
+        S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
+        = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
+
+        b = 2 * \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    alphas : 1D np.ndarray
+        The Gaussian exponential coefficients.
+    threshold : float
+        The convergence threshold of the optimization method.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+
+    """
+    G, a, C, b = _prepare_quantities(bs_funcs, rho, propars, weights, alphas)
+    meq = 1
+
+    def _obj_func(x):
+        return 0.5 * np.dot(x, G).dot(x) - np.dot(a, x)
+
+    constraints = []
+    if C is not None:
+        constraints = [
+            {
+                "type": "eq" if i < meq else "ineq",
+                "fun": lambda x, C=C, b=b, i=i: (np.dot(C.T, x) - b)[i],
+            }
+            for i in range(C.shape[1])
+        ]
+
+    result = minimize(
+        _obj_func,
+        x0=np.zeros(len(G)),
+        method="SLSQP",
+        constraints=constraints,
+        tol=threshold,
+        options={"maxiter": 2000},
     )
-
-    vec_b = np.zeros(nprim, float)
-    for k in range(nprim):
-        vec_b[k] = 2 * np.einsum("i,i,i", weights, bs_funcs[k], rho)
-
-    # Construct linear equality or inequality constraints
-    matrix_constraint = np.zeros([nprim, nprim + 1])
-    # First column : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k)= N_a
-    matrix_constraint[:, 0] = np.ones(nprim)
-    # Other K_a columns : correspond to the INEQUALITY constraints c_(a,k) >=0
-    matrix_constraint[0:nprim, 1 : (nprim + 1)] = np.identity(nprim)
-    vector_constraint = np.zeros(nprim + 1)
-    # First coefficient : corresponds to the EQUALITY constraint sum_{k=1..Ka} c_(a,k) = N_a
-    pop = np.einsum("i,i", weights, rho)
-    vector_constraint[0] = pop
-
-    propars_qp = quadprog.solve_qp(G=S, a=vec_b, C=matrix_constraint, b=vector_constraint, meq=1)[0]
-    check_pro_atom_parameters(propars_qp, total_population=float(pop))
-    return propars_qp
+    return result.x
 
 
 def opt_propars_qp_cvxopt(bs_funcs, rho, propars, points, weights, alphas, threshold):
@@ -409,66 +488,11 @@ def opt_propars_qp_cvxopt(bs_funcs, rho, propars, points, weights, alphas, thres
         h,
         A,
         b,
-        initvals=propars,
-        options={"feastol": threshold},
+        # initvals=propars,
+        initvals=np.zeros_like(propars),
+        options={"feastol": threshold, "show_progress": 0},
         # options={"show_progress": log.do_medium, "feastol": threshold},
     )
     new_propars = np.asarray(opt_CVX["x"]).flatten()
     check_pro_atom_parameters(new_propars, total_population=float(pop))
     return new_propars
-
-
-def opt_propars_leastsq_scipy(bs_funcs, rho, propars, points, weights, alphas, threshold):
-    r"""
-    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
-
-    .. math::
-
-        N_{Ai} = \int \rho_A(r) \frac{\rho_{Ai}^0(r)}{\rho_A^0(r)} dr
-
-        G = \frac{1}{2} c^T S c - c^T b
-
-        S = 2 \int \zeta(\vec{r}) \zeta(\vec{r}) d\vec{r}
-        = \frac{2}{\pi \sqrt{\pi}} \frac{(\alpha_k \alpha_l)^{3/2}}{(\alpha_k + \alpha_l)^{3/2}}
-
-        b = \int \zeta(\vec{r}) \rho_a(\vec{r}) d\vec{r}
-
-    Parameters
-    ----------
-    bs_funcs : 2D np.ndarray
-        Basis functions array with shape (M, N), where 'M' is the number of basis functions
-        and 'N' is the number of grid points.
-    rho : 1D np.ndarray
-        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
-    propars : 1D np.ndarray
-        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
-    points : 1D np.ndarray
-        Radial coordinates of grid points, with shape (N,).
-    weights : 1D np.ndarray
-        Weights for integration, including the angular part (4πr²), with shape (N,).
-    threshold : float
-        Convergence threshold for the iterative process.
-    alphas : 1D np.ndarray
-        The Gaussian exponential coefficients.
-    threshold : float
-        The convergence threshold of the optimization method.
-
-    Returns
-    -------
-    1D np.ndarray
-        Optimized proatom parameters.
-
-    Raises
-    ------
-    RuntimeError
-        If the inner iteration does not converge.
-
-    """
-
-    def _obj_func(x):
-        pro = np.sum(x[:, None] * bs_funcs, axis=0)
-        return weights * np.abs(pro - rho)
-
-    res = least_squares(_obj_func, x0=propars, bounds=(0, np.inf), gtol=threshold)
-    check_pro_atom_parameters(res.x)
-    return res.x
