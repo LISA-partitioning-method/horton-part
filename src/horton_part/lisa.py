@@ -66,14 +66,14 @@ class LinearISAWPart(GaussianISAWPart):
 
     **Optimization Problem Schemes**
 
-    - Convex optimization (LISA-101)
+    - Convex optimization (`solver`="cvxopt")
     - Trust-region methods with constraints
-        - Implicit constraints (LSIA-301)
-        - Explicit constraints (LSIA-302)
+        - Implicit constraints (`solver`="trust_constr_im")
+        - Explicit constraints (`solver`="trust_constr_ex")
     - Fixed-point methods
-        - Alternating/self-consistent method (LISA-201)
-        - DIIS (LISA-202)
-        - Newton method (LISA-203)
+        - Alternating/self-consistent method (`solver`="sc")
+        - Direct Inversion of Iterative Space (DIIS) (`sovler`="diis")
+        - Newton method (`solver`="newton")
 
 
     See Also
@@ -101,25 +101,20 @@ class LinearISAWPart(GaussianISAWPart):
         maxiter=500,
         inner_threshold=1e-8,
         radius_cutoff=np.inf,
-        solver=101,
-        solver_kwargs=None,
+        solver="cvxopt",
+        solver_options=None,
         basis_func="gauss",
     ):
         """
         LISA initial function.
 
-        **Optional arguments:** (that are not defined in ``WPart``)
+        **Optional arguments:** (that are not defined in ``GaussianISAWPart``)
 
         Parameters
         ----------
-        threshold: float
-             The procedure is considered to be converged when the maximum
-             change of the charges between two iterations drops below this
-             threshold.
-        maxiter: int
-             The maximum number of iterations. If no convergence is reached
-             in the end, no warning is given.
-             Reduce the CPU cost at the expense of more memory consumption.
+        basis_func : string, optional
+            The type of basis functions, and Gaussian is the default.
+
         """
         self.basis_func = basis_func
         if self.basis_func in ["gauss", "slater"]:
@@ -141,7 +136,7 @@ class LinearISAWPart(GaussianISAWPart):
             inner_threshold,
             radius_cutoff,
             solver,
-            solver_kwargs,
+            solver_options,
         )
 
     @property
@@ -177,8 +172,8 @@ class LinearISAWPart(GaussianISAWPart):
             ("Using global ISA", False),
         ]
 
-        if isinstance(self._solver, int):
-            if self._solver in [104, 202, 203, 204]:
+        if not callable(self._solver):
+            if self._solver in ["cvxopt_ng", "diis", "newton"]:
                 allow_negative_params = True
             else:
                 allow_negative_params = False
@@ -195,7 +190,7 @@ class LinearISAWPart(GaussianISAWPart):
                 ("Allow negative parameters", allow_negative_params),
             ]
         )
-        if self._solver in [202]:
+        if not callable(self._solver) and "diis" in self._solver:
             # info_list.append(("DIIS size", self.diis_size))
             # TODO: add info for solver kwargs.
             pass
@@ -224,31 +219,31 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
-                **self._solver_kwargs,
+                **self._solver_options,
             )
 
-        if self._solver == 101:
+        if self._solver == "cvxopt":
             return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        if self._solver == 104:
+        if self._solver == "cvxopt_ng":
             # no robust: HF, SiH4
             return opt_propars_convex_opt(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff, True
             )
-        elif self._solver == 201:
+        elif self._solver == "sc":
             return opt_propars_self_consistent(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 20101:
+        elif self._solver == "sc_1_iter":
             return opt_propars_fixed_points_sc_one_step(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 2011:
+        elif self._solver == "mix_sc_and_convex":
             return opt_propars_fixed_points_sc_convex(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 202:
+        elif self._solver == "diis":
             # for large diis_size, it is also not robust
             return opt_propars_diis(
                 bs_funcs,
@@ -258,15 +253,15 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
-                **self._solver_kwargs
+                **self._solver_options
                 # diis_size=self.diis_size,
             )
-        elif self._solver == 203:
+        elif self._solver == "newton":
             # not robust
             return opt_propars_newton(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
             )
-        elif self._solver == 204:
+        elif self._solver == "diis_ps":
             return opt_propars_fixed_points_diis_pos(
                 bs_funcs,
                 rho,
@@ -275,10 +270,10 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
-                **self._solver_kwargs
+                **self._solver_options
                 # diis_size=self.diis_size,
             )
-        elif self._solver == 301:
+        elif self._solver == "trust_constr_im":
             # same as LISA-102 but with constraint implicitly, slower than 302
             return opt_propars_trust_region(
                 bs_funcs,
@@ -290,7 +285,7 @@ class LinearISAWPart(GaussianISAWPart):
                 density_cutoff,
                 explicit_constr=False,
             )
-        elif self._solver == 302:
+        elif self._solver == "trust_constr_ex":
             # use `trust_constr` in SciPy with constraint explicitly
             return opt_propars_trust_region(
                 bs_funcs,

@@ -22,13 +22,13 @@ Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning sc
 
 **Optimization Problem Schemes**
 
-- Convex optimization (LISA-101)
+- Convex optimization (`name` = "glisa_cvxopt")
 - Trust-region methods with constraints
-    - Implicit constraints (LSIA-301)
-    - Explicit constraints (LSIA-302)
+    - Implicit constraints (`name` = "glisa_trust_constr")
+    - With negative parameters (`name` = "glisa_trust_constr_ng")
 - Fixed-point methods
-    - Alternating method (LISA-201)
-    - DIIS (LISA-202)
+    - Alternating method (`name` = "glisa_sc")
+    - DIIS (`name` = "glisa_diis")
 """
 
 import logging
@@ -112,9 +112,8 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         lmax=3,
         threshold=1e-6,
         maxiter=500,
-        local_grid_radius=np.inf,
-        basis_func_type="gauss",
-        basis_func_json_file=None,
+        radius_cutoff=np.inf,
+        basis_func="gauss",
     ):
         """
         Construct LISA for given arguments.
@@ -132,10 +131,11 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self._local_grid_radius = local_grid_radius
+        self._radius_cutoff = radius_cutoff
         self._maxiter = maxiter
         self._threshold = threshold
-        self.func_type = basis_func_type
+        self.basis_func = basis_func
+        self._bs_helper = None
 
         AbstractStockholderWPart.__init__(
             self,
@@ -149,12 +149,26 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             lmax,
         )
 
-        if basis_func_json_file is not None:
-            logger.info(f"Load basis functions from custom json file: {basis_func_json_file}")
-            self.bs_helper = BasisFuncHelper.from_json(basis_func_json_file)
-        else:
-            logger.info(f"Load {basis_func_type} basis functions")
-            self.bs_helper = BasisFuncHelper.from_function_type(basis_func_type)
+    @property
+    def bs_helper(self):
+        """A basis function helper."""
+        if self._bs_helper is None:
+            if isinstance(self.basis_func, str):
+                bs_name = self.basis_func.lower()
+                if bs_name in ["gauss", "slater"]:
+                    logger.info(f"Load {bs_name.upper()} basis functions")
+                    self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
+                else:
+                    logger.info(f"Load basis functions from custom json file: {self.basis_func}")
+                    self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
+            elif isinstance(self.basis_func, BasisFuncHelper):
+                self._bs_helper = self.basis_func
+            else:
+                raise NotImplementedError(
+                    "The type of basis_func should be one of string or class BasisFuncHelper."
+                )
+
+        return self._bs_helper
 
     def get_rgrid(self, index):
         """Load radial grid."""
@@ -204,7 +218,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
     @property
     def radius_cutoff(self):
         """The cutoff radius for local grid."""
-        return self._local_grid_radius
+        return self._radius_cutoff
 
     def _init_log_scheme(self):
         info_list = [
@@ -217,7 +231,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             [
                 ("Maximum outer iterations", self.maxiter),
                 ("lmax", self.lmax),
-                ("Basis function type", self.func_type),
+                ("Basis function type", self.basis_func),
                 ("Local grid radius", self.radius_cutoff),
                 ("Allow negative parameters", self.allow_neg_pars),
             ]
@@ -300,6 +314,10 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                 spherical_average = spline(r)
                 pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
                 charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+            self._finalize_propars()
+            self.cache.dump("niter", np.nan, tags="o")
+            self.cache.dump("change", np.nan, tags="o")
 
     @just_once
     def eval_pro_shells(self):
@@ -467,9 +485,58 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                 f"nderiv value of {nderiv} is not supported. Only 0, 1, or 2 are valid."
             )
 
+    def _finalize_propars(self):
+        """Restore the pro-atom parameters."""
+        charges = self._cache.load("charges")
+        self.cache.dump("history_propars", np.array(self.history_propars), tags="o")
+        self.cache.dump("history_charges", np.array(self.history_charges), tags="o")
+        self.cache.dump("history_entropies", np.array(self.history_entropies), tags="o")
+        self.cache.dump("populations", self.numbers - charges, tags="o")
+        self.cache.dump("pseudo_populations", self.pseudo_numbers - charges, tags="o")
+        self.cache.dump(
+            "history_time_update_at_weights",
+            np.array(self.history_time_update_at_weights),
+            tags="o",
+        )
+        self.cache.dump(
+            "history_time_update_propars_atoms",
+            np.array(self.history_time_update_propars_atoms),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_update_at_weights",
+            np.sum(self.history_time_update_at_weights),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_update_propars_atoms",
+            np.sum(self.history_time_update_propars_atoms),
+            tags="o",
+        )
+        self.cache.dump(
+            "history_time_update_promolecule",
+            np.array(self.time_usage["history_time_update_promolecule"]),
+            tags="o",
+        )
+        self.cache.dump(
+            "history_time_compute_at_weights",
+            np.array(self.time_usage["history_time_compute_at_weights"]),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_update_promolecule",
+            np.sum(self.time_usage["history_time_update_promolecule"]),
+            tags="o",
+        )
+        self.cache.dump(
+            "time_compute_at_weights",
+            np.sum(self.time_usage["history_time_compute_at_weights"]),
+            tags="o",
+        )
+
 
 class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
-    name = "lisa_g_101"
+    name = "glisa_cvxopt"
     allow_neg_pars = False
 
     def _opt_propars(self):
@@ -532,12 +599,12 @@ class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
 
 
 class GLisaConvexOptNWPart(GLisaConvexOptWPart):
-    name = "lisa_g_104"
+    name = "glisa_cvxopt_ng"
     allow_neg_pars = True
 
 
 class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
-    name = "lisa_g_201"
+    name = "glisa_sc"
     allow_neg_pars = False
 
     def _opt_propars(self):
@@ -588,7 +655,7 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
 
 
 class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
-    name = "lisa_g_202"
+    name = "glisa_diis"
     allow_neg_pars = True
     diis_size = 8
 
@@ -684,7 +751,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
 
 
 class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
-    name = "lisa_g_301"
+    name = "glisa_trust_constr"
     allow_neg_pars = False
 
     def _opt_propars(self):
@@ -750,5 +817,5 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
 
 
 class GLisaTrustConstrainNWPart(GLisaTrustConstrainWPart):
-    name = "lisa_g_302"
+    name = "glisa_trust_constr_ng"
     allow_neg_pars = True

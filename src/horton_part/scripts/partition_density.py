@@ -96,13 +96,14 @@ def main():
         "radius_cutoff": args.radius_cutoff,
     }
 
-    if args.type in ["gisa", "lisa", "lisa_g"]:
+    if args.type in ["gisa", "lisa"]:
         kwargs["solver"] = args.solver
-        kwargs["solver_kwargs"] = {}
-        if args.type in ["lisa"]:
-            kwargs["basis_func"] = args.func_file or args.basis_func
-            if args.solver > 200:
-                kwargs["solver_kwargs"]["diis_size"] = args.diis_size
+        kwargs["solver_options"] = {}
+
+    if args.type in ["lisa"] or "glisa" in args.type:
+        kwargs["basis_func"] = args.func_file or args.basis_func
+        if "diis" in args.solver:
+            kwargs["solver_options"]["diis_size"] = args.diis_size
 
     part = wpart_schemes(args.type)(**kwargs)
     part.do_partitioning()
@@ -192,14 +193,11 @@ def parse_args():
             "lisa",
             "mbis",
             "is",
-            "lisa_g",
-            "lisa_g_101",
-            "lisa_g_104",
-            "lisa_g_201",
-            "lisa_g_202",
-            "lisa_g_206",
-            "lisa_g_301",
-            "lisa_g_302",
+            "glisa_cvxopt",
+            "glisa_trust_constr",
+            "glisa_trust_constr_ng",
+            "glisa_sc",
+            "glisa_diis",
         ],
         help="Number of angular grid points. [default=%(default)s]",
     )
@@ -236,8 +234,8 @@ def parse_args():
     )
     parser.add_argument(
         "--solver",
-        type=int,
-        default=2,
+        type=str,
+        default="cvxopt",
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",
     )
     parser.add_argument(
