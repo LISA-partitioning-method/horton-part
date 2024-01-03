@@ -601,62 +601,81 @@ def opt_propars_diis(
         If the inner iteration does not converge.
 
     """
-    history_diis = []
+    history_residues = []
     history_propars = []
+    # start from the second iteration
     start_diis_iter = diis_size + 1
 
-    # if log.do_medium:
     logger.debug("            Iter.    dRMS      ")
     logger.debug("            -----    ------    ")
 
     for irep in range(1000):
-        pro_shells, pro, sick, ratio, lnratio = compute_quantities(
-            rho, propars, bs_funcs, density_cutoff
-        )
+        pro_shells, _, sick, ratio, _ = compute_quantities(rho, propars, bs_funcs, density_cutoff)
 
         integrands = pro_shells * ratio
         fun_val = np.einsum("ip,p->i", integrands, weights)
-
-        # Build DIIS Residual
+        # compute residue
         diis_r = propars - fun_val
-        # Compute drms
         drms = np.linalg.norm(diis_r)
 
-        # if log.do_medium:
         logger.debug(f"           {irep:<4}    {drms:.6E}")
         if drms < threshold:
             return propars
 
         # Append trail & residual vectors to lists
-        if irep >= start_diis_iter - diis_size:
-            history_propars.append(fun_val)
-            history_diis.append(diis_r)
+        history_propars.append(fun_val)
+        history_residues.append(diis_r)
 
         if irep >= start_diis_iter:
-            # Build B matrix
-            propars_prev = history_propars[-diis_size:]
-            diis_prev = history_diis[-diis_size:]
-
-            B_dim = len(propars_prev) + 1
-            B = np.zeros((B_dim, B_dim))
-            B[-1, :] = B[:, -1] = -1
-            tmp = np.einsum("ip,jp->ij", diis_prev, diis_prev)
-            B[:-1, :-1] = (tmp + tmp.T) / 2
-            B[-1, -1] = 0
-
-            # Build RHS of Pulay equation
-            rhs = np.zeros(B_dim)
-            rhs[-1] = -1
-            coeff = spsolve(B, rhs)
-            propars = np.einsum("i, ip->p", coeff[:-1], np.asarray(propars_prev))
-            if (np.isnan(propars)).any():
-                propars = fun_val
+            propars_sub = history_propars[-diis_size:]
+            residues_sub = history_residues[-diis_size:]
+            propars = diis_solver(propars_sub, residues_sub, fun_val)
         else:
             propars = fun_val
 
         check_pro_atom_parameters(propars)
 
     raise RuntimeError("Error: inner iteration is not converge!")
+
+
+def diis_solver(propars_list, residues_list, return_value=None):
+    """DIIS solver.
+
+    Parameters
+    ----------
+    propars_list : array_like
+        A list of pro-atom parameters.
+    residues_list : array_like
+        A list of residues.
+    return_value : np.ndarray
+        1D array with size of N where `N` is the number of paramters.
+    """
+    # build B matrix
+    mat_size = len(propars_list) + 1
+    B = np.zeros((mat_size, mat_size))
+    r2 = np.einsum("ip,jp->ij", residues_list, residues_list)
+    B[:-1, :-1] = (r2 + r2.T) / 2
+    # add constraint
+    B[-1, :-1] = B[:-1, -1] = -1
+
+    # build RHS of Pulay equation
+    rhs = np.zeros(mat_size)
+    rhs[-1] = -1
+
+    # solve B@x = rhs
+    sol = spsolve(B, rhs)
+
+    result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list))
+    if (np.isnan(result)).any():
+        if return_value is not None:
+            result = return_value
+        elif mat_size > 2:
+            result = diis_solver(propars_list[1:], residues_list[1:])
+        else:
+            assert mat_size == 2
+            result = propars_list[-1]
+
+    return result
 
 
 def opt_propars_fixed_points_diis_pos(
