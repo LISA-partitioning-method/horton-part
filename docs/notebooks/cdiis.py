@@ -7,8 +7,10 @@ from setup import prepare_argument_dict, prepare_grid_and_dens, print_results
 
 from horton_part import LinearISAWPart, check_pro_atom_parameters, compute_quantities
 
-logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:    %(message)s")
+logging.basicConfig(level=logging.ERROR, format="%(levelname)s:    %(message)s")
 logger = logging.getLogger(__name__)
+
+np.set_printoptions(precision=8, linewidth=np.inf, suppress=True)
 
 
 def cdiis_algo(
@@ -20,19 +22,18 @@ def cdiis_algo(
     threshold,
     density_cutoff,
     # parameters for CDIIS
-    tol=1e-08,
-    maxiter=50,
-    mode="R-CDIIS",
-    adaptative=False,
-    sizediis=8,
-    cstAdapt=1e-05,
-    minrestart=1,
+    # for all CDIIS
+    maxiter=1000,
     modeQR="full",
+    mode="R-CDIIS",
+    # FD-CDIIS
+    sizediis=5,
+    # R-CDIIS and AD-CDIIS
     param=0.1,
-    booldiis=True,
+    # R-CDIIS
+    minrestart=1,
+    # AD-CDIIS
     slidehole=False,
-    log=logging.DEBUG,
-    name="",
 ):
     """
     CDiis algorithm
@@ -47,7 +48,7 @@ def cdiis_algo(
         default value : 0:1
         tau parameter for the R-CDIIS algorithm
         delta parameter for the AD-CDIIS algorithm
-    tol : float
+    threshold : float
        default value : 1e-08
        tolerence parameter for convergence test on residual (commutator)
     maxiter : integer
@@ -56,16 +57,10 @@ def cdiis_algo(
     mode : string
        default value : "R-CDIIS"
        four modes available : "R-CDIIS", "AD-CDIIS", "FD-CDIIS", "Roothaan"
-    adaptative : boolean
-       default value : False
-       adaptative mode for the tau parameter
     sizediis : integer
        default value : 8
        size of the window of stored previous iterates in the FD-CDIIS algorithm
        this dimension is also used for the adaptative algorithm
-    cstAdapt : float
-       default value : 1e-05
-       constant part for the adaptative parameter (delta or tau)
     minrestart : integer
        default value : 1
        number of iterates we keep when a restart occurs
@@ -109,7 +104,6 @@ def cdiis_algo(
     # default value : True
     # if False : Roothann algorithm
     # if True : one of the CDIIS algorithm
-    print(mode)
     if mode == "Roothaan":
         booldiis = False
     else:
@@ -119,7 +113,14 @@ def cdiis_algo(
     logger.info("---- Mode: " + str(mode))
     if mode == "R-CDIIS" or mode == "AD-CDIIS":
         logger.info("---- param value: " + str(param))
-    if mode == "FD-CDIIS" or adaptative:
+
+    npar = len(propars)
+    if npar < sizediis:
+        sizediis = npar
+        logger.info(
+            f"The DIIS size is less than the number of parameters, and it is reduced to the number of parameters {npar}"
+        )
+    if mode == "FD-CDIIS":
         logger.info("---- sizediis: " + str(sizediis))
 
     ## compute the initial values
@@ -146,6 +147,7 @@ def cdiis_algo(
     # boolean to manage the first step
     notfirst = 0
     restart = True  # boolean to manage the QR decomposition when restart occurs
+    Cs = None
 
     # for the reader of the paper
     if mode == "R-CDIIS":
@@ -153,10 +155,9 @@ def cdiis_algo(
     elif mode == "AD-CDIIS":
         delta = param
 
-    Cs = None
     # while the residual is not small enough
     # TODO: why r[-1]?
-    while np.linalg.norm(rlist[-1]) > tol and nbiter < maxiter:
+    while np.linalg.norm(rlist[-1]) > threshold and nbiter < maxiter:
         # rlistIter.append(rlist)
         rnormlist.append(np.linalg.norm(r))
         mklist.append(mk)
@@ -166,16 +167,19 @@ def cdiis_algo(
         logger.info("mk value: " + str(mk))
         logger.info("||r(k)|| = " + str(np.linalg.norm(rlist[-1])))
 
-        if mk > 0 and booldiis:  # if there exist previous iterates and diis mode
+        if mk > 0 and booldiis:
+            # if there exist previous iterates and diis mode
             logger.info("size of Cs: " + str(np.shape(Cs)))
             if mode == "R-CDIIS":
                 if modeQR == "full":
-                    if mk == 1 or restart is True:  # if Q,R does not exist yet
+                    if mk == 1 or restart is True:
+                        # if Q,R does not exist yet
                         restart = False
                         Q, R = scipy.linalg.qr(Cs)
-                    else:  # update Q,R from previous one
+                    else:
+                        # update Q,R from previous one
                         Q, R = scipy.linalg.qr_insert(Q, R, Cs[:, -1], mk - 1, "col")
-                elif modeQR == "economic":  # modeQR="economic"
+                elif modeQR == "economic":
                     Q, R = scipy.linalg.qr(Cs, mode="economic")
 
             elif mode == "AD-CDIIS":
@@ -183,26 +187,28 @@ def cdiis_algo(
 
             elif mode == "FD-CDIIS":
                 if modeQR == "full":
-                    if mk == 1:  # if Q,R does not exist yet
+                    if mk == 1:
+                        # if Q,R does not exist yet
                         Q, R = scipy.linalg.qr(Cs)
-                    elif mk < sizediis:  # we only add a column
+                    elif mk < sizediis:
+                        # we only add a column
                         Q, R = scipy.linalg.qr_insert(Q, R, Cs[:, -1], mk - 1, "col")
                     else:
-                        if notfirst:  # of not the first time we reach the size
-                            Q, R = scipy.linalg.qr_delete(
-                                Q, R, 0, which="col"
-                            )  # we remove the first column
-                        Q, R = scipy.linalg.qr_insert(
-                            Q, R, Cs[:, -1], mk - 1, "col"
-                        )  # we add a column
+                        if notfirst:
+                            # of not the first time we reach the size
+                            Q, R = scipy.linalg.qr_delete(Q, R, 0, which="col")
+                            # we remove the first column
+                        Q, R = scipy.linalg.qr_insert(Q, R, Cs[:, -1], mk - 1, "col")
+                        # we add a column
                         notfirst = 1
 
-                elif modeQR == "economic":  # modeQR="economic"
+                elif modeQR == "economic":
                     Q, R = scipy.linalg.qr(Cs, mode="economic")
 
-            Q1 = Q[:, 0:mk]  # the orthonormal basis as the subpart of Q denoted Q1
+            # the orthonormal basis as the subpart of Q denoted Q1
+            Q1 = Q[:, 0:mk]
 
-            ## solve the LS equation R1 gamma = -Q_1^T r^(k-mk) or -Q_1^T r^(k)
+            ## Solve the LS equation R1 gamma = -Q_1^T r^(k-mk) or -Q_1^T r^(k)
             ## depending on the choice of algorithm, the RHS is not the same (last or oldest element)
             if mode == "AD-CDIIS" or mode == "FD-CDIIS":
                 rhs = -np.dot(Q.T, np.reshape(rlist[-1], (-1, 1)))  # last : r^{k}
@@ -212,6 +218,7 @@ def cdiis_algo(
 
             # compute gamma solution of R_1 gamma = RHS
             # TODO: this is problematic if sizediis is larger than the size
+            # print(R[0:mk, 0:mk])
             gamma = solve_triangular(R[0:mk, 0:mk], rhs[0:mk], lower=False)
             # Note: gamma has the same shape as rhs which is 2D array.
             gamma = gamma.flatten()
@@ -222,20 +229,24 @@ def cdiis_algo(
                 logger.info(
                     "size of c: " + str(np.shape(c)[0]) + ", size of gamma: " + str(np.shape(gamma))
                 )
+                # Algorithm 3 and version P
                 # c_0 = -gamma_1 (c_0, ... c_mk) and (gamma_1,...,gamma_mk)
                 c[0] = -gamma[0]
                 for i in range(1, mk):  # 1... mk-1
                     c[i] = gamma[i - 1] - gamma[i]  # c_i=gamma_i-gamma_i+1
                 c[mk] = 1.0 - np.sum(c[0:mk])
 
-            else:  # restart
+            else:
+                # mode == "R-CDIIS"
                 c[0] = 1.0 - np.sum(gamma)
                 for i in range(1, mk + 1):
                     c[i] = gamma[i - 1]
+
             # dmtilde
-            dmtilde = 0.0 * dm.copy()  # init
+            dmtilde = np.zeros_like(dm)
             for i in range(mk + 1):
                 dmtilde = dmtilde + c[i] * dmlist[i]
+            # TODO: why np.inf norm?
             cnormlist.append(np.linalg.norm(c, np.inf))
         else:  #  ROOTHAAN (if booldiis==False) or first iteration of cdiis
             dmtilde = dm.copy()
@@ -249,7 +260,7 @@ def cdiis_algo(
         logger.info("||r_{k+1}|| = " + str(np.linalg.norm(r)))
 
         # compute the s^k vector
-        if mode == "AD-CDIIS" or mode == "FD-CDIIS":
+        if mode in ["AD-CDIIS", "FD-CDIIS"]:
             #  as the difference between the r^{k+1} and the last r^{k}
             s = r - rlist[-1]
         elif mode == "R-CDIIS":
@@ -290,27 +301,28 @@ def cdiis_algo(
                     dmlist = dmlist[-minrestart:]
                     restart = True
                 else:
-                    mk = mk + 1
-            else:  # if mk==0
-                mk = mk + 1
+                    mk += 1
+            else:
+                # if mk==0
+                mk += 1
 
         if mode == "AD-CDIIS":
             # mode Adaptive-Depth
-            mk = mk + 1
+            mk += 1
             outNbr = 0
             indexList = []
 
             for l in range(0, mk - 1):
                 # print l,np.linalg.norm(rlist[-1]),delta*np.linalg.norm(rlist[l])
                 if np.linalg.norm(rlist[-1]) < (delta * np.linalg.norm(rlist[l])):
-                    outNbr = outNbr + 1
+                    outNbr += 1
                     indexList.append(l)
                 else:
                     if slidehole is False:
                         break
 
-            if indexList != []:
-                mk = mk - outNbr
+            if indexList:
+                mk -= outNbr
                 logger.info("Indexes out :" + str(indexList))
                 # delete the corresponding s vectores
                 Cs = np.delete(Cs, indexList, axis=1)
@@ -320,7 +332,18 @@ def cdiis_algo(
                     rlist.pop(ll)
                     dmlist.pop(ll)
 
-        elif mode == "FD-CDIIS":  # keep only sizediis iterates
+            # Check if mk == npar + 1. This is actually FD-CDIIS
+            if mk == npar + 1:
+                logger.info(str(np.shape(Cs)))
+                Cs = Cs[:, 1 : mk + 1]
+                logger.info(str(np.shape(Cs)))
+                dmlist.pop(0)
+                slist.pop(0)
+                rlist.pop(0)
+                mk -= 1
+
+        elif mode == "FD-CDIIS":
+            # keep only sizediis iterates
             if mk == sizediis:
                 logger.info(str(np.shape(Cs)))
                 Cs = Cs[:, 1 : mk + 1]
@@ -330,12 +353,12 @@ def cdiis_algo(
                 rlist.pop(0)
 
             if mk < sizediis:
-                mk = mk + 1
+                mk += 1
 
-        nbiter = nbiter + 1
+        nbiter += 1
         dmlast = dm
 
-    if np.linalg.norm(r[-1]) > tol and nbiter == maxiter:
+    if np.linalg.norm(rlist[-1]) > threshold and nbiter == maxiter:
         conv = False
     else:
         conv = True
@@ -350,19 +373,87 @@ def cdiis_algo(
 if __name__ == "__main__":
     import os
 
+    TS42 = [
+        "C2H2",
+        "C2H4",
+        "C2H5OH",
+        "C2H6",
+        "C3H6",
+        "C3H7OH",
+        "C3H8",
+        "C4H10O",
+        "C4H10",
+        "C4H8",
+        "C5H12",
+        "C6H14",
+        "C6H6",
+        "C7H16",
+        "C8H18",
+        "CCl4",
+        "CH3CH2OCH2CH3",
+        "CH3CH3CH3N",
+        "CH3CHO",
+        "CH3COCH3",
+        "CH3NH2",
+        "CH3NHCH3",
+        "CH3OCH3",
+        "CH3OH",
+        "CH4",
+        "CO2",
+        "COS",
+        "CO",
+        "CS2",
+        "Cl2",
+        "H2CO",
+        "H2O",
+        "H2S",
+        "H2",
+        "HBr",
+        "HCl",
+        "HF",
+        "N2O",
+        "N2",
+        "NH3",
+        "SO2",
+        "SiH4",
+    ]
+    ISA_TESTS = [
+        "H2O",
+        "HF",
+        "HCN",
+        "CO",
+        "C6H6",
+        "CH4",
+        "H3O+",
+        "N3-",
+    ]
+
     fchk_path = "/Users/yingxing/Projects/ISA-benchmark/latest-draft/dataset/fchk"
 
-    for name in ["H2S"]:
-        # for name in ["H2S", "SiH4", "H2O", "C8H18"]:
+    solver_customized_options = {
+        "R-CDIIS": {"param": 1e-2, "minrestart": 1},  # 1e-2
+        "FD-CDIIS": {"sizediis": 5},  # 3, 4, 5
+        "AD-CDIIS": {"param": 1e-4},  # 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6
+    }
+
+    # mode = "FD-CDIIS"
+    mode = "AD-CDIIS"
+    # mode = "R-CDIIS"
+
+    # for name in TS42 + ISA_TESTS:
+    for name in ["COS"]:
+        # for name in ["COS"]:
+        print(name)
         mol, grid, rho = prepare_grid_and_dens(os.path.join(fchk_path, f"{name}_LDA.fchk"))
         kwargs = prepare_argument_dict(mol, grid, rho)
         kwargs["solver"] = cdiis_algo
         # four modes available : "R-CDIIS", "AD-CDIIS", "FD-CDIIS", "Roothaan"
         kwargs["solver_options"] = {
-            "mode": "R-CDIIS",
-            "maxiter": 100000,
-            "sizediis": 8,
+            "mode": mode,
+            "maxiter": 1000,
         }
+        kwargs["solver_options"].update(solver_customized_options[mode])
+        kwargs["inner_threshold"] = 1e-8
         part = LinearISAWPart(**kwargs)
         part.do_all()
         print_results(part)
