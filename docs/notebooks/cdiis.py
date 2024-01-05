@@ -7,10 +7,12 @@ from setup import prepare_argument_dict, prepare_grid_and_dens, print_results
 
 from horton_part import LinearISAWPart, check_pro_atom_parameters, compute_quantities
 
+__all__ = ["cdiis_algo"]
+
 logging.basicConfig(level=logging.ERROR, format="%(levelname)s:    %(message)s")
 logger = logging.getLogger(__name__)
 
-np.set_printoptions(precision=8, linewidth=np.inf, suppress=True)
+np.set_printoptions(precision=3, linewidth=np.inf, suppress=True)
 
 
 def cdiis_algo(

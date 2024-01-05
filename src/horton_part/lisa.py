@@ -663,7 +663,7 @@ def opt_propars_diis(
         If the inner iteration does not converge.
 
     """
-    diis_method = diis_method or diis_solver_dyn_2
+    diis_method = diis_method or diis_spsolver
 
     history_residues = []
     history_propars = []
@@ -784,71 +784,6 @@ def diis_solver_dyn(propars_list, residues_list, return_value=None):
         warnings.warn("Linear dependence found in DIIS error vectors.")
         result = propars_list[-1]
         logger.debug("real DIIS size: 1")
-    return result
-
-
-def diis_solver_dyn_2(propars_list, residues_list, return_value=None):
-    """DIIS solver with dynamic subspace size.
-
-    Parameters
-    ----------
-    propars_list : array_like
-        A list of pro-atom parameters.
-    residues_list : array_like
-        A list of residues.
-    return_value : np.ndarray
-        1D array with size of N where `N` is the number of parameters.
-
-    Returns
-    -------
-    np.ndarray
-        1D array, pro-atom parameters.
-
-    """
-    mat_size = len(propars_list) + 1
-    if mat_size == 2:
-        return propars_list[-1]
-
-    B = np.zeros((mat_size, mat_size))
-    r2 = np.einsum("ip,jp->ij", residues_list, residues_list)
-    B[:-1, :-1] = (r2 + r2.T) / 2
-    B[-1, :-1] = B[:-1, -1] = -1
-    rhs = np.zeros(mat_size)
-    rhs[-1] = -1
-
-    q, r = np.linalg.qr(B, mode="complete")
-    print("Q.T @ rhs:")
-    print(q.T @ rhs)
-    print("R:")
-    print(r)
-
-    sol = solve(B, rhs, assume_a="sym")
-    result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list))
-
-    # # Solve for the coefficients
-    # tol = 1e-14
-    # begin = 0
-    #
-    # while begin < mat_size - 1:
-    #     # TODO: this is problematic because eigh assume B is positive-definite.
-    #     w, v = eigh(B[begin:, begin:])
-    #     nb_small_val = np.sum(abs(w) < tol)
-    #     if not nb_small_val:
-    #         sol = (v * 1 / w) @ (v.T @ rhs[begin:])
-    #         result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list[begin:]))
-    #         if (result < -1e-8).any():
-    #             # result = propars_list[-1]
-    #             logger.warning(
-    #                 f"Use result from the last iteration due to negative parameters found!"
-    #             )
-    #         logger.debug(f"Updated size of DIIS subspace: {len(sol[:-1])}")
-    #         break
-    #     else:
-    #         begin += nb_small_val
-    # else:
-    #     warnings.warn("Linear dependence found in DIIS error vectors.")
-    #     result = propars_list[-1]
-    #     logger.debug(f"real DIIS size: 1")
     return result
 
 

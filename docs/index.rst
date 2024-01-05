@@ -100,6 +100,7 @@ Modules
     ./notebooks/gisa.ipynb
     ./notebooks/mbis.ipynb
     ./notebooks/lisa.ipynb
+    ./notebooks/lisa_diis.ipynb
     ./notebooks/lisa_g.ipynb
 
     ./notebooks/hirshfeld.ipynb
