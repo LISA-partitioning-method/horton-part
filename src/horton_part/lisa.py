@@ -26,12 +26,12 @@ import warnings
 
 import cvxopt
 import numpy as np
-import qpsolvers
-from scipy.linalg import LinAlgWarning, eigh, solve
+from scipy.linalg import LinAlgWarning, solve
 from scipy.optimize import SR1, LinearConstraint, minimize
 from scipy.sparse import SparseEfficiencyWarning
-from scipy.sparse.linalg import spsolve
 
+from .algo.cdiis import cdiis
+from .algo.diis import diis
 from .core.basis import BasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
@@ -49,9 +49,6 @@ __all__ = [
     "opt_propars_newton",
     "opt_propars_trust_region",
     "opt_propars_convex_opt",
-    "diis_spsolver",
-    "diis_solver_dyn",
-    "diis_solver_with_extra_constr",
 ]
 
 logger = logging.getLogger(__name__)
@@ -289,6 +286,17 @@ class LinearISAWPart(GaussianISAWPart):
         elif self._solver == "mix-sc-convex":
             return opt_propars_fixed_points_sc_convex(
                 bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+            )
+        elif self._solver == "cdiis":
+            return opt_propars_cdiis(
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                **self._solver_options,
             )
         else:
             raise NotImplementedError
@@ -624,8 +632,7 @@ def opt_propars_diis(
     weights,
     threshold,
     density_cutoff,
-    diis_size=8,
-    diis_method=None,
+    **solver_options,
 ):
     r"""
     Optimize parameters for proatom density functions using direct inversion in an iterative space (DIIS).
@@ -651,6 +658,9 @@ def opt_propars_diis(
         The size of DIIS subspace.
     diis_method : callable or None
         DIIS solver.
+    version : str, optional
+        The version of DIIS, possible options are `P` or `A`.
+
 
     Returns
     -------
@@ -663,169 +673,15 @@ def opt_propars_diis(
         If the inner iteration does not converge.
 
     """
-    diis_method = diis_method or diis_spsolver
 
-    history_residues = []
-    history_propars = []
+    def function_g(x):
+        """The fixed-point equation :math:`g(x)=x`."""
+        pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
+        return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
-    logger.debug("            Iter.    dRMS      ")
-    logger.debug("            -----    ------    ")
-
-    for irep in range(1000):
-        pro_shells, _, sick, ratio, _ = compute_quantities(rho, propars, bs_funcs, density_cutoff)
-
-        integrands = pro_shells * ratio
-        fun_val = np.einsum("ip,p->i", integrands, weights)
-        # compute residue
-        diis_r = propars - fun_val
-        drms = np.linalg.norm(diis_r)
-
-        logger.debug(f"           {irep:<4}    {drms:.6E}")
-        if drms < threshold:
-            check_pro_atom_parameters(propars)
-            return propars
-
-        # Append trail & residual vectors to lists
-        history_propars.append(fun_val)
-        history_residues.append(diis_r)
-
-        if irep >= diis_size:
-            propars_list = history_propars[-diis_size:]
-            residues_list = history_residues[-diis_size:]
-            propars = diis_method(propars_list, residues_list, fun_val)
-        else:
-            propars = fun_val
-
-    raise RuntimeError("Error: inner iteration is not converge!")
-
-
-def diis_spsolver(propars_list, residues_list, return_value=None):
-    """DIIS solver using `spsolver`.
-
-    Parameters
-    ----------
-    propars_list : array_like
-        A list of pro-atom parameters.
-    residues_list : array_like
-        A list of residues.
-    return_value : np.ndarray
-        1D array with size of N where `N` is the number of parameters.
-
-    Returns
-    -------
-    np.ndarray
-        1D array, pro-atom parameters.
-
-    """
-    mat_size = len(propars_list) + 1
-    B = np.zeros((mat_size, mat_size))
-    r2 = np.einsum("ip,jp->ij", residues_list, residues_list)
-    B[:-1, :-1] = (r2 + r2.T) / 2
-    B[-1, :-1] = B[:-1, -1] = -1
-    rhs = np.zeros(mat_size)
-    rhs[-1] = -1
-    sol = spsolve(B, rhs)
-    result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list))
-    if (np.isnan(result)).any():
-        logger.debug("DIIS error: singular matrix.")
-        result = return_value if return_value is not None else propars_list[-1]
-    return result
-
-
-def diis_solver_dyn(propars_list, residues_list, return_value=None):
-    """DIIS solver with dynamic subspace size.
-
-    Parameters
-    ----------
-    propars_list : array_like
-        A list of pro-atom parameters.
-    residues_list : array_like
-        A list of residues.
-    return_value : np.ndarray
-        1D array with size of N where `N` is the number of parameters.
-
-    Returns
-    -------
-    np.ndarray
-        1D array, pro-atom parameters.
-
-    """
-    mat_size = len(propars_list) + 1
-    if mat_size == 2:
-        return propars_list[-1]
-
-    B = np.zeros((mat_size, mat_size))
-    r2 = np.einsum("ip,jp->ij", residues_list, residues_list)
-    B[:-1, :-1] = (r2 + r2.T) / 2
-    B[-1, :-1] = B[:-1, -1] = -1
-    rhs = np.zeros(mat_size)
-    rhs[-1] = -1
-
-    # Solve for the coefficients
-    tol = 1e-14
-    begin = 0
-    while begin < mat_size - 1:
-        # TODO: this is problematic because eigh assume B is positive-definite.
-        w, v = eigh(B[begin:, begin:])
-        nb_small_val = np.sum(abs(w) < tol)
-        if not nb_small_val:
-            sol = (v * 1 / w) @ (v.T @ rhs[begin:])
-            result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list[begin:]))
-            if (result < -1e-8).any():
-                # result = propars_list[-1]
-                logger.warning(
-                    "Use result from the last iteration due to negative parameters found!"
-                )
-            logger.debug(f"Updated size of DIIS subspace: {len(sol[:-1])}")
-            break
-        else:
-            begin += nb_small_val
-    else:
-        warnings.warn("Linear dependence found in DIIS error vectors.")
-        result = propars_list[-1]
-        logger.debug("real DIIS size: 1")
-    return result
-
-
-def diis_solver_with_extra_constr(propars_list, residues_list, return_value=None):
-    """
-    DIIS solver with non-negative parameters constraints.
-
-    Parameters
-    ----------
-    propars_list : array_like
-        A list of pro-atom parameters.
-    residues_list : array_like
-        A list of residues.
-    return_value : np.ndarray
-        1D array with size of N where `N` is the number of parameters.
-
-    Returns
-    -------
-    np.ndarray
-        1D array with shape = (N, ) where `N` is the number pro-atom parameters.
-
-    """
-    # Build B matrix
-    npar = len(propars_list[0])
-    space_size = len(propars_list)
-    P = np.einsum("ip,jp->ij", residues_list, residues_list)
-    # Note: P could be singular.
-    P = 0.5 * (P + P.T)
-    q = np.zeros((space_size, 1), float)
-    # Linear inequality constraints
-    G = -np.asarray(propars_list).T
-    assert G.shape == (npar, space_size)
-    h = np.zeros((1, npar))
-    # Linear equality constraints
-    A = np.ones((1, space_size))
-    b = np.ones((1, 1))
-
-    sol = qpsolvers.solve_qp(P, q, G, h, A, b, solver="osqp", eps_rel=1e-5, eps_abs=1e-3)
-    if sol is None:
-        raise RuntimeError("No solution fond")
-    result = np.einsum("i, ip->p", sol, np.asarray(propars_list))
-    return result
+    new_propars = diis(propars, function_g, threshold, **solver_options)
+    check_pro_atom_parameters(new_propars)
+    return new_propars
 
 
 def opt_propars_newton(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
@@ -992,3 +848,56 @@ def opt_propars_trust_region(
     result = np.asarray(opt_res["x"]).flatten()
     check_pro_atom_parameters(result, bs_funcs, total_population=float(pop))
     return result
+
+
+def opt_propars_cdiis(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    density_cutoff,
+    **cdiis_options,
+):
+    """
+    Optimize parameters for proatom density functions using CDIIS algorithm.
+
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float, optional
+       default value : 1e-08
+       tolerence parameter for convergence test on residual (commutator)
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+
+    Returns
+    -------
+    conv : boolean
+       if convergence, True, else, False
+    """
+
+    def function_g(x):
+        """The objective fixed-point equation."""
+        pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
+        return np.einsum("ip,p->i", pro_shells * ratio, weights)
+
+    conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
+        propars, function_g, threshold, **cdiis_options
+    )
+    if not conv:
+        raise RuntimeError("Not converged!")
+    check_pro_atom_parameters(xlast)
+    return xlast

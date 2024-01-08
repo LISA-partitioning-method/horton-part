@@ -22,6 +22,7 @@ import logging
 import sys
 
 import numpy as np
+import yaml
 from grid.atomgrid import AtomGrid
 from grid.basegrid import OneDGrid
 from grid.molgrid import MolGrid
@@ -100,10 +101,14 @@ def main():
         kwargs["solver"] = args.solver
         kwargs["solver_options"] = {}
 
+        if args.type in ["lisa"]:
+            if args.solver_cfg:
+                with open(args.solver_cfg) as f:
+                    cdiis_config = yaml.safe_load(f)
+                kwargs["solver_options"].update(cdiis_config)
+
     if args.type in ["lisa"] or "glisa" in args.type:
         kwargs["basis_func"] = args.func_file or args.basis_func
-        if "diis" in args.solver:
-            kwargs["solver_options"]["diis_size"] = args.diis_size
 
     part = wpart_schemes(args.type)(**kwargs)
     part.do_partitioning()
@@ -155,7 +160,7 @@ def main():
     part_data["solver"] = args.solver
     part_data["charges"] = part.cache["charges"]
 
-    if "lisa_g" not in args.type:
+    if "glisa" not in args.type:
         part_data["time"] = part.time_usage["do_partitioning"]
         part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
         part_data["time_update_promolecule"] = part._cache["time_update_promolecule"]
@@ -193,11 +198,11 @@ def parse_args():
             "lisa",
             "mbis",
             "is",
-            "glisa_cvxopt",
-            "glisa_trust_constr",
-            "glisa_trust_constr_ng",
-            "glisa_sc",
-            "glisa_diis",
+            "glisa-cvxopt",
+            "glisa-trust-constr",
+            "glisa-sc",
+            "glisa-diis",
+            "glisa-cdiis",
         ],
         help="Number of angular grid points. [default=%(default)s]",
     )
@@ -233,18 +238,6 @@ def parse_args():
         help="The maximum angular momentum in multipole expansions. [default=%(default)s]",
     )
     parser.add_argument(
-        "--solver",
-        type=str,
-        default="cvxopt",
-        help="The objective function type for GISA and LISA methods. [default=%(default)s]",
-    )
-    parser.add_argument(
-        "--diis_size",
-        type=int,
-        default=8,
-        help="The number of previous iterations info used in DIIS. [default=%(default)s]",
-    )
-    parser.add_argument(
         "--radius_cutoff",
         type=float,
         default=np.inf,
@@ -262,7 +255,18 @@ def parse_args():
         choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level (default: %(default)s)",
     )
-
+    parser.add_argument(
+        "--solver",
+        type=str,
+        default="cvxopt",
+        help="The objective function type for GISA and LISA methods. [default=%(default)s]",
+    )
+    parser.add_argument(
+        "--solver_cfg",
+        type=str,
+        default=None,
+        help="The configure yaml filename for different solvers.",
+    )
     return parser.parse_args()
 
 

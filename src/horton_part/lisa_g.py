@@ -25,7 +25,6 @@ Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning sc
 - Convex optimization (`name` = "glisa_cvxopt")
 - Trust-region methods with constraints
     - Implicit constraints (`name` = "glisa_trust_constr")
-    - With negative parameters (`name` = "glisa_trust_constr_ng")
 - Fixed-point methods
     - Alternating method (`name` = "glisa_sc")
     - DIIS (`name` = "glisa_diis")
@@ -37,64 +36,29 @@ import warnings
 
 import cvxopt
 import numpy as np
-from scipy.linalg import LinAlgWarning
 from scipy.optimize import SR1, LinearConstraint, minimize
-from scipy.sparse import SparseEfficiencyWarning
-from scipy.sparse.linalg import spsolve
 
+from .algo import cdiis, lstsq_spsolver
 from .core.basis import BasisFuncHelper
 from .core.cache import just_once
 from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .utils import check_pro_atom_parameters
 
-# Suppress specific warning
-warnings.filterwarnings("ignore", category=LinAlgWarning)
-warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
+# # Suppress specific warning
+# warnings.filterwarnings("ignore", category=LinAlgWarning)
+# warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
 __all__ = [
     "AbstractGlobalLinearISAWPart",
     "GLisaConvexOptWPart",
-    "GLisaConvexOptNWPart",
     "GLisaSelfConsistentWPart",
     "GLisaDIISWPart",
     "GLisaTrustConstrainWPart",
-    "GLisaTrustConstrainNWPart",
+    "GLisaCDIISWPart",
 ]
 
 logger = logging.getLogger(__name__)
-
-
-# def _opt_propars(self):
-#     if self._solver in [1, 101]:
-#         new_propars = self._update_propars_lisa_101()
-#     elif self._solver == 104:
-#         warnings.warn(
-#             "The slolver 104 with allowing negative parameters problematic, "
-#             "because the negative density could be easily found."
-#         )
-#         new_propars = self._update_propars_lisa_101(allow_neg_pars=True)
-#     elif self._solver in [2, 201]:
-#         new_propars = self._update_propars_lisa_201()
-#     elif self._solver in [202]:
-#         warnings.warn(
-#             "The slolver 202 with allowing negative parameters problematic, "
-#             "because the negative density could be easily found."
-#         )
-#         new_propars = self._update_propars_lisa_202(self.diis_size)
-#     elif self._solver in [3, 301]:
-#         new_propars = self._update_propars_lisa_301(
-#             gtol=self._threshold, allow_neg_pars=False
-#         )
-#     elif self._solver == 302:
-#         warnings.warn(
-#             "The slolver 302 with allowing negative parameters problematic, "
-#             "because the negative density could be easily found."
-#         )
-#         new_propars = self._update_propars_lisa_301(gtol=self._threshold)
-#     else:
-#         raise NotImplementedError
-#     return new_propars
 
 
 class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
@@ -219,6 +183,11 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
     def radius_cutoff(self):
         """The cutoff radius for local grid."""
         return self._radius_cutoff
+
+    @property
+    def mol_pop(self):
+        """Molecular population."""
+        return self.grid.integrate(self._moldens)
 
     def _init_log_scheme(self):
         info_list = [
@@ -536,7 +505,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
 
 
 class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa_cvxopt"
+    name = "glisa-cvxopt"
     allow_neg_pars = False
 
     def _opt_propars(self):
@@ -598,15 +567,11 @@ class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
         return propars
 
 
-class GLisaConvexOptNWPart(GLisaConvexOptWPart):
-    name = "glisa_cvxopt_ng"
-    allow_neg_pars = True
-
-
 class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa_sc"
+    name = "glisa-sc"
     allow_neg_pars = False
 
+    # TODO: use function_g instead of duplicated codes.
     def _opt_propars(self):
         # 1. load molecular and pro-molecule density from cache
         rho, all_propars = self._moldens, self.propars
@@ -655,103 +620,116 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
 
 
 class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa_diis"
+    name = "glisa-diis"
     allow_neg_pars = True
     diis_size = 8
+    use_dmrs = False
+    version = "P"
+    lstsq_solver = lstsq_spsolver
 
-    def _opt_propars(self):
+    def function_g(self, x):
+        """The fixed-point equation :math:`g(x)=x`."""
         # 1. load molecular and pro-molecule density from cache
-        rho, all_propars = self._moldens, self.propars
+        rho = self._moldens
+        old_rho0 = self.calc_promol_dens(x)
+        sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
+
+        new_x = np.zeros_like(x)
+        ishell = 0
+        for iatom in range(self.natom):
+            # 2. load old propars
+            x_iatom = x[self._ranges[iatom] : self._ranges[iatom + 1]]
+
+            # 3. compute basis functions on molecule grid
+            fun_val = []
+            local_grid = self.local_grids[iatom]
+            indices = local_grid.indices
+            for k, c_ak in enumerate(x_iatom.copy()):
+                g_ak = self.load_pro_shell(iatom, k)
+                rho0_ak = g_ak * c_ak
+
+                with np.errstate(all="ignore"):
+                    integrand = rho[indices] * rho0_ak / old_rho0[indices]
+                integrand[sick[indices]] = 0.0
+
+                fun_val.append(local_grid.integrate(integrand))
+                ishell += 1
+
+            # 4. set new x values
+            new_x[self._ranges[iatom] : self._ranges[iatom + 1]] = np.asarray(fun_val)
+        return new_x
+
+    # TODO: this is duplicated
+    def _opt_propars(self):
+        """Version P of CDIIS."""
+        history_x = []
+        history_r = []
+        history_g = []
+
+        x_mol = self.propars
+        rho0 = None
 
         logger.info("Iteration       Change")
+        for i in range(1000):
+            # the size of subspace of DIIS
+            depth = min(i + 1, self.diis_size)
 
-        history_diis = []
-        history_propars = []
-        start_diis_iter = self.diis_size + 1
+            old_x_mol = x_mol.copy()  # old_x_mol = x_i
+            g_i = self.function_g(old_x_mol)
+            r_i = g_i - old_x_mol
 
-        for counter in range(1000):
-            old_rho0 = self.calc_promol_dens(all_propars)
-            sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
-
-            all_fun_vals = np.zeros_like(all_propars)
-            ishell = 0
-            for iatom in range(self.natom):
-                # 2. load old propars
-                propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-
-                # 3. compute basis functions on molecule grid
-                fun_val = []
-                local_grid = self.local_grids[iatom]
-                indices = local_grid.indices
-                for k, c_ak in enumerate(propars.copy()):
-                    g_ak = self.load_pro_shell(iatom, k)
-                    rho0_ak = g_ak * c_ak
-
-                    with np.errstate(all="ignore"):
-                        integrand = rho[indices] * rho0_ak / old_rho0[indices]
-                    integrand[sick[indices]] = 0.0
-
-                    fun_val.append(local_grid.integrate(integrand))
-                    ishell += 1
-
-                # 4. get new propars using fixed-points
-                all_fun_vals[self._ranges[iatom] : self._ranges[iatom + 1]] = np.asarray(fun_val)
-
-            history_propars.append(all_propars)
-
-            # Build DIIS Residual
-            diis_r = all_propars - all_fun_vals
-            rho0 = self.calc_promol_dens(all_fun_vals)
-            change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
-
-            # Compute drms
-            drms = np.linalg.norm(diis_r)
-
-            logger.info(f"           {counter:<4}    {drms:.6E}")
-
-            if change < self._threshold:
-                return all_propars
-
-            # if drms < self._threshold:
-            #     return all_propars
+            # if we use DRMS as threshold.
+            if self.use_dmrs:
+                drms = np.linalg.norm(r_i)
+                if drms < self._threshold * self.natom:
+                    check_pro_atom_parameters(
+                        x_mol,
+                        pro_atom_density=self.calc_promol_dens(x_mol),
+                        total_population=self.mol_pop,
+                        check_monotonicity=False,
+                    )
+                    return x_mol
+                logger.info(f"           {i:<4}    {drms:.6E}")
 
             # Append trail & residual vectors to lists
-            if counter >= start_diis_iter - self.diis_size:
-                history_propars.append(all_fun_vals)
-                history_diis.append(diis_r)
+            history_r.append(r_i)
 
-            if counter >= start_diis_iter:
-                # TODO: this doesn't work for global DIIS
-                # Build B matrix
-                propars_prev = history_propars[-self.diis_size :]
-                diis_prev = history_diis[-self.diis_size :]
-
-                B_dim = len(propars_prev) + 1
-                B = np.zeros((B_dim, B_dim))
-                B[-1, :] = B[:, -1] = -1
-                tmp = np.einsum("ip,jp->ij", diis_prev, diis_prev)
-                B[:-1, :-1] = (tmp + tmp.T) / 2
-                B[-1, -1] = 0
-
-                # Build RHS of Pulay equation
-                rhs = np.zeros(B_dim)
-                rhs[-1] = -1
-                coeff = spsolve(B, rhs)
-                all_propars = np.einsum("i, ip->p", coeff[:-1], np.asarray(propars_prev))
-
-                if (np.isnan(all_propars)).any():
-                    all_propars = all_fun_vals
+            r_list = history_r[-depth:]
+            if self.version == "P":
+                # Anderson-Pulay version P
+                history_x.append(x_mol.copy())
+                x_list = history_x[-depth:]
+                x_tilde = self.lstsq_solver(x_list, r_list)
+                x_mol = self.function_g(x_tilde)
             else:
-                all_propars = all_fun_vals
+                # Anderson-Pulay version A
+                history_g.append(g_i)
+                g_list = history_g[-depth:]
+                x_mol = self.lstsq_solver(g_list, r_list)
 
-            if not np.all(all_propars >= -1e-10).all():
+            if not np.all(x_mol >= -1e-10).all():
                 warnings.warn("Negative parameters found!")
+
+            # if we use the same threshold as the SC method.
+            if not self.use_dmrs:
+                old_rho0 = rho0 if rho0 is not None else self.calc_promol_dens(old_x_mol)
+                rho0 = self.calc_promol_dens(x_mol)
+                change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
+                logger.info(f"           {i:<4}    {change:.6E}")
+                if change < self._threshold:
+                    check_pro_atom_parameters(
+                        x_mol,
+                        pro_atom_density=self.calc_promol_dens(x_mol),
+                        total_population=self.mol_pop,
+                        check_monotonicity=False,
+                    )
+                    return x_mol
 
         raise RuntimeError("Error: inner iteration is not converge!")
 
 
 class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa_trust_constr"
+    name = "glisa-trust-constr"
     allow_neg_pars = False
 
     def _opt_propars(self):
@@ -816,6 +794,38 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
         return optresult.x
 
 
-class GLisaTrustConstrainNWPart(GLisaTrustConstrainWPart):
-    name = "glisa_trust_constr_ng"
+class GLisaCDIISWPart(GLisaDIISWPart):
+    name = "glisa-cdiis"
     allow_neg_pars = True
+    diis_size = 8
+    param = 1e-4
+
+    mode = "AD-CDIIS"
+    modeQR = "full"
+    maxiter = 1000
+    threshold = 1e-6
+    minrestart = 1
+    slidehole = False
+
+    def residual(self, x):
+        """The definition of residual."""
+        return self.function_g(x) - x
+
+    # TODO: use **solver_options instead of passing all parameters.
+    def _opt_propars(self):
+        conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
+            self.propars,
+            self.function_g,
+            self.threshold,
+            self.maxiter,
+            self.modeQR,
+            self.mode,
+            self.diis_size,
+            self.param,
+            self.minrestart,
+            self.slidehole,
+        )
+        if not conv:
+            raise RuntimeError("Not converged!")
+        check_pro_atom_parameters(xlast)
+        return xlast

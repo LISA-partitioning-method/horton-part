@@ -17,24 +17,5 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-"""Density-based partitioning (fuzzy atoms-in-molecules) package"""
-
-
-from .algo import *
-from .becke import *
-from .core import *
-from .gisa import *
-from .hirshfeld import *
-from .hirshfeld_i import *
-from .isa import *
-from .lisa import *
-from .lisa_g import *
-from .mbis import *
-from .mulliken import *
-from .utils import *
-
-try:
-    from _version import __version__
-except ImportError:
-    __version__ = "0.0.0a-dev"
-    __version_tuple__ = (0, 0, 0, "a-dev")
+from .cdiis import *
+from .diis import *
