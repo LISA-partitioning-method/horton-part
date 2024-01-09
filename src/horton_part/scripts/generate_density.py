@@ -278,7 +278,7 @@ def main(args=None) -> int:
     logger.info("Settings for part-gen program".center(width, " "))
     logger.info("*" * width)
     for k, v in vars(args).items():
-        logger.info(f"{k:>10} : {v:<10}".center(width, " "))
+        logger.info(f"{k:>10} : {str(v):<10}".center(width, " "))
     logger.info("-" * width)
     logger.info(" ")
 

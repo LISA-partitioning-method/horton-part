@@ -122,7 +122,7 @@ def test_from_horton3_density(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
         with pytest.warns(None) as record:
-            main([str(fn_full), "--output", fn_density])
+            main(["-f", str(fn_full), "--output", fn_density])
         if len(record) == 1:
             assert issubclass(record[0].category, FileFormatWarning)
         assert os.path.isfile(fn_density)
