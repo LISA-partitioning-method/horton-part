@@ -22,12 +22,13 @@ import logging
 import sys
 
 import numpy as np
-import yaml
 from grid.atomgrid import AtomGrid
 from grid.basegrid import OneDGrid
 from grid.molgrid import MolGrid
 
 from horton_part import wpart_schemes
+
+from .generate_density import load_settings_from_yaml_file
 
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
@@ -62,22 +63,37 @@ def construct_molgrid_from_dict(data):
     return MolGrid(atnums, atgrids, aim_weights=aim_weights, store=True)
 
 
-def main():
+def main(args=None) -> int:
     """Main program."""
-    args = parse_args()
+    parser = build_parser()
+    args = parser.parse_args(args)
+    args = load_settings_from_yaml_file(args, "part-dens")
+
+    if args.filename is None:
+        parser.print_help()
+        return 0
+
     # Convert the log level string to a logging level
     log_level = getattr(logging, args.log.upper(), None)
     if not isinstance(log_level, int):
         raise ValueError(f"Invalid log level: {args.log}")
 
     if log_level > logging.DEBUG:
-        logging.basicConfig(level=log_level, format="%(levelname)s:    %(message)s")
+        logging.basicConfig(level=log_level, format="%(message)s")
     else:
         logging.basicConfig(level=log_level, format="%(name)s - %(levelname)s:    %(message)s")
 
     logger.info("*" * width)
-    logger.info(f"Reade grid and density data from {args.filename}")
+    logger.info("Settings for part-dens program".center(width, " "))
     logger.info("*" * width)
+    for k, v in vars(args).items():
+        logger.info(f"{k:>10} : {str(v):<10}".center(width, " "))
+    logger.info("-" * width)
+    logger.info(" ")
+
+    # logger.info("*" * width)
+    logger.info(f"Reade grid and density data from {args.filename} ...")
+    # logger.info("*" * width)
     data = np.load(args.filename)
     grid = construct_molgrid_from_dict(data)
 
@@ -99,13 +115,8 @@ def main():
 
     if args.type in ["gisa", "lisa"]:
         kwargs["solver"] = args.solver
-        kwargs["solver_options"] = {}
-
-        if args.type in ["lisa"]:
-            if args.solver_cfg:
-                with open(args.solver_cfg) as f:
-                    cdiis_config = yaml.safe_load(f)
-                kwargs["solver_options"].update(cdiis_config)
+        if hasattr(args, "solver_options"):
+            kwargs["solver_options"] = args.solver_options
 
     if args.type in ["lisa"] or "glisa" in args.type:
         kwargs["basis_func"] = args.func_file or args.basis_func
@@ -118,36 +129,34 @@ def main():
     logger.info("*" * width)
     logger.info(" Results ".center(width, " "))
     logger.info("*" * width)
-    logger.info("charges:")
-    logger.info(part.cache["charges"])
+    logger.info("  Atomic charges [a.u.]:")
+
+    for atnum, chg in zip(data["atnums"], part.cache["charges"]):
+        logger.info(f"{atnum:>4} : {chg:>15.8f}".center(width, " "))
+    logger.info("-" * width)
+    logger.info(" " * width)
     # logger.info("cartesian multipoles:")
     # logger.info(part.cache["cartesian_multipoles"])
     # logger.info("radial moments:")
     # logger.info(part.cache["radial_moments"])
 
     if "lisa_g" not in args.type:
-        logger.info(" " * width)
         logger.info("*" * width)
         logger.info(" Time usage ".center(width, " "))
         logger.info("*" * width)
+        logger.info(f"{'Do Partitioning':<45} : {part.time_usage['do_partitioning']:>10.2f} s")
+        logger.info(f"{'  Update Weights':<45} : {part.cache['time_update_at_weights']:>10.2f} s")
         logger.info(
-            f"Do Partitioning                              : {part.time_usage['do_partitioning']:>10.2f} s"
+            f"{'    Update Promolecule Density (N_atom**2)':<45} : {part.cache['time_update_promolecule']:>10.2f} s"
         )
         logger.info(
-            f"  Update Weights                             : {part._cache['time_update_at_weights']:>10.2f} s"
+            f"{'    Update AIM Weights (N_atom)':<45} : {part.cache['time_compute_at_weights']:>10.2f} s"
         )
         logger.info(
-            f"    Update Promolecule Density (N_atom**2)   : {part._cache['time_update_promolecule']:>10.2f} s"
-        )
-        logger.info(
-            f"    Update AIM Weights (N_atom)              : {part._cache['time_compute_at_weights']:>10.2f} s"
-        )
-        logger.info(
-            f"  Update Atomic Parameters (iter*N_atom)     : {part._cache['time_update_propars_atoms']:>10.2f} s"
+            f"{'  Update Atomic Parameters (iter*N_atom)':<45} : {part.cache['time_update_propars_atoms']:>10.2f} s"
         )
         # logger.info(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
-        logger.info("*" * width)
-        logger.info(" " * width)
+        logger.info("-" * width)
 
     part_data = {}
     part_data["natom"] = len(data["atnums"])
@@ -162,10 +171,10 @@ def main():
 
     if "glisa" not in args.type:
         part_data["time"] = part.time_usage["do_partitioning"]
-        part_data["time_update_at_weights"] = part._cache["time_update_at_weights"]
-        part_data["time_update_promolecule"] = part._cache["time_update_promolecule"]
-        part_data["time_compute_at_weights"] = part._cache["time_compute_at_weights"]
-        part_data["time_update_propars_atoms"] = part._cache["time_update_propars_atoms"]
+        part_data["time_update_at_weights"] = part.cache["time_update_at_weights"]
+        part_data["time_update_promolecule"] = part.cache["time_update_promolecule"]
+        part_data["time_compute_at_weights"] = part.cache["time_compute_at_weights"]
+        part_data["time_update_propars_atoms"] = part.cache["time_update_propars_atoms"]
         part_data["niter"] = part.cache["niter"]
         part_data["history_charges"] = part.cache["history_charges"]
         part_data["history_propars"] = part.cache["history_propars"]
@@ -175,17 +184,20 @@ def main():
     # part_data["part/radial_moments"] = part.cache["radial_moments"]
     part_data.update(data)
     np.savez_compressed(args.output, **part_data)
+    return 0
 
 
-def parse_args():
+def build_parser():
     """Parse command-line arguments."""
     description = "Molecular density partitioning with HORTON3."
     parser = argparse.ArgumentParser(prog="part-dens", description=description)
 
     # for part
     parser.add_argument(
-        "filename",
+        "-f",
+        "--filename",
         type=str,
+        default=None,
         help="The output file of part-gen command.",
     )
     parser.add_argument(
@@ -262,12 +274,12 @@ def parse_args():
         help="The objective function type for GISA and LISA methods. [default=%(default)s]",
     )
     parser.add_argument(
-        "--solver_cfg",
+        "--config_file",
         type=str,
         default=None,
-        help="The configure yaml filename for different solvers.",
+        help="Use configure file.",
     )
-    return parser.parse_args()
+    return parser
 
 
 if __name__ == "__main__":

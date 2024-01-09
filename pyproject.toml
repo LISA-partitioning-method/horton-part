@@ -36,7 +36,8 @@ dependencies = [
     "qc-grid@git+https://github.com/yingxingcheng/grid",
     "qc-iodata@git+https://github.com/yingxingcheng/iodata",
     "gbasis@git+https://github.com/yingxingcheng/gbasis",
-    "importlib_resources"
+    "importlib_resources",
+    "pyyaml",
 ]
 dynamic = ['version']
 
@@ -50,7 +51,7 @@ Repository = 'https://github.com/yingxingcheng/horton-part'
 Changelog = "https://github.com/yingxingcheng/horton-part/CHANGELOG.md"
 
 [project.scripts]
-# part = "horton_part.__main__:main"
+part = "horton_part.__main__:main"
 part-gen = "horton_part.scripts.generate_density:main"
 part-dens = "horton_part.scripts.partition_density:main"
 

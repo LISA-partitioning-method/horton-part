@@ -899,5 +899,5 @@ def opt_propars_cdiis(
     )
     if not conv:
         raise RuntimeError("Not converged!")
-    check_pro_atom_parameters(xlast)
+    check_pro_atom_parameters(xlast, basis_functions=bs_funcs)
     return xlast

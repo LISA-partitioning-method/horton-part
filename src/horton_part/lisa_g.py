@@ -625,7 +625,6 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
     diis_size = 8
     use_dmrs = False
     version = "P"
-    lstsq_solver = lstsq_spsolver
 
     def function_g(self, x):
         """The fixed-point equation :math:`g(x)=x`."""
@@ -699,13 +698,13 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
                 # Anderson-Pulay version P
                 history_x.append(x_mol.copy())
                 x_list = history_x[-depth:]
-                x_tilde = self.lstsq_solver(x_list, r_list)
+                x_tilde = lstsq_spsolver(x_list, r_list)
                 x_mol = self.function_g(x_tilde)
             else:
                 # Anderson-Pulay version A
                 history_g.append(g_i)
                 g_list = history_g[-depth:]
-                x_mol = self.lstsq_solver(g_list, r_list)
+                x_mol = lstsq_spsolver(g_list, r_list)
 
             if not np.all(x_mol >= -1e-10).all():
                 warnings.warn("Negative parameters found!")

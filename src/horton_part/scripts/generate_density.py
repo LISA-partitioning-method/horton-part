@@ -19,9 +19,11 @@
 # --
 import argparse
 import logging
+import os
 import sys
 
 import numpy as np
+import yaml
 from gbasis.evals.eval import evaluate_basis
 from gbasis.evals.eval_deriv import evaluate_deriv_basis
 from gbasis.wrappers import from_iodata
@@ -35,7 +37,7 @@ width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
-__all__ = ["prepare_input"]
+__all__ = ["prepare_input", "load_settings_from_yaml_file"]
 
 logger = logging.getLogger(__name__)
 
@@ -199,9 +201,67 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
     return result
 
 
+def load_settings_from_yaml_file(args, sub_cmd="part-gen", fn_key="config_file"):
+    """
+    Load settings from a YAML configuration file and update the 'args' object.
+
+    This function reads a YAML file specified by the 'fn_key' attribute of the 'args' object.
+    It then updates 'args' with the settings found under the specified 'cmd' section of the YAML file.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        The arguments object, typically obtained from argparse. This object is updated
+        with the settings from the YAML file.
+    sub_cmd : str, optional
+        The key within the YAML file that contains the settings to be loaded. Only settings
+        under this key are used to update 'args'. Default is 'part-gen'.
+    fn_key : str, optional
+        The attribute name in 'args' that holds the path to the YAML configuration file.
+        Default is 'config_file'.
+
+    Returns
+    -------
+    argparse.Namespace
+        The updated arguments object with settings loaded from the YAML file.
+
+    Raises
+    ------
+    AssertionError
+        If 'args' does not have an attribute named 'fn_key', or if the 'cmd' key is not
+        found in the loaded YAML settings.
+
+    Notes
+    -----
+    - The function asserts that the 'args' object has an attribute named as per 'fn_key'.
+    - It also checks if the specified YAML file exists before attempting to open it.
+    - Settings are loaded only if the 'cmd' key is present in the YAML file.
+    - Each setting under the 'cmd' section in the YAML file updates the corresponding attribute
+      in the 'args' object.
+    """
+    assert hasattr(args, fn_key)
+    yaml_fn = getattr(args, fn_key)
+    if yaml_fn and os.path.exists(yaml_fn):
+        with open(yaml_fn) as f:
+            settings = yaml.safe_load(f)
+        if sub_cmd:
+            assert sub_cmd in settings
+            for k, v in settings[sub_cmd].items():
+                setattr(args, k, v)
+        else:
+            for k, v in settings.items():
+                setattr(args, k, v)
+    return args
+
+
 def main(args=None) -> int:
     """Main program."""
-    args = parse_args(args=args)
+    parser = build_parser()
+    args = parser.parse_args(args)
+    args = load_settings_from_yaml_file(args)
+    if args.filename is None:
+        parser.print_help()
+        return 0
 
     # Convert the log level string to a logging level
     log_level = getattr(logging, args.log.upper(), None)
@@ -210,22 +270,30 @@ def main(args=None) -> int:
 
     # Configure logging
     if log_level > logging.DEBUG:
-        logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
+        logging.basicConfig(level=log_level, format="%(message)s")
     else:
-        logging.basicConfig(level=log_level)
+        logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
 
-    logger.info(args)
-    logger.info("Loading file : ", args.filename)
+    logger.info("*" * width)
+    logger.info("Settings for part-gen program".center(width, " "))
+    logger.info("*" * width)
+    for k, v in vars(args).items():
+        logger.info(f"{k:>10} : {v:<10}".center(width, " "))
+    logger.info("-" * width)
+    logger.info(" ")
 
     iodata = load_one(args.filename)
 
     logger.info("*" * width)
     logger.info(" Molecualr information ".center(width, " "))
     logger.info("*" * width)
-    logger.info("atnums :")
-    logger.info(iodata.atnums)
-    logger.info("Coordinates [a.u.]: ")
-    logger.info(iodata.atcoords)
+    logger.info(f"Atomic numbers : {' '.join([str(z) for z in iodata.atnums])}")
+    logger.info("Coordinates [a.u.] : ")
+    logger.info(f"{'X':>20} {'Y':>20} {'Z':>20}".center(width, " "))
+    for xyz in iodata.atcoords:
+        logger.info(f"{xyz[0]:>20.3f} {xyz[1]:>20.3f} {xyz[2]:>20.3f}".center(width, " "))
+    logger.info("-" * width)
+    logger.info(" ")
 
     # grid and density
     logger.info(" " * width)
@@ -264,20 +332,22 @@ def main(args=None) -> int:
         data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
         data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
 
+    logger.info("-" * width)
     logger.info(" " * width)
-    logger.info("*" * width)
     np.savez_compressed(args.output, **data)
     return 0
 
 
-def parse_args(args):
+def build_parser():
     """Parse command-line arguments."""
     description = """Generate molecular density with HORTON3."""
     parser = argparse.ArgumentParser(prog="part-gen", description=description)
 
     parser.add_argument(
-        "filename",
+        "-f",
+        "--filename",
         type=str,
+        default=None,
         help="The output file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
     )
     parser.add_argument(
@@ -344,7 +414,13 @@ def parse_args(args):
         help="Also store the occupied and virtual orbtials. "
         "For this to work, orbitals must be defined in the WFN file.",
     )
-    return parser.parse_args(args)
+    parser.add_argument(
+        "--config_file",
+        type=str,
+        default=None,
+        help="Use configure file.",
+    )
+    return parser
 
 
 if __name__ == "__main__":
