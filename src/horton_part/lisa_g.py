@@ -30,7 +30,6 @@ Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning sc
     - DIIS (`name` = "glisa_diis")
 """
 
-import logging
 import time
 import warnings
 
@@ -58,8 +57,6 @@ __all__ = [
     "GLisaCDIISWPart",
 ]
 
-logger = logging.getLogger(__name__)
-
 
 class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
     density_cutoff = 1e-15
@@ -74,6 +71,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         moldens,
         spindens=None,
         lmax=3,
+        logger=None,
         threshold=1e-6,
         maxiter=500,
         radius_cutoff=np.inf,
@@ -111,6 +109,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             spindens,
             True,
             lmax,
+            logger,
         )
 
     @property
@@ -120,10 +119,12 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             if isinstance(self.basis_func, str):
                 bs_name = self.basis_func.lower()
                 if bs_name in ["gauss", "slater"]:
-                    logger.info(f"Load {bs_name.upper()} basis functions")
+                    self.logger.info(f"Load {bs_name.upper()} basis functions")
                     self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
                 else:
-                    logger.info(f"Load basis functions from custom json file: {self.basis_func}")
+                    self.logger.info(
+                        f"Load basis functions from custom json file: {self.basis_func}"
+                    )
                     self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
             elif isinstance(self.basis_func, BasisFuncHelper):
                 self._bs_helper = self.basis_func
@@ -205,7 +206,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                 ("Allow negative parameters", self.allow_neg_pars),
             ]
         )
-        deflist(logger, info_list)
+        deflist(self.logger, info_list)
         # biblio.cite(
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
         # )
@@ -267,7 +268,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             t0 = time.time()
             new_propars = self._opt_propars()
             t1 = time.time()
-            logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
+            self.logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
             propars = self.cache.load("propars")
             propars[:] = new_propars
 
@@ -577,7 +578,7 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
         rho, all_propars = self._moldens, self.propars
         old_propars = all_propars.copy()
 
-        logger.info("Iteration       Change")
+        self.logger.info("Iteration       Change")
 
         counter = 0
         while True:
@@ -610,9 +611,9 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
 
             change = self.compute_change(all_propars, old_propars)
             if counter % 10 == 0:
-                logger.info("%9i   %10.5e" % (counter, change))
+                self.logger.info("%9i   %10.5e" % (counter, change))
             if change < self._threshold:
-                logger.info("%9i   %10.5e" % (counter, change))
+                self.logger.info("%9i   %10.5e" % (counter, change))
                 break
             old_propars = all_propars.copy()
             counter += 1
@@ -668,7 +669,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
         x_mol = self.propars
         rho0 = None
 
-        logger.info("Iteration       Change")
+        self.logger.info("Iteration       Change")
         for i in range(1000):
             # the size of subspace of DIIS
             depth = min(i + 1, self.diis_size)
@@ -688,7 +689,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
                         check_monotonicity=False,
                     )
                     return x_mol
-                logger.info(f"           {i:<4}    {drms:.6E}")
+                self.logger.info(f"           {i:<4}    {drms:.6E}")
 
             # Append trail & residual vectors to lists
             history_r.append(r_i)
@@ -714,7 +715,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
                 old_rho0 = rho0 if rho0 is not None else self.calc_promol_dens(old_x_mol)
                 rho0 = self.calc_promol_dens(x_mol)
                 change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
-                logger.info(f"           {i:<4}    {change:.6E}")
+                self.logger.info(f"           {i:<4}    {change:.6E}")
                 if change < self._threshold:
                     check_pro_atom_parameters(
                         x_mol,
@@ -737,7 +738,7 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
 
         # Compute the total population
         pop = self.grid.integrate(rho)
-        logger.info("Integral of density:", pop)
+        self.ogger.info("Integral of density:", pop)
         nb_par = len(pars0)
 
         def cost_grad(x):
@@ -781,15 +782,15 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
         )
 
         # Check for convergence.
-        logger.info(f'Optimizer message: "{optresult.message}"')
+        self.logger.info(f'Optimizer message: "{optresult.message}"')
         if not optresult.success:
             raise RuntimeError("Convergence failure.")
 
         rho0 = self.calc_promol_dens(optresult.x)
         constrain = self.grid.integrate(rho0) - pop
-        logger.info(f"Constraint: {constrain}")
-        logger.info("Optimized parameters: ")
-        logger.info(optresult.x)
+        self.logger.info(f"Constraint: {constrain}")
+        self.logger.info("Optimized parameters: ")
+        self.logger.info(optresult.x)
         return optresult.x
 
 

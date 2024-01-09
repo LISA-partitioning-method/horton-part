@@ -27,17 +27,17 @@ from grid import AtomGrid
 
 from ..utils import typecheck_geo
 from .cache import Cache, JustOnceClass, just_once
-from .logging import deflist
+from .logging import deflist, setup_logger
 
 __all__ = ["Part", "WPart"]
-
-logger = logging.getLogger(__name__)
 
 
 class Part(JustOnceClass):
     name = None
 
-    def __init__(self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax):
+    def __init__(
+        self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax, logger
+    ):
         """
         Parameters
         ----------
@@ -60,6 +60,8 @@ class Part(JustOnceClass):
              If ``False``: use the entire molecular grid for each AIM integral.
         lmax : int
              The maximum angular momentum in multipole expansions.
+        logger : logging.Logger
+            A `logging.Logger` object.
         """
         # Init base class
         super().__init__()
@@ -83,10 +85,11 @@ class Part(JustOnceClass):
         # Caching stuff, to avoid recomputation of earlier results
         self._cache = Cache()
 
+        # Some screen logging
+        self.logger = logger
         # Initialize the subgrids
         if local:
             self._init_subgrids()
-        # Some screen logging
         # self.biblio = []
         self._init_log_base()
         self._init_log_scheme()
@@ -377,6 +380,7 @@ class WPart(Part):
         spindens=None,
         local=True,
         lmax=3,
+        logger=None,
     ):
         """
         Parameters
@@ -406,21 +410,18 @@ class WPart(Part):
                 "Atomic grids are discarded from molecular grid object, "
                 "but are needed for local integrations."
             )
+        if logger is None:
+            logger = logging.getLogger(self.__class__.__name__)
+            setup_logger(logger)
+
         super().__init__(
-            coordinates,
-            numbers,
-            pseudo_numbers,
-            grid,
-            moldens,
-            spindens,
-            local,
-            lmax,
+            coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax, logger
         )
 
     def _init_log_base(self):
-        logger.info("Performing a density-based AIM analysis with a wavefunction as input.")
+        self.logger.info("Performing a density-based AIM analysis with a wavefunction as input.")
         deflist(
-            logger,
+            self.logger,
             [
                 ("Molecular grid", self._grid.__class__.__name__),
                 ("Using local grids", self._local),
@@ -441,7 +442,7 @@ class WPart(Part):
     def do_density_decomposition(self):
         """Compute density decomposition."""
         if not self.local:
-            logger.warning("Skip density decomposition because no local grids were found.")
+            self.logger.warning("Skip density decomposition because no local grids were found.")
             return
 
         for index in range(self.natom):

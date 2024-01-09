@@ -51,7 +51,7 @@ __all__ = [
     "opt_propars_convex_opt",
 ]
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 class LinearISAWPart(GaussianISAWPart):
@@ -97,6 +97,7 @@ class LinearISAWPart(GaussianISAWPart):
         moldens,
         spindens=None,
         lmax=3,
+        logger=None,
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
@@ -131,6 +132,7 @@ class LinearISAWPart(GaussianISAWPart):
             moldens,
             spindens,
             lmax,
+            logger,
             threshold,
             maxiter,
             inner_threshold,
@@ -146,10 +148,12 @@ class LinearISAWPart(GaussianISAWPart):
             if isinstance(self.basis_func, str):
                 bs_name = self.basis_func.lower()
                 if bs_name in ["gauss", "slater"]:
-                    logger.info(f"Load {bs_name.upper()} basis functions")
+                    self.logger.info(f"Load {bs_name.upper()} basis functions")
                     self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
                 else:
-                    logger.info(f"Load basis functions from custom json file: {self.basis_func}")
+                    self.logger.info(
+                        f"Load basis functions from custom json file: {self.basis_func}"
+                    )
                     self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
             elif isinstance(self.basis_func, BasisFuncHelper):
                 self._bs_helper = self.basis_func
@@ -197,7 +201,7 @@ class LinearISAWPart(GaussianISAWPart):
             # info_list.append(("DIIS size", self.diis_size))
             # TODO: add info for solver kwargs.
             pass
-        deflist(logger, info_list)
+        deflist(self.logger, info_list)
         # biblio.cite(
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
         # )
@@ -222,21 +226,44 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
+                self.logger,
                 **self._solver_options,
             )
 
         if self._solver == "cvxopt":
             return opt_propars_convex_opt(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                self.logger,
             )
         if self._solver == "cvxopt-ng":
             # no robust: HF, SiH4
             return opt_propars_convex_opt(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff, True
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                self.logger,
+                True,
             )
         elif self._solver == "sc":
             return opt_propars_self_consistent(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                self.logger,
             )
         elif self._solver == "diis":
             # for large diis_size, it is also not robust
@@ -248,13 +275,21 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
+                self.logger,
                 **self._solver_options
                 # diis_size=self.diis_size,
             )
         elif self._solver == "newton":
             # not robust
             return opt_propars_newton(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                self.logger,
             )
         elif self._solver == "trust-constr-im":
             # same as LISA-102 but with constraint implicitly, slower than 302
@@ -266,6 +301,7 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
+                self.logger,
                 explicit_constr=False,
             )
         elif self._solver == "trust-constr-ex":
@@ -277,15 +313,30 @@ class LinearISAWPart(GaussianISAWPart):
                 points,
                 weights,
                 threshold,
-                density_cutoff=density_cutoff,
+                density_cutoff,
+                self.logger,
             )
         elif self._solver == "sc-1-iter":
             return opt_propars_fixed_points_sc_one_step(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                self.logger,
             )
         elif self._solver == "mix-sc-convex":
             return opt_propars_fixed_points_sc_convex(
-                bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+                bs_funcs,
+                rho,
+                propars,
+                points,
+                weights,
+                threshold,
+                density_cutoff,
+                self.logger,
             )
         elif self._solver == "cdiis":
             return opt_propars_cdiis(
@@ -296,6 +347,7 @@ class LinearISAWPart(GaussianISAWPart):
                 weights,
                 threshold,
                 density_cutoff,
+                self.logger,
                 **self._solver_options,
             )
         else:
@@ -310,6 +362,7 @@ def opt_propars_convex_opt(
     weights,
     threshold,
     density_cutoff,
+    logger,
     allow_neg_params=False,
 ):
     """
@@ -414,7 +467,7 @@ def opt_propars_convex_opt(
         return f, df, d2f
 
     show_progress = 0
-    if logger.level >= logging.DEBUG:
+    if logger.level <= logging.DEBUG:
         show_progress = 3
 
     opt_CVX = cvxopt.solvers.cp(
@@ -433,7 +486,9 @@ def opt_propars_convex_opt(
     return new_propars
 
 
-def opt_propars_self_consistent(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
+def opt_propars_self_consistent(
+    bs_funcs, rho, propars, points, weights, threshold, density_cutoff, logger
+):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
 
@@ -505,7 +560,7 @@ def opt_propars_self_consistent(bs_funcs, rho, propars, points, weights, thresho
 
 
 def opt_propars_fixed_points_sc_one_step(
-    bs_funcs, rho, propars, points, weights, threshold, density_cutoff
+    bs_funcs, rho, propars, points, weights, threshold, density_cutoff, logger
 ):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
@@ -558,6 +613,7 @@ def opt_propars_fixed_points_sc_convex(
     weights,
     threshold,
     density_cutoff,
+    logger,
     sc_iter_limit=1000,
 ):
     r"""
@@ -632,6 +688,7 @@ def opt_propars_diis(
     weights,
     threshold,
     density_cutoff,
+    logger,
     **solver_options,
 ):
     r"""
@@ -684,7 +741,7 @@ def opt_propars_diis(
     return new_propars
 
 
-def opt_propars_newton(bs_funcs, rho, propars, points, weights, threshold, density_cutoff):
+def opt_propars_newton(bs_funcs, rho, propars, points, weights, threshold, density_cutoff, logger):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
 
@@ -773,6 +830,7 @@ def opt_propars_trust_region(
     weights,
     threshold,
     density_cutoff,
+    logger,
     explicit_constr=True,
 ):
     """
@@ -858,6 +916,7 @@ def opt_propars_cdiis(
     weights,
     threshold,
     density_cutoff,
+    logger,
     **cdiis_options,
 ):
     """
@@ -899,5 +958,6 @@ def opt_propars_cdiis(
     )
     if not conv:
         raise RuntimeError("Not converged!")
-    check_pro_atom_parameters(xlast, basis_functions=bs_funcs)
+    pop = np.einsum("i,i", weights, rho)
+    check_pro_atom_parameters(xlast, basis_functions=bs_funcs, total_population=pop)
     return xlast

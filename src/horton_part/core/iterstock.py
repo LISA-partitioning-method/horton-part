@@ -19,7 +19,6 @@
 # --
 """Iterative Stockholder Analysis (ISA) partitioning"""
 
-import logging
 import time
 
 import numpy as np
@@ -29,7 +28,7 @@ from .stockholder import AbstractStockholderWPart
 
 __all__ = ["AbstractISAWPart"]
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 class AbstractISAWPart(AbstractStockholderWPart):
@@ -45,6 +44,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         spindens=None,
         local=True,
         lmax=3,
+        logger=None,
         # New parameters added
         threshold=1e-6,
         maxiter=500,
@@ -86,6 +86,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
             spindens,
             local,
             lmax,
+            logger,
         )
 
     @property
@@ -222,7 +223,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         new |= "change" not in self.cache
         if new:
             propars = self._init_propars()
-            logger.info("Iteration       Change      Entropy")
+            self.logger.info("Iteration       Change      Entropy")
 
             counter = 0
             entropy = np.inf
@@ -237,10 +238,10 @@ class AbstractISAWPart(AbstractStockholderWPart):
                 # Check for convergence
                 change = self.compute_change(propars, old_propars)
                 entropy = self.history_entropies[-1] if counter > 1 else entropy
-                logger.info("%9i   %10.5e   %10.5e" % (counter, change, entropy))
+                self.logger.info("%9i   %10.5e   %10.5e" % (counter, change, entropy))
                 if change < self._threshold or counter >= self._maxiter:
                     break
-            logger.info("")
+            self.logger.info("")
 
             self._finalize_propars()
             self.cache.dump("niter", counter, tags="o")

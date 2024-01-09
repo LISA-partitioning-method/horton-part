@@ -33,11 +33,17 @@ from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 from iodata import load_one
 
+from horton_part.core.logging import setup_logger
+
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
-__all__ = ["prepare_input", "load_settings_from_yaml_file"]
+__all__ = [
+    "prepare_input",
+    "load_settings_from_yaml_file",
+    "print_settings",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -259,30 +265,53 @@ def main(args=None) -> int:
     parser = build_parser()
     args = parser.parse_args(args)
     args = load_settings_from_yaml_file(args)
-    if args.filename is None:
+    if args.inputs is None:
         parser.print_help()
         return 0
 
-    # Convert the log level string to a logging level
-    log_level = getattr(logging, args.log.upper(), None)
-    if not isinstance(log_level, int):
-        raise ValueError(f"Invalid log level: {args.log}")
-
-    # Configure logging
-    if log_level > logging.DEBUG:
-        logging.basicConfig(level=log_level, format="%(message)s")
+    log_files = getattr(args, "log_files", None)
+    inputs = args.inputs
+    outputs = args.outputs
+    if not isinstance(inputs, list):
+        inputs = [inputs]
+        outputs = [outputs]
+    if log_files is None:
+        log_files = [None] * len(inputs)
+    assert len(inputs) == len(outputs) == len(log_files)
+    for fn_in, fn_out, fn_log in zip(inputs, outputs, log_files):
+        failed = sub_main(args, fn_in, fn_out, fn_log)
+        if failed:
+            return 1
     else:
-        logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
+        return 0
 
+
+def print_settings(logger, args, cmd_name, fn_in, fn_out, fn_log):
     logger.info("*" * width)
-    logger.info("Settings for part-gen program".center(width, " "))
+    logger.info(f"Settings for {cmd_name} program".center(width, " "))
     logger.info("*" * width)
     for k, v in vars(args).items():
-        logger.info(f"{k:>10} : {str(v):<10}".center(width, " "))
+        if k in ["inputs", "outputs", "log_files"]:
+            if k == "inputs":
+                logger.info(f"{'input':>40} : {str(fn_in):<40}".center(width, " "))
+            elif k == "outputs":
+                logger.info(f"{'output':>40} : {str(fn_out):<40}".center(width, " "))
+            else:
+                logger.info(f"{'log_file':>40} : {str(fn_log):<40}".center(width, " "))
+
+        else:
+            logger.info(f"{k:>40} : {str(v):<40}".center(width, " "))
     logger.info("-" * width)
     logger.info(" ")
 
-    iodata = load_one(args.filename)
+
+def sub_main(args, fn_in, fn_out, fn_log):
+    # Convert the log level string to a logging level
+    log_level = getattr(logging, args.log_level.upper(), None)
+    setup_logger(logger, log_level, fn_log)
+    print_settings(logger, args, "part-gen", fn_in, fn_out, fn_log)
+
+    iodata = load_one(fn_in)
 
     logger.info("*" * width)
     logger.info(" Molecualr information ".center(width, " "))
@@ -334,7 +363,10 @@ def main(args=None) -> int:
 
     logger.info("-" * width)
     logger.info(" " * width)
-    np.savez_compressed(args.output, **data)
+    path = os.path.dirname(fn_out)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    np.savez_compressed(fn_out, **data)
     return 0
 
 
@@ -345,14 +377,16 @@ def build_parser():
 
     parser.add_argument(
         "-f",
-        "--filename",
+        "--inputs",
         type=str,
+        nargs="+",
         default=None,
-        help="The output file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
+        help="The outputs file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
     )
     parser.add_argument(
-        "--output",
+        "--outputs",
         help="The NPZ file in which the grid and the density will be stored.",
+        nargs="+",
         type=str,
         default="mol_density.npz",
     )
@@ -360,13 +394,20 @@ def build_parser():
     #     "--verbose",
     #     type=int,
     #     default=3,
-    #     help="The level for printing output information. [default=%(default)s]",
+    #     help="The level for printing outputs information. [default=%(default)s]",
     # )
     parser.add_argument(
-        "--log",
+        "--log_level",
         default="WARNING",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--log_files",
+        type=str,
+        nargs="+",
+        default=None,
+        help="The log file.",
     )
     # for grid
     parser.add_argument(

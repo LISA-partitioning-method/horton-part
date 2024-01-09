@@ -20,7 +20,6 @@
 """Gaussian Iterative Stockholder Analysis (GISA) partitioning"""
 
 
-import logging
 import warnings
 
 import numpy as np
@@ -33,8 +32,6 @@ from .core.logging import deflist
 from .utils import check_pro_atom_parameters
 
 __all__ = ["GaussianISAWPart"]
-
-logger = logging.getLogger(__name__)
 
 
 class GaussianISAWPart(AbstractISAWPart):
@@ -51,6 +48,7 @@ class GaussianISAWPart(AbstractISAWPart):
         moldens,
         spindens=None,
         lmax=3,
+        logger=None,
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
@@ -83,6 +81,7 @@ class GaussianISAWPart(AbstractISAWPart):
             moldens,
             spindens,
             lmax=lmax,
+            logger=logger,
             threshold=threshold,
             maxiter=maxiter,
             inner_threshold=inner_threshold,
@@ -98,7 +97,7 @@ class GaussianISAWPart(AbstractISAWPart):
 
     def _init_log_scheme(self):
         deflist(
-            logger,
+            self.logger,
             [
                 ("Scheme", "Gaussian Iterative Stockholder Analysis (GISA)"),
                 ("Outer loop convergence threshold", "%.1e" % self._threshold),

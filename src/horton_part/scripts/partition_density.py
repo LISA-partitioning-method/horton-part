@@ -19,6 +19,7 @@
 # --
 import argparse
 import logging
+import os
 import sys
 
 import numpy as np
@@ -28,7 +29,7 @@ from grid.molgrid import MolGrid
 
 from horton_part import wpart_schemes
 
-from .generate_density import load_settings_from_yaml_file
+from .generate_density import load_settings_from_yaml_file, print_settings, setup_logger
 
 width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
@@ -37,7 +38,7 @@ np.random.seed(44)
 __all__ = ["construct_molgrid_from_dict"]
 
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 def construct_molgrid_from_dict(data):
@@ -68,33 +69,38 @@ def main(args=None) -> int:
     parser = build_parser()
     args = parser.parse_args(args)
     args = load_settings_from_yaml_file(args, "part-dens")
-
-    if args.filename is None:
+    if args.inputs is None:
         parser.print_help()
         return 0
 
-    # Convert the log level string to a logging level
-    log_level = getattr(logging, args.log.upper(), None)
-    if not isinstance(log_level, int):
-        raise ValueError(f"Invalid log level: {args.log}")
-
-    if log_level > logging.DEBUG:
-        logging.basicConfig(level=log_level, format="%(message)s")
+    log_files = getattr(args, "log_files", None)
+    inputs = args.inputs
+    outputs = args.outputs
+    if not isinstance(inputs, list):
+        inputs = [inputs]
+        outputs = [outputs]
+    if log_files is None:
+        log_files = [None] * len(inputs)
+    assert len(inputs) == len(outputs) == len(log_files)
+    for fn_in, fn_out, fn_log in zip(inputs, outputs, log_files):
+        failed = sub_main(args, fn_in, fn_out, fn_log)
+        if failed:
+            return 1
     else:
-        logging.basicConfig(level=log_level, format="%(name)s - %(levelname)s:    %(message)s")
+        return 0
 
-    logger.info("*" * width)
-    logger.info("Settings for part-dens program".center(width, " "))
-    logger.info("*" * width)
-    for k, v in vars(args).items():
-        logger.info(f"{k:>10} : {str(v):<10}".center(width, " "))
-    logger.info("-" * width)
-    logger.info(" ")
+
+def sub_main(args, fn_in, fn_out, fn_log):
+    # Convert the log level string to a logging level
+    log_level = getattr(logging, args.log_level.upper(), None)
+    logger = logging.getLogger("main")
+    setup_logger(logger, log_level, fn_log, overwrite=False)
+    print_settings(logger, args, "part-dens", fn_in, fn_out, fn_log)
 
     # logger.info("*" * width)
-    logger.info(f"Reade grid and density data from {args.filename} ...")
+    logger.info(f"Reade grid and density data from {fn_in} ...")
     # logger.info("*" * width)
-    data = np.load(args.filename)
+    data = np.load(fn_in)
     grid = construct_molgrid_from_dict(data)
 
     logger.info(" " * width)
@@ -111,6 +117,7 @@ def main(args=None) -> int:
         "maxiter": args.maxiter,
         "threshold": args.threshold,
         "radius_cutoff": args.radius_cutoff,
+        "logger": logger,
     }
 
     if args.type in ["gisa", "lisa"]:
@@ -183,7 +190,10 @@ def main(args=None) -> int:
     # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
     # part_data["part/radial_moments"] = part.cache["radial_moments"]
     part_data.update(data)
-    np.savez_compressed(args.output, **part_data)
+    path = os.path.dirname(fn_out)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    np.savez_compressed(fn_out, **part_data)
     return 0
 
 
@@ -195,8 +205,9 @@ def build_parser():
     # for part
     parser.add_argument(
         "-f",
-        "--filename",
+        "--inputs",
         type=str,
+        nargs="+",
         default=None,
         help="The output file of part-gen command.",
     )
@@ -229,7 +240,7 @@ def build_parser():
         "--func_file",
         type=str,
         default=None,
-        help="The json filename of basis functions.",
+        help="The json inputs of basis functions.",
     )
     parser.add_argument(
         "--maxiter",
@@ -256,16 +267,24 @@ def build_parser():
         help="The radius cutoff of local atomic grid [default=%(default)s]",
     )
     parser.add_argument(
-        "--output",
+        "--outputs",
         help="The NPZ file in which the partitioning results will be stored.",
         type=str,
+        nargs="+",
         default="partitioning.npz",
     )
     parser.add_argument(
-        "--log",
+        "--log_level",
         default="INFO",
         choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--log_files",
+        type=str,
+        nargs="+",
+        default=None,
+        help="The log file.",
     )
     parser.add_argument(
         "--solver",

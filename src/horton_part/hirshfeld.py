@@ -18,7 +18,6 @@
 #
 # --
 """Hirshfeld partitioning"""
-import logging
 
 from .core.cache import just_once
 from .core.logging import deflist
@@ -29,7 +28,7 @@ from .core.stockholder import AbstractStockholderWPart
 
 __all__ = ["HirshfeldWPart", "check_proatomdb", "do_dispersion"]
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 def check_proatomdb(numbers, pseudo_numbers, proatomdb):
@@ -48,7 +47,7 @@ def check_proatomdb(numbers, pseudo_numbers, proatomdb):
 
 def do_dispersion(part):
     if part.lmax < 3:
-        logger.warning("Skip computing dispersion coefficients because lmax=%i<3" % part.lmax)
+        part.logger.warning("Skip computing dispersion coefficients because lmax=%i<3" % part.lmax)
         # biblio.cite(
         #     "tkatchenko2009",
         #     "the method to evaluate atoms-in-molecules C6 parameters",
@@ -111,7 +110,7 @@ def do_dispersion(part):
         part.do_moments()
         radial_moments = part._cache.load("radial_moments")
 
-        logger.info("Computing atomic dispersion coefficients.")
+        part.logger.info("Computing atomic dispersion coefficients.")
 
         for i in range(part.natom):
             n = part.numbers[i]
@@ -141,6 +140,7 @@ class HirshfeldWPart(AbstractStockholderWPart):
         spindens=None,
         local=True,
         lmax=3,
+        logger=None,
     ):
         """
         **Arguments:** (that are not defined in ``WPart``)
@@ -161,12 +161,13 @@ class HirshfeldWPart(AbstractStockholderWPart):
             spindens,
             local,
             lmax,
+            logger,
         )
 
     def _init_log_scheme(self):
-        logger.info("Initialized: %s" % self.__class__.__name__)
+        self.logger.info("Initialized: %s" % self.__class__.__name__)
         deflist(
-            logger,
+            self.logger,
             [
                 ("Scheme", "Hirshfeld"),
                 ("Proatomic DB", self.proatomdb),

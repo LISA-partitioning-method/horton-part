@@ -20,8 +20,6 @@
 """Iterative Hirshfeld (HI) partitioning"""
 
 
-import logging
-
 import numpy as np
 
 from .core.cache import just_once
@@ -30,8 +28,6 @@ from .core.logging import deflist
 from .hirshfeld import check_proatomdb, do_dispersion
 
 # from .core.log import log, biblio
-
-logger = logging.getLogger(__name__)
 
 
 __all__ = ["HirshfeldIWPart"]
@@ -53,6 +49,7 @@ class HirshfeldIWPart(AbstractISAWPart):
         spindens=None,
         local=True,
         lmax=3,
+        logger=None,
         threshold=1e-6,
         maxiter=500,
     ):
@@ -88,14 +85,15 @@ class HirshfeldIWPart(AbstractISAWPart):
             spindens,
             local,
             lmax,
+            logger,
             threshold,
             maxiter,
         )
 
     def _init_log_scheme(self):
-        logger.info("Initialized: %s" % self.__class__.__name__)
+        self.logger.info("Initialized: %s" % self.__class__.__name__)
         deflist(
-            logger,
+            self.logger,
             [
                 ("Scheme", "Hirshfeld-I"),
                 ("Convergence threshold", "%.1e" % self._threshold),

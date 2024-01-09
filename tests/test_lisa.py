@@ -20,6 +20,8 @@
 
 #!/usr/bin/env python
 
+import logging
+
 import numpy as np
 import pytest
 from grid.onedgrid import GaussChebyshev
@@ -31,6 +33,8 @@ from horton_part.lisa import (
     opt_propars_self_consistent,
     opt_propars_trust_region,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class GaussianFunction:
@@ -127,6 +131,7 @@ def test_optimization_methods(case, opt_propars):
         local_weights,
         threshold,
         density_cutoff,
+        logger,
         **kwargs,
     )
 

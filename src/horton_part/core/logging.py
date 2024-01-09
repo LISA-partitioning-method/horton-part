@@ -18,6 +18,10 @@
 #
 # --
 import logging
+import os
+import sys
+
+__all__ = ["deflist", "setup_logger"]
 
 
 def deflist(logger: logging.Logger, l: list) -> None:
@@ -34,3 +38,57 @@ def deflist(logger: logging.Logger, l: list) -> None:
     widest = max(len(item[0]) for item in l)
     for name, value in l:
         logger.info(f"  {name.ljust(widest)} : {value}")
+
+
+def setup_logger(logger, log_level=logging.INFO, log_file=None, overwrite=True):
+    """
+    Set up a logger with specified log level and log file.
+
+    This function configures the provided logger to output logs to either a specified file or,
+    if no file is specified, to the standard output (console). It first removes any existing
+    handlers to prevent duplicate logging and then adds a new handler according to the
+    specified settings.
+
+    Parameters
+    ----------
+    logger : logging.Logger
+        The logger to be configured.
+    log_level : int, optional
+        The logging level (e.g., logging.DEBUG, logging.INFO, etc.), by default logging.INFO.
+    log_file : str or None, optional
+        Path to the file where logs should be written. If None, logs will be written to
+        standard output (console), by default None.
+    overwrite : bool, optional
+        Whether overwrite log file if it already exists.
+    """
+    if not isinstance(log_level, int):
+        raise ValueError(f"Invalid log level: {log_level}")
+
+    # Create a logger
+    logger.setLevel(log_level)
+
+    # Remove any existing handlers. This is improved to handle cases where handlers might be absent.
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
+    # Set up logging formatter
+    formatter = logging.Formatter(
+        "%(levelname)s: %(message)s" if log_level <= logging.DEBUG else "%(message)s"
+    )
+
+    # Configure file handler if fn_log is provided, else use stream handler
+    if log_file:
+        path = os.path.dirname(log_file)
+        if path and not os.path.exists(path):
+            os.makedirs(path)
+
+        mode = "w"
+        if os.path.exists(log_file) and not overwrite:
+            mode = "a"
+        file_handler = logging.FileHandler(log_file, mode=mode)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    else:
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)

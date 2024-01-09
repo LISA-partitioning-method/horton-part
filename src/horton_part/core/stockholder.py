@@ -20,7 +20,6 @@
 """Base classes for all stockholder partitioning schemes"""
 
 
-import logging
 import time
 import warnings
 
@@ -31,8 +30,6 @@ from .base import WPart
 from .cache import just_once
 
 __all__ = ["AbstractStockholderWPart"]
-
-logger = logging.getLogger(__name__)
 
 
 class AbstractStockholderWPart(WPart):
@@ -113,20 +110,20 @@ class AbstractStockholderWPart(WPart):
 
     def _log_grid_info(self):
         """Log information about the computed grids."""
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("Information of integral grids.")
-        logger.info("-" * 80)
-        logger.info("Compute local grids ...")
-        logger.info(f"Grid size of molecular grid: {self.grid.size}")
+        self.logger.info("")
+        self.logger.info("=" * 80)
+        self.logger.info("Information of integral grids.")
+        self.logger.info("-" * 80)
+        self.logger.info("Compute local grids ...")
+        self.logger.info(f"Grid size of molecular grid: {self.grid.size}")
         reduced_mol_grid_size = 0
         for i, local_grid in enumerate(self.local_grids):
-            logger.info(f" Atom {i} ".center(80, "*"))
+            self.logger.info(f" Atom {i} ".center(80, "*"))
             atom_grid = self.get_grid(i)
             dist = np.sqrt(np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2))
-            logger.info(f"|-- Local grid size: {local_grid.size}")
+            self.logger.info(f"|-- Local grid size: {local_grid.size}")
             reduced_atom_grid_size = len(atom_grid.points[dist <= self.radius_cutoff])
-            logger.info(f"|-- Atom grid size: {reduced_atom_grid_size}")
+            self.logger.info(f"|-- Atom grid size: {reduced_atom_grid_size}")
             reduced_mol_grid_size += reduced_atom_grid_size
             rgrid = self.get_rgrid(i)
             r = rgrid.points
@@ -134,20 +131,20 @@ class AbstractStockholderWPart(WPart):
                 r_mask = r <= self.radius_cutoff
                 degrees = np.asarray(atom_grid.degrees)[r_mask]
                 degrees_str = [str(d) for d in degrees]
-                logger.info(f"   |-- Radial grid size: {len(r[r_mask])}")
-                logger.info(f"   |-- Angular grid {len(degrees)} degrees: ")
+                self.logger.info(f"   |-- Radial grid size: {len(r[r_mask])}")
+                self.logger.info(f"   |-- Angular grid {len(degrees)} degrees: ")
                 nb = 20
                 prefix = "          "
                 for j in range(len(degrees_str) // nb + 1):
-                    logger.info(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
+                    self.logger.info(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
             else:
                 warnings.warn(
                     "The size of 'rgrid' in the method is not equal to the size of 'rgrid' of atom grid."
                 )
-        logger.info("-" * 80)
-        logger.info(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
-        logger.info("=" * 80)
-        logger.info(" ")
+        self.logger.info("-" * 80)
+        self.logger.info(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
+        self.logger.info("=" * 80)
+        self.logger.info(" ")
 
     def update_pro(self, index, proatdens, promoldens):
         """
@@ -243,7 +240,7 @@ class AbstractStockholderWPart(WPart):
             rho[rho < 0] = 0.0
             deriv = None
             error = rgrid.integrate(rho) - original
-            logger.info(
+            self.logger.info(
                 "                Pro-atom not positive everywhere. Lost %.1e electrons" % error
             )
         return rho, deriv
@@ -393,12 +390,12 @@ class AbstractStockholderWPart(WPart):
             at_weights = self.cache.load("at_weights", index)
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
-            # logger.debug("weights:")
-            # logger.debug(at_weights)
-            # logger.debug("Negative weights:")
-            # logger.debug(at_weights[at_weights<-1e-5])
-            # logger.debug("Weights > 1:")
-            # logger.debug(at_weights[at_weights>1+1e-5])
+            # self.logger.debug("weights:")
+            # self.logger.debug(at_weights)
+            # self.logger.debug("Negative weights:")
+            # self.logger.debug(at_weights[at_weights<-1e-5])
+            # self.logger.debug("Weights > 1:")
+            # self.logger.debug(at_weights[at_weights>1+1e-5])
         t2 = time.time()
 
         if "history_time_update_promolecule" not in self.time_usage:
@@ -413,7 +410,7 @@ class AbstractStockholderWPart(WPart):
             # density
             key = ("spline_prodensity", index)
             if key not in self.cache:
-                logger.info("Storing proatom density spline for atom %i." % index)
+                self.logger.info("Storing proatom density spline for atom %i." % index)
                 spline = self.get_proatom_spline(index)
                 self.cache.dump(key, spline, tags="o")
             # # hartree potential
