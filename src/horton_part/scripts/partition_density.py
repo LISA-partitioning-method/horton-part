@@ -116,6 +116,7 @@ class PartDensProg(PartProg):
             "lmax": args.lmax,
             "maxiter": args.maxiter,
             "threshold": args.threshold,
+            "inner_threshold": args.inner_threshold,
             "radius_cutoff": args.radius_cutoff,
             "logger": self.logger,
         }

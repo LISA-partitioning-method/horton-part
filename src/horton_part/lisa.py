@@ -197,11 +197,10 @@ class LinearISAWPart(GaussianISAWPart):
                 ("Allow negative parameters", allow_negative_params),
             ]
         )
-        if not callable(self._solver) and "diis" in self._solver:
-            # info_list.append(("DIIS size", self.diis_size))
-            # TODO: add info for solver kwargs.
-            pass
+        for k, v in self._solver_options.items():
+            info_list.append((k, str(v)))
         deflist(self.logger, info_list)
+        self.logger.info(" ")
         # biblio.cite(
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
         # )
@@ -737,7 +736,7 @@ def opt_propars_diis(
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
     new_propars = diis(propars, function_g, threshold, **solver_options)
-    check_pro_atom_parameters(new_propars)
+    check_pro_atom_parameters(new_propars, bs_funcs)
     return new_propars
 
 
@@ -802,9 +801,9 @@ def opt_propars_newton(bs_funcs, rho, propars, points, weights, threshold, densi
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            # check_pro_atom_parameters(
-            #     propars, total_population=float(np.sum(pro)), pro_atom_density=pro
-            # )
+            check_pro_atom_parameters(
+                propars, total_population=float(np.sum(pro)), pro_atom_density=pro
+            )
             return propars
 
         # update propars
