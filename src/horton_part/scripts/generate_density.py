@@ -18,12 +18,10 @@
 #
 # --
 import argparse
-import logging
 import os
 import sys
 
 import numpy as np
-import yaml
 from gbasis.evals.eval import evaluate_basis
 from gbasis.evals.eval_deriv import evaluate_deriv_basis
 from gbasis.wrappers import from_iodata
@@ -33,22 +31,15 @@ from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 from iodata import load_one
 
-from horton_part.core.logging import setup_logger
+from horton_part.scripts.program import PartProg
 
-width = 100
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
-__all__ = [
-    "prepare_input",
-    "load_settings_from_yaml_file",
-    "print_settings",
-]
-
-logger = logging.getLogger(__name__)
+__all__ = ["prepare_input", "PartGenProg"]
 
 
-def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgrids):
+def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgrids, logger):
     """Prepare input for denspart with HORTON3 modules.
 
     Parameters
@@ -77,13 +68,13 @@ def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgr
         Qauntities evaluated on the grid, includeing the density.
 
     """
-    grid = _setup_grid(iodata.atnums, iodata.atcoords, nrad, nang, store_atgrids)
-    data = _compute_stuff(iodata, grid.points, gradient, orbitals, chunk_size)
+    grid = _setup_grid(iodata.atnums, iodata.atcoords, nrad, nang, store_atgrids, logger)
+    data = _compute_stuff(iodata, grid.points, gradient, orbitals, chunk_size, logger)
     return grid, data
 
 
 # pylint: disable=protected-access
-def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids):
+def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids, logger):
     """Set up a simple molecular integration grid for a given molecular geometry.
 
     Parameters
@@ -120,7 +111,7 @@ def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids):
     return grid
 
 
-def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
+def _compute_stuff(iodata, points, gradient, orbitals, chunk_size, logger):
     """Evaluate the density and other things on a give set of grid points.
 
     Parameters
@@ -207,261 +198,155 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size):
     return result
 
 
-def load_settings_from_yaml_file(args, sub_cmd="part-gen", fn_key="config_file"):
-    """
-    Load settings from a YAML configuration file and update the 'args' object.
+class PartGenProg(PartProg):
+    """Part-Gen Program"""
 
-    This function reads a YAML file specified by the 'fn_key' attribute of the 'args' object.
-    It then updates 'args' with the settings found under the specified 'cmd' section of the YAML file.
+    def __init__(self, width=100):
+        super().__init__("part-gen", width)
 
-    Parameters
-    ----------
-    args : argparse.Namespace
-        The arguments object, typically obtained from argparse. This object is updated
-        with the settings from the YAML file.
-    sub_cmd : str, optional
-        The key within the YAML file that contains the settings to be loaded. Only settings
-        under this key are used to update 'args'. Default is 'part-gen'.
-    fn_key : str, optional
-        The attribute name in 'args' that holds the path to the YAML configuration file.
-        Default is 'config_file'.
+    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log):
+        self.setup_logger(args, fn_log)
+        self.print_settings(args, fn_in, fn_out, fn_log)
+        iodata = load_one(fn_in)
+        self.print_header("Molecular information")
+        self.print_coordinates(iodata.atnums, iodata.atcoords)
+        self.print_header("Build grid and compute molecular density")
 
-    Returns
-    -------
-    argparse.Namespace
-        The updated arguments object with settings loaded from the YAML file.
+        grid, data = prepare_input(
+            iodata,
+            args.nrad,
+            args.nang,
+            args.chunk_size,
+            args.gradient,
+            args.orbitals,
+            True,
+            self.logger,
+        )
+        data.update(
+            {
+                "atcoords": iodata.atcoords,
+                "atnums": iodata.atnums,
+                "atcorenums": iodata.atcorenums,
+                "points": grid.points,
+                "weights": grid.weights,
+                "aim_weights": grid.aim_weights,
+                "cellvecs": np.zeros((0, 3)),
+                "nelec": iodata.mo.nelec,
+            }
+        )
 
-    Raises
-    ------
-    AssertionError
-        If 'args' does not have an attribute named 'fn_key', or if the 'cmd' key is not
-        found in the loaded YAML settings.
+        data["atom_idxs"] = grid._indices
+        for iatom in range(iodata.natom):
+            atgrid = grid.get_atomic_grid(iatom)
+            data[f"atom{iatom}/points"] = atgrid.points
+            data[f"atom{iatom}/weights"] = atgrid.weights
+            data[f"atom{iatom}/shell_idxs"] = atgrid._indices
+            data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
+            data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
 
-    Notes
-    -----
-    - The function asserts that the 'args' object has an attribute named as per 'fn_key'.
-    - It also checks if the specified YAML file exists before attempting to open it.
-    - Settings are loaded only if the 'cmd' key is present in the YAML file.
-    - Each setting under the 'cmd' section in the YAML file updates the corresponding attribute
-      in the 'args' object.
-    """
-    assert hasattr(args, fn_key)
-    yaml_fn = getattr(args, fn_key)
-    if yaml_fn and os.path.exists(yaml_fn):
-        with open(yaml_fn) as f:
-            settings = yaml.safe_load(f)
-        if sub_cmd:
-            assert sub_cmd in settings
-            for k, v in settings[sub_cmd].items():
-                setattr(args, k, v)
-        else:
-            for k, v in settings.items():
-                setattr(args, k, v)
-    return args
+        path = os.path.dirname(fn_out)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        np.savez_compressed(fn_out, **data)
+        return 0
+
+    def build_parser(self):
+        description = """Generate molecular density with HORTON3."""
+        parser = argparse.ArgumentParser(prog=self.program_name, description=description)
+
+        parser.add_argument(
+            "-f",
+            "--inputs",
+            type=str,
+            nargs="+",
+            default=None,
+            help="The outputs file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
+        )
+        parser.add_argument(
+            "--outputs",
+            help="The NPZ file in which the grid and the density will be stored.",
+            nargs="+",
+            type=str,
+            default="mol_density.npz",
+        )
+        # parser.add_argument(
+        #     "--verbose",
+        #     type=int,
+        #     default=3,
+        #     help="The level for printing outputs information. [default=%(default)s]",
+        # )
+        parser.add_argument(
+            "--log_level",
+            default="WARNING",
+            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+            help="Set the logging level (default: %(default)s)",
+        )
+        parser.add_argument(
+            "--log_files",
+            type=str,
+            nargs="+",
+            default=None,
+            help="The log file.",
+        )
+        # for grid
+        parser.add_argument(
+            "-r",
+            "--nrad",
+            type=int,
+            default=150,
+            help="Number of radial grid points. [default=%(default)s]",
+        )
+        parser.add_argument(
+            "-a",
+            "--nang",
+            type=int,
+            default=194,
+            help="Number of angular grid points. [default=%(default)s]",
+        )
+        parser.add_argument(
+            "-c",
+            "--chunk-size",
+            type=int,
+            default=10000,
+            help="Number points on which the density is computed in one pass. "
+            "[default=%(default)s]",
+        )
+        # parser.add_argument(
+        #     "-s",
+        #     "--store-atomic-grids",
+        #     default=True,
+        #     action="store_true",
+        #     dest="store_atgrids",
+        #     help="Store atomic integration grids, which may be useful for post-processing. ",
+        # )
+        # for gbasis
+        parser.add_argument(
+            "-g",
+            "--gradient",
+            default=False,
+            action="store_true",
+            help="Also compute the gradient of the density (and the orbitals). ",
+        )
+        parser.add_argument(
+            "-o",
+            "--orbitals",
+            default=False,
+            action="store_true",
+            help="Also store the occupied and virtual orbtials. "
+            "For this to work, orbitals must be defined in the WFN file.",
+        )
+        parser.add_argument(
+            "--config_file",
+            type=str,
+            default=None,
+            help="Use configure file.",
+        )
+        return parser
 
 
 def main(args=None) -> int:
-    """Main program."""
-    parser = build_parser()
-    args = parser.parse_args(args)
-    args = load_settings_from_yaml_file(args)
-    if args.inputs is None:
-        parser.print_help()
-        return 0
-
-    log_files = getattr(args, "log_files", None)
-    inputs = args.inputs
-    outputs = args.outputs
-    if not isinstance(inputs, list):
-        inputs = [inputs]
-        outputs = [outputs]
-    if log_files is None:
-        log_files = [None] * len(inputs)
-    assert len(inputs) == len(outputs) == len(log_files)
-    for fn_in, fn_out, fn_log in zip(inputs, outputs, log_files):
-        failed = sub_main(args, fn_in, fn_out, fn_log)
-        if failed:
-            return 1
-    else:
-        return 0
-
-
-def print_settings(logger, args, cmd_name, fn_in, fn_out, fn_log):
-    logger.info("*" * width)
-    logger.info(f"Settings for {cmd_name} program".center(width, " "))
-    logger.info("*" * width)
-    for k, v in vars(args).items():
-        if k in ["inputs", "outputs", "log_files"]:
-            if k == "inputs":
-                logger.info(f"{'input':>40} : {str(fn_in):<40}".center(width, " "))
-            elif k == "outputs":
-                logger.info(f"{'output':>40} : {str(fn_out):<40}".center(width, " "))
-            else:
-                logger.info(f"{'log_file':>40} : {str(fn_log):<40}".center(width, " "))
-
-        else:
-            logger.info(f"{k:>40} : {str(v):<40}".center(width, " "))
-    logger.info("-" * width)
-    logger.info(" ")
-
-
-def sub_main(args, fn_in, fn_out, fn_log):
-    # Convert the log level string to a logging level
-    log_level = getattr(logging, args.log_level.upper(), None)
-    setup_logger(logger, log_level, fn_log)
-    print_settings(logger, args, "part-gen", fn_in, fn_out, fn_log)
-
-    iodata = load_one(fn_in)
-
-    logger.info("*" * width)
-    logger.info(" Molecualr information ".center(width, " "))
-    logger.info("*" * width)
-    logger.info(f"Atomic numbers : {' '.join([str(z) for z in iodata.atnums])}")
-    logger.info("Coordinates [a.u.] : ")
-    logger.info(f"{'X':>20} {'Y':>20} {'Z':>20}".center(width, " "))
-    for xyz in iodata.atcoords:
-        logger.info(f"{xyz[0]:>20.3f} {xyz[1]:>20.3f} {xyz[2]:>20.3f}".center(width, " "))
-    logger.info("-" * width)
-    logger.info(" ")
-
-    # grid and density
-    logger.info(" " * width)
-    logger.info("*" * width)
-    logger.info(" Build grid and compute moleuclar density ".center(width, " "))
-    logger.info("*" * width)
-
-    grid, data = prepare_input(
-        iodata,
-        args.nrad,
-        args.nang,
-        args.chunk_size,
-        args.gradient,
-        args.orbitals,
-        True,
-    )
-    data.update(
-        {
-            "atcoords": iodata.atcoords,
-            "atnums": iodata.atnums,
-            "atcorenums": iodata.atcorenums,
-            "points": grid.points,
-            "weights": grid.weights,
-            "aim_weights": grid.aim_weights,
-            "cellvecs": np.zeros((0, 3)),
-            "nelec": iodata.mo.nelec,
-        }
-    )
-
-    data["atom_idxs"] = grid._indices
-    for iatom in range(iodata.natom):
-        atgrid = grid.get_atomic_grid(iatom)
-        data[f"atom{iatom}/points"] = atgrid.points
-        data[f"atom{iatom}/weights"] = atgrid.weights
-        data[f"atom{iatom}/shell_idxs"] = atgrid._indices
-        data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
-        data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
-
-    logger.info("-" * width)
-    logger.info(" " * width)
-    path = os.path.dirname(fn_out)
-    if not os.path.exists(path):
-        os.makedirs(path)
-    np.savez_compressed(fn_out, **data)
-    return 0
-
-
-def build_parser():
-    """Parse command-line arguments."""
-    description = """Generate molecular density with HORTON3."""
-    parser = argparse.ArgumentParser(prog="part-gen", description=description)
-
-    parser.add_argument(
-        "-f",
-        "--inputs",
-        type=str,
-        nargs="+",
-        default=None,
-        help="The outputs file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
-    )
-    parser.add_argument(
-        "--outputs",
-        help="The NPZ file in which the grid and the density will be stored.",
-        nargs="+",
-        type=str,
-        default="mol_density.npz",
-    )
-    # parser.add_argument(
-    #     "--verbose",
-    #     type=int,
-    #     default=3,
-    #     help="The level for printing outputs information. [default=%(default)s]",
-    # )
-    parser.add_argument(
-        "--log_level",
-        default="WARNING",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--log_files",
-        type=str,
-        nargs="+",
-        default=None,
-        help="The log file.",
-    )
-    # for grid
-    parser.add_argument(
-        "-r",
-        "--nrad",
-        type=int,
-        default=150,
-        help="Number of radial grid points. [default=%(default)s]",
-    )
-    parser.add_argument(
-        "-a",
-        "--nang",
-        type=int,
-        default=194,
-        help="Number of angular grid points. [default=%(default)s]",
-    )
-    parser.add_argument(
-        "-c",
-        "--chunk-size",
-        type=int,
-        default=10000,
-        help="Number points on which the density is computed in one pass. " "[default=%(default)s]",
-    )
-    # parser.add_argument(
-    #     "-s",
-    #     "--store-atomic-grids",
-    #     default=True,
-    #     action="store_true",
-    #     dest="store_atgrids",
-    #     help="Store atomic integration grids, which may be useful for post-processing. ",
-    # )
-    # for gbasis
-    parser.add_argument(
-        "-g",
-        "--gradient",
-        default=False,
-        action="store_true",
-        help="Also compute the gradient of the density (and the orbitals). ",
-    )
-    parser.add_argument(
-        "-o",
-        "--orbitals",
-        default=False,
-        action="store_true",
-        help="Also store the occupied and virtual orbtials. "
-        "For this to work, orbitals must be defined in the WFN file.",
-    )
-    parser.add_argument(
-        "--config_file",
-        type=str,
-        default=None,
-        help="Use configure file.",
-    )
-    return parser
+    """Main entry."""
+    return PartGenProg().run(args)
 
 
 if __name__ == "__main__":

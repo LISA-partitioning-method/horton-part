@@ -25,7 +25,7 @@ from grid.becke import BeckeWeights
 
 from .core.base import WPart
 from .core.logging import deflist
-from .utils import angstrom, radius_becke, radius_covalent
+from .utils import ANGSTROM, radius_becke, radius_covalent
 
 __all__ = ["BeckeWPart"]
 
@@ -93,7 +93,7 @@ class BeckeWPart(WPart):
         for number in self.numbers:
             if number == 1:
                 # exception defined in Becke's paper
-                radius = 0.35 * angstrom
+                radius = 0.35 * ANGSTROM
             else:
                 radius = radius_becke[number]
                 if radius is None:

@@ -22,13 +22,14 @@
 import warnings
 
 import numpy as np
+import yaml
+from importlib_resources import files
 
 __all__ = [
     "typecheck_geo",
     "radius_becke",
     "radius_covalent",
     "wpart_schemes",
-    "angstrom",
     "compute_quantities",
     "check_pro_atom_parameters",
     "check_for_pro_error",
@@ -36,12 +37,21 @@ __all__ = [
     "check_for_hessian_error",
     "NEGATIVE_CUTOFF",
     "POPULATION_CUTOFF",
+    "ANGSTROM",
+    "PERIODIC_TABLE",
 ]
 
 
+# Constants
 NEGATIVE_CUTOFF = -1e-12
 POPULATION_CUTOFF = 1e-4
-angstrom = 1.0e-10 / 0.5291772083e-10
+ANGSTROM = 1.0e-10 / 0.5291772083e-10
+JSON_DATA_PATH = files("horton_part.data")
+DATA_PATH = files("horton_part.data")
+
+with open(DATA_PATH.joinpath("config.yaml")) as f:
+    docu = yaml.safe_load(f)
+PERIODIC_TABLE = docu["PERIODIC_TABLE"]
 
 
 def wpart_schemes(scheme):
@@ -323,7 +333,7 @@ radius_becke = {
     117: None,
     118: None,
 }
-radius_becke = {k: v if v is None else v * angstrom for k, v in list(radius_becke.items())}
+radius_becke = {k: v if v is None else v * ANGSTROM for k, v in list(radius_becke.items())}
 
 
 # cov_radius_cordero
@@ -447,7 +457,7 @@ radius_covalent = {
     117: None,
     118: None,
 }
-radius_covalent = {k: v if v is None else v * angstrom for k, v in list(radius_covalent.items())}
+radius_covalent = {k: v if v is None else v * ANGSTROM for k, v in list(radius_covalent.items())}
 
 
 def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff):

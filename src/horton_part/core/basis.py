@@ -22,14 +22,11 @@
 import json
 
 import numpy as np
-from importlib_resources import files
 from scipy.special import gamma
 
-__all__ = ["BasisFuncHelper", "evaluate_function", "load_params"]
+from horton_part.utils import JSON_DATA_PATH
 
-# Constants
-DEFAULT_NB_EXP = 6
-JSON_DATA_PATH = files("horton_part.data")
+__all__ = ["BasisFuncHelper", "evaluate_function", "load_params"]
 
 
 def load_params(filename):
