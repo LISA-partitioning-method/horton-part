@@ -44,6 +44,7 @@ def prepare_argument_dict(mol, grid, rho):
         "moldens": rho,
         "lmax": 3,
         "maxiter": 1000,
+        "threshold": 1e-6,
     }
     return kwargs
 

@@ -44,23 +44,11 @@ from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .utils import check_pro_atom_parameters
 
-# # Suppress specific warning
-# warnings.filterwarnings("ignore", category=LinAlgWarning)
-# warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
-
-__all__ = [
-    "AbstractGlobalLinearISAWPart",
-    "GLisaConvexOptWPart",
-    "GLisaSelfConsistentWPart",
-    "GLisaDIISWPart",
-    "GLisaTrustConstrainWPart",
-    "GLisaCDIISWPart",
-]
+__all__ = ["GlobalLinearISAWPart"]
 
 
-class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
-    density_cutoff = 1e-15
-    allow_neg_pars = False
+class GlobalLinearISAWPart(AbstractStockholderWPart):
+    name = "glisa"
 
     def __init__(
         self,
@@ -75,6 +63,8 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         threshold=1e-6,
         maxiter=500,
         radius_cutoff=np.inf,
+        solver="cvxopt",
+        solver_options=None,
         basis_func="gauss",
     ):
         """
@@ -98,6 +88,8 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         self._threshold = threshold
         self.basis_func = basis_func
         self._bs_helper = None
+        self._solver = solver
+        self._solver_options = solver_options or {}
 
         AbstractStockholderWPart.__init__(
             self,
@@ -203,7 +195,6 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
                 ("lmax", self.lmax),
                 ("Basis function type", self.basis_func),
                 ("Local grid radius", self.radius_cutoff),
-                ("Allow negative parameters", self.allow_neg_pars),
             ]
         )
         deflist(self.logger, info_list)
@@ -266,7 +257,7 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             # Initialize pro-atom parameters.
             self._init_propars()
             t0 = time.time()
-            new_propars = self._opt_propars()
+            new_propars = self._opt_propars(**self._solver_options)
             t1 = time.time()
             self.logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
             propars = self.cache.load("propars")
@@ -319,9 +310,18 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
         """Compute pro-molecule density based on pro-atom parameters."""
         return np.einsum("np,n->p", self.pro_shells, propars)
 
-    def _opt_propars(self):
+    def _opt_propars(self, *args, **kwargs):
         """Optimize pro-atom parameters."""
-        raise NotImplementedError
+        if callable(self._solver):
+            return self._solver(*args, **kwargs)
+        elif isinstance(self._solver, str):
+            solver_name = f"solver_{self._solver.replace('-', '_')}"
+            if hasattr(self, solver_name):
+                return getattr(self, solver_name)(*args, **kwargs)
+            else:
+                raise RuntimeError(f"Unknown solver: {solver_name}")
+        else:
+            raise TypeError(f"The type of solver {type(self._solver)} is not supported.")
 
     @property
     def pro_shells(self):
@@ -504,16 +504,14 @@ class AbstractGlobalLinearISAWPart(AbstractStockholderWPart):
             tags="o",
         )
 
-
-class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa-cvxopt"
-    allow_neg_pars = False
-
-    def _opt_propars(self):
+    # -----------------------
+    # builtin global solvers
+    # -----------------------
+    def solver_cvxopt(self, allow_neg_pars=False, verbose=False, **cvxopt_options):
         rho, propars = self._moldens, self.propars
 
         nb_par = len(propars)
-        if self.allow_neg_pars:
+        if allow_neg_pars:
             matrix_constraint_ineq = None
             vector_constraint_ineq = None
         else:
@@ -553,9 +551,10 @@ class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
             h=vector_constraint_ineq,
             A=matrix_constraint_eq,
             b=vector_constraint_eq,
-            verbose=True,
+            verbose=verbose,
             # options={"show_progress": log.do_medium, "feastol": self._threshold},
-            options={"show_progress": 3, "feastol": self._threshold},
+            # options={"show_progress": 3, "feastol": self._threshold},
+            options=cvxopt_options,
         )
 
         propars[:] = np.asarray(opt_CVX["x"]).flatten()
@@ -567,13 +566,7 @@ class GLisaConvexOptWPart(AbstractGlobalLinearISAWPart):
         )
         return propars
 
-
-class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa-sc"
-    allow_neg_pars = False
-
-    # TODO: use function_g instead of duplicated codes.
-    def _opt_propars(self):
+    def solver_sc(self, density_cutoff=1e-15):
         # 1. load molecular and pro-molecule density from cache
         rho, all_propars = self._moldens, self.propars
         old_propars = all_propars.copy()
@@ -583,7 +576,7 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
         counter = 0
         while True:
             old_rho0 = self.calc_promol_dens(old_propars)
-            sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
+            sick = (rho < density_cutoff) | (old_rho0 < density_cutoff)
 
             ishell = 0
             for iatom in range(self.natom):
@@ -619,20 +612,12 @@ class GLisaSelfConsistentWPart(AbstractGlobalLinearISAWPart):
             counter += 1
         return all_propars
 
-
-class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa-diis"
-    allow_neg_pars = True
-    diis_size = 8
-    use_dmrs = False
-    version = "P"
-
-    def function_g(self, x):
+    def function_g(self, x, density_cutoff=1e-15):
         """The fixed-point equation :math:`g(x)=x`."""
         # 1. load molecular and pro-molecule density from cache
         rho = self._moldens
         old_rho0 = self.calc_promol_dens(x)
-        sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
+        sick = (rho < density_cutoff) | (old_rho0 < density_cutoff)
 
         new_x = np.zeros_like(x)
         ishell = 0
@@ -660,7 +645,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
         return new_x
 
     # TODO: this is duplicated
-    def _opt_propars(self):
+    def solver_diis(self, diis_size=8, use_dmrs=False, version="P"):
         """Version P of CDIIS."""
         history_x = []
         history_r = []
@@ -672,14 +657,14 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
         self.logger.info("Iteration       Change")
         for i in range(1000):
             # the size of subspace of DIIS
-            depth = min(i + 1, self.diis_size)
+            depth = min(i + 1, diis_size)
 
             old_x_mol = x_mol.copy()  # old_x_mol = x_i
             g_i = self.function_g(old_x_mol)
             r_i = g_i - old_x_mol
 
             # if we use DRMS as threshold.
-            if self.use_dmrs:
+            if use_dmrs:
                 drms = np.linalg.norm(r_i)
                 if drms < self._threshold * self.natom:
                     check_pro_atom_parameters(
@@ -695,7 +680,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
             history_r.append(r_i)
 
             r_list = history_r[-depth:]
-            if self.version == "P":
+            if version == "P":
                 # Anderson-Pulay version P
                 history_x.append(x_mol.copy())
                 x_list = history_x[-depth:]
@@ -711,7 +696,7 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
                 warnings.warn("Negative parameters found!")
 
             # if we use the same threshold as the SC method.
-            if not self.use_dmrs:
+            if not use_dmrs:
                 old_rho0 = rho0 if rho0 is not None else self.calc_promol_dens(old_x_mol)
                 rho0 = self.calc_promol_dens(x_mol)
                 change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
@@ -727,18 +712,13 @@ class GLisaDIISWPart(AbstractGlobalLinearISAWPart):
 
         raise RuntimeError("Error: inner iteration is not converge!")
 
-
-class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
-    name = "glisa-trust-constr"
-    allow_neg_pars = False
-
-    def _opt_propars(self):
+    def solver_trust_region(self, allow_neg_pars=False):
         """Optimize the promodel using the trust-constr minimizer from SciPy."""
         rho, pars0 = self._moldens, self.propars
 
         # Compute the total population
         pop = self.grid.integrate(rho)
-        self.ogger.info("Integral of density:", pop)
+        self.logger.info("Integral of density: {pop}")
         nb_par = len(pars0)
 
         def cost_grad(x):
@@ -749,7 +729,7 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
             return f, df
 
         # Optimize parameters within the bounds.
-        if self.allow_neg_pars:
+        if allow_neg_pars:
             bounds = None
             constraint = LinearConstraint(np.ones((1, nb_par)), pop, pop)
             hess = SR1()
@@ -793,37 +773,31 @@ class GLisaTrustConstrainWPart(AbstractGlobalLinearISAWPart):
         self.logger.info(optresult.x)
         return optresult.x
 
-
-class GLisaCDIISWPart(GLisaDIISWPart):
-    name = "glisa-cdiis"
-    allow_neg_pars = True
-    diis_size = 8
-    param = 1e-4
-
-    mode = "AD-CDIIS"
-    modeQR = "full"
-    maxiter = 1000
-    threshold = 1e-6
-    minrestart = 1
-    slidehole = False
-
     def residual(self, x):
         """The definition of residual."""
         return self.function_g(x) - x
 
     # TODO: use **solver_options instead of passing all parameters.
-    def _opt_propars(self):
+    def solver_cdiis(
+        self,
+        diis_size=8,
+        param=1e-4,
+        mode="AD-CDIIS",
+        modeQR="full",
+        minrestart=1,
+        slidehole=False,
+    ):
         conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
             self.propars,
             self.function_g,
             self.threshold,
             self.maxiter,
-            self.modeQR,
-            self.mode,
-            self.diis_size,
-            self.param,
-            self.minrestart,
-            self.slidehole,
+            modeQR,
+            mode,
+            diis_size,
+            param,
+            minrestart,
+            slidehole,
         )
         if not conv:
             raise RuntimeError("Not converged!")

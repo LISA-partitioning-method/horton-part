@@ -79,45 +79,10 @@ def wpart_schemes(scheme):
         from .lisa import LinearISAWPart
 
         wpart = LinearISAWPart
+    elif scheme == "glisa":
+        from .lisa_g import GlobalLinearISAWPart
 
-    elif "glisa" in scheme:
-        from horton_part import lisa_g
-        from horton_part.lisa_g import __all__ as class_names
-
-        for class_name in class_names:
-            cls = getattr(lisa_g, class_name)
-            if hasattr(cls, "name") and scheme == cls.name:
-                wpart = cls
-                break
-        else:
-            raise RuntimeError(f"No class found for scheme: {scheme}")
-
-        # if scheme == "lisa_g_101":
-        #     from .lisa_g import GLisaConvexOptWPart
-
-        #     wpart = GLisaConvexOptWPart
-        # elif scheme == "lisa_g_104":
-        #     from .lisa_g import GLisaConvexOptNWPart
-
-        #     wpart = GLisaConvexOptNWPart
-        # elif scheme == "lisa_g_201":
-        #     from .lisa_g import GLisaSelfConsistentWPart
-
-        #     wpart = GLisaSelfConsistentWPart
-        # elif scheme in ["lisa_g_206", "lisa_g_202"]:
-        #     from .lisa_g import GLisaDIISWPart
-
-        #     wpart = GLisaDIISWPart
-        # elif scheme == "lisa_g_301":
-        #     from .lisa_g import GLisaTrustConstrainWPart
-
-        #     wpart = GLisaTrustConstrainWPart
-        # elif scheme == "lisa_g_302":
-        #     from .lisa_g import GLisaTrustConstrainNWPart
-
-        #     wpart = GLisaTrustConstrainNWPart
-        # else:
-        #     raise RuntimeError(f"Not known scheme: {scheme}")
+        wpart = GlobalLinearISAWPart
     elif scheme == "gisa":
         from .gisa import GaussianISAWPart
 
