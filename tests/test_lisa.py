@@ -27,12 +27,7 @@ import pytest
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 
-from horton_part.lisa import (
-    opt_propars_convex_opt,
-    opt_propars_diis,
-    opt_propars_self_consistent,
-    opt_propars_trust_region,
-)
+from horton_part.lisa import solver_cvxopt, solver_diis, solver_sc, solver_trust_region
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +80,10 @@ def check_rho(rho):
 @pytest.mark.parametrize(
     "opt_propars",
     [
-        opt_propars_convex_opt,
-        opt_propars_trust_region,
-        opt_propars_self_consistent,
-        opt_propars_diis,
+        solver_cvxopt,
+        solver_trust_region,
+        solver_sc,
+        solver_diis,
         # Newton failed
         # opt_propars_fixed_points_newton,
     ],
@@ -116,7 +111,7 @@ def test_optimization_methods(case, opt_propars):
     # bs_funcs = np.asarray(gauss_funcs)
     bs_funcs = np.asarray([func.compute(r) for func in gauss_funcs])
     kwargs = {}
-    if opt_propars == opt_propars_diis:
+    if opt_propars == solver_diis:
         kwargs["diis_size"] = 10
 
     local_r = local_rgrid.points
@@ -130,8 +125,8 @@ def test_optimization_methods(case, opt_propars):
         local_r,
         local_weights,
         threshold,
-        density_cutoff,
         logger,
+        density_cutoff,
         **kwargs,
     )
 
