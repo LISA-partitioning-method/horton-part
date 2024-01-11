@@ -433,7 +433,7 @@ def solver_diis(
         pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
-    new_propars = diis(propars, function_g, threshold, **diis_options)
+    new_propars = diis(propars, function_g, threshold, logger=logger, verbose=False, **diis_options)
     check_pro_atom_parameters(new_propars, bs_funcs)
     return new_propars
 
@@ -660,7 +660,12 @@ def solver_cdiis(
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
     conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
-        propars, function_g, threshold, **cdiis_options
+        propars,
+        function_g,
+        threshold,
+        logger=logger,
+        verbose=False,
+        **cdiis_options,
     )
     if not conv:
         raise RuntimeError("Not converged!")
