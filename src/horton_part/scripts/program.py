@@ -130,7 +130,7 @@ class PartProg:
         """Print setting for this program."""
         self.print_header(f"Settings for {self.program_name} program")
         for k, v in vars(args).items():
-            if k in exclude_keys:
+            if exclude_keys and k in exclude_keys:
                 continue
             if k in ["inputs", "outputs", "log_files"]:
                 if k == "inputs":
