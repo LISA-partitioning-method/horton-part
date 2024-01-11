@@ -188,7 +188,6 @@ class PartDensProg(PartProg):
 
         # for part
         parser.add_argument(
-            "-f",
             "--inputs",
             type=str,
             nargs="+",
@@ -242,6 +241,7 @@ class PartDensProg(PartProg):
             "--inner_threshold",
             type=float,
             default=1e-8,
+            nargs="?",
             help="The inner threshold of convergence for local version methods. [default=%(default)s]",
         )
         parser.add_argument(
