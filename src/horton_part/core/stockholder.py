@@ -146,6 +146,13 @@ class AbstractStockholderWPart(WPart):
         self.logger.info("=" * 80)
         self.logger.info(" ")
 
+    def _compute_entropy(self, rho, rho0):
+        # This is okay, because rho0 and rho are non-negative.
+        rho0 = np.clip(rho0, 1e-100, np.inf)
+        rho = np.clip(rho, 1e-100, np.inf)
+        entropy = self._grid.integrate(rho, np.log(rho) - np.log(rho0))
+        return entropy
+
     def update_pro(self, index, proatdens, promoldens):
         """
         Update the pro-molecule density arrays based on the pro-atom density for a specified atom index.

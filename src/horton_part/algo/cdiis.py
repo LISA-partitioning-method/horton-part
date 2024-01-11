@@ -125,6 +125,7 @@ def cdiis(
 
     r = residual(x)  # residual
     # lists to save the iterates
+    all_history_x = [x]
     history_x = [x]
     history_r = [r]  # iterates of the current residual
     slist = []  # difference of residual (depending on the choice of CDIIS)
@@ -354,9 +355,10 @@ def cdiis(
 
         nbiter += 1
         xlast = x
+        all_history_x.append(x.copy())
 
     if np.linalg.norm(history_r[-1]) > threshold and nbiter == maxiter:
         conv = False
     else:
         conv = True
-    return conv, nbiter - 1, rnormlist, mklist, cnormlist, xlast
+    return conv, nbiter - 1, rnormlist, mklist, cnormlist, xlast, all_history_x

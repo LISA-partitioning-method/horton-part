@@ -88,7 +88,12 @@ class PartDensProg(PartProg):
     def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log):
         # Convert the log level string to a logging level
         self.setup_logger(args, fn_log, overwrite=False)
-        self.print_settings(args, fn_in, fn_out, fn_log)
+        exclude_keys = []
+        if args.type not in ["glisa"]:
+            exclude_keys = ["inner_threshold"]
+        if args.type not in ["gisa", "lisa", "glisa"]:
+            exclude_keys = ["solver", "basis_func"]
+        self.print_settings(args, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
 
         self.logger.info(f"Load grid and density data from {fn_in} ...")
         t0 = time.time()
@@ -135,7 +140,12 @@ class PartDensProg(PartProg):
 
         # Create part object
         part = wpart_schemes(args.type)(**part_kwargs)
-        part.do_partitioning()
+        try:
+            part.do_partitioning()
+        except RuntimeError as e:
+            self.logger.info(e)
+            return 1
+
         # part.do_moments()
 
         # Print results
@@ -199,17 +209,7 @@ class PartDensProg(PartProg):
             "--type",
             type=str,
             default="lisa",
-            choices=[
-                "gisa",
-                "lisa",
-                "mbis",
-                "is",
-                "glisa-cvxopt",
-                "glisa-trust-constr",
-                "glisa-sc",
-                "glisa-diis",
-                "glisa-cdiis",
-            ],
+            choices=["gisa", "lisa", "mbis", "is", "glisa"],
             help="Number of angular grid points. [default=%(default)s]",
         )
         parser.add_argument(
@@ -241,7 +241,6 @@ class PartDensProg(PartProg):
             "--inner_threshold",
             type=float,
             default=1e-8,
-            nargs="?",
             help="The inner threshold of convergence for local version methods. [default=%(default)s]",
         )
         parser.add_argument(
@@ -279,8 +278,7 @@ class PartDensProg(PartProg):
         parser.add_argument(
             "--solver",
             type=str,
-            default="cvxopt",
-            nargs="?",
+            default=None,
             help="The objective function type for GISA and LISA methods. [default=%(default)s]",
         )
         parser.add_argument(

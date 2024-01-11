@@ -107,11 +107,8 @@ class PartProg:
             log_files = [None] * len(inputs)
         assert len(inputs) == len(outputs) == len(log_files)
         for fn_in, fn_out, fn_log in zip(inputs, outputs, log_files):
-            failed = self.single_launch(args, fn_in, fn_out, fn_log)
-            if failed:
-                return 1
-        else:
-            return 0
+            self.single_launch(args, fn_in, fn_out, fn_log)
+        return 0
 
     def setup_logger(self, args: argparse.Namespace, fn_log, **kwargs):
         # Convert the log level string to a logging level
@@ -129,10 +126,12 @@ class PartProg:
         """Parse command-line arguments."""
         raise NotImplementedError
 
-    def print_settings(self, args, fn_in, fn_out, fn_log):
+    def print_settings(self, args, fn_in, fn_out, fn_log, exclude_keys=None):
         """Print setting for this program."""
         self.print_header(f"Settings for {self.program_name} program")
         for k, v in vars(args).items():
+            if k in exclude_keys:
+                continue
             if k in ["inputs", "outputs", "log_files"]:
                 if k == "inputs":
                     self.logger.info(f"{'input':>40} : {str(fn_in):<40}".center(self.width, " "))

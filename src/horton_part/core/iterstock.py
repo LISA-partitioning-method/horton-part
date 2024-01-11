@@ -196,11 +196,8 @@ class AbstractISAWPart(AbstractStockholderWPart):
         self.history_propars.append(self.cache.load("propars").copy())
         if "promoldens" in self.cache:
             rho = self._moldens
-            rho_0 = self.cache.load("promoldens")
-            # This is okay, because rho0 and rho are non-negative.
-            rho_0 = np.clip(rho_0, 1e-100, np.inf)
-            rho = np.clip(rho, 1e-100, np.inf)
-            entropy = self._grid.integrate(rho, np.log(rho) - np.log(rho_0))
+            rho0 = self.cache.load("promoldens")
+            entropy = self._compute_entropy(rho, rho0)
             self.history_entropies.append(entropy)
 
         # Update the partitioning based on the latest proatoms

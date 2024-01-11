@@ -187,9 +187,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
         # )
 
-    def _finalize_propars(self):
-        self._cache.load("charges")
-
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
         return gisa.init_propars(self)
@@ -235,8 +232,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.history_time_update_at_weights.append(t1 - t0)
 
             self._finalize_propars()
-            self.cache.dump("niter", np.nan, tags="o")
-            self.cache.dump("change", np.nan, tags="o")
 
     @just_once
     def eval_pro_shells(self):
@@ -490,6 +485,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             total_population=mol_pop,
             check_monotonicity=False,
         )
+
+        # TODO: collect info
         return propars
 
     def solver_sc(self, density_cutoff=1e-15, niter_print=1):
@@ -510,18 +507,30 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
         """
         propars = self.propars
-        self.logger.info("Iteration       Change")
+        self.logger.info("Iteration       Change      Entropy")
         iter = 0
         while True:
             old_propars = propars.copy()
+            self.history_propars.append(propars.copy())
+
             propars[:] = self.function_g(propars, density_cutoff=density_cutoff)
             change = self.compute_change(propars, old_propars)
-            self.logger.debug(f"            {iter+1:<4}    {change:.3e}")
+
+            rho0 = self.calc_promol_dens(propars)
+            entropy = self._compute_entropy(self._moldens, rho0)
+            self.history_entropies.append(entropy)
+
+            # self.logger.debug(f"            {iter+1:<4}    {change:.3e}")
             if iter % niter_print == 0:
-                self.logger.info("%9i   %10.5e" % (iter, change))
+                self.logger.info("%9i   %10.5e   %10.5e" % (iter, change, entropy))
+
             if change < self._threshold:
                 break
             iter += 1
+
+        # TODO: collect opt info
+        self.cache.dump("niter", iter + 1, tags="o")
+        # self.cache.dump("change", change, tags="o")
         return propars
 
     def function_g(self, x, density_cutoff=1e-15):
@@ -587,6 +596,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             total_population=self.mol_pop,
             check_monotonicity=False,
         )
+        # TODO: collect opt info
         return propars
 
     def solver_trust_region(self, allow_neg_pars=False):
@@ -648,6 +658,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         self.logger.info(f"Constraint: {constrain}")
         self.logger.info("Optimized parameters: ")
         self.logger.info(optresult.x)
+        # TODO: collect opt info
         return optresult.x
 
     def residual(self, x):
@@ -656,7 +667,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     # TODO: use **solver_options instead of passing all parameters.
     def solver_cdiis(self, **cdiis_options):
-        conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
+        conv, nbiter, rnormlist, mklist, cnormlist, propars, history_propars = cdiis(
             self.propars,
             self.function_g,
             self.threshold,
@@ -667,5 +678,19 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         )
         if not conv:
             raise RuntimeError("Not converged!")
-        check_pro_atom_parameters(xlast)
-        return xlast
+        check_pro_atom_parameters(
+            propars,
+            pro_atom_density=self.calc_promol_dens(propars),
+            total_population=self.mol_pop,
+            check_monotonicity=False,
+        )
+
+        self.cache.dump("niter", nbiter - 1, tags="o")
+        self.cache.dump("change", rnormlist, tags="o")
+
+        for x in history_propars:
+            rho0 = self.calc_promol_dens(x)
+            entropy = self._compute_entropy(self._moldens, rho0)
+            self.history_entropies.append(entropy)
+        self.history_propars = history_propars
+        return propars

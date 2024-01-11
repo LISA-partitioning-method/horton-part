@@ -659,7 +659,7 @@ def solver_cdiis(
         pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
-    conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
+    conv, nbiter, rnormlist, mklist, cnormlist, xlast, history_x = cdiis(
         propars,
         function_g,
         threshold,
