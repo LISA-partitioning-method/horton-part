@@ -244,7 +244,7 @@ class PartGenProg(PartProg):
             data[f"atom{iatom}/rgrid/points"] = atgrid.rgrid.points
             data[f"atom{iatom}/rgrid/weights"] = atgrid.rgrid.weights
 
-        path = os.path.dirname(fn_out)
+        path = os.path.dirname(os.path.abspath(fn_out))
         if not os.path.exists(path):
             os.makedirs(path)
         np.savez_compressed(fn_out, **data)
@@ -255,7 +255,6 @@ class PartGenProg(PartProg):
         parser = argparse.ArgumentParser(prog=self.program_name, description=description)
 
         parser.add_argument(
-            "-f",
             "--inputs",
             type=str,
             nargs="+",

@@ -31,17 +31,21 @@ Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning sc
 """
 
 import time
-import warnings
 
 import cvxopt
 import numpy as np
 from scipy.optimize import SR1, LinearConstraint, minimize
 
-from .algo import cdiis, lstsq_spsolver
-from .core.basis import BasisFuncHelper
+from horton_part import gisa
+from horton_part.core import iterstock
+
+from .algo import cdiis, diis
 from .core.cache import just_once
+from .core.iterstock import compute_change
 from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
+from .gisa import get_proatom_rho
+from .lisa import setup_bs_helper
 from .utils import check_pro_atom_parameters
 
 __all__ = ["GlobalLinearISAWPart"]
@@ -87,6 +91,10 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         self._maxiter = maxiter
         self._threshold = threshold
         self.basis_func = basis_func
+        if self.basis_func in ["gauss", "slater"]:
+            self._func_type = self.basis_func.upper()
+        else:
+            self._func_type = "Customized"
         self._bs_helper = None
         self._solver = solver
         self._solver_options = solver_options or {}
@@ -107,25 +115,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
     @property
     def bs_helper(self):
         """A basis function helper."""
-        if self._bs_helper is None:
-            if isinstance(self.basis_func, str):
-                bs_name = self.basis_func.lower()
-                if bs_name in ["gauss", "slater"]:
-                    self.logger.info(f"Load {bs_name.upper()} basis functions")
-                    self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
-                else:
-                    self.logger.info(
-                        f"Load basis functions from custom json file: {self.basis_func}"
-                    )
-                    self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
-            elif isinstance(self.basis_func, BasisFuncHelper):
-                self._bs_helper = self.basis_func
-            else:
-                raise NotImplementedError(
-                    "The type of basis_func should be one of string or class BasisFuncHelper."
-                )
-
-        return self._bs_helper
+        return setup_bs_helper(self)
 
     def get_rgrid(self, index):
         """Load radial grid."""
@@ -133,15 +123,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
-        # Compute mean-square deviation
-        msd = 0.0
-        for index in range(self.natom):
-            rgrid = self.get_rgrid(index)
-            rho1, deriv1 = self.get_proatom_rho(index, propars1)
-            rho2, deriv2 = self.get_proatom_rho(index, propars2)
-            delta = rho1 - rho2
-            msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
-        return np.sqrt(msd)
+        return compute_change(self, propars1, propars2)
 
     def get_proatom_rho(self, iatom, propars=None):
         """Get pro-atom density for atom `iatom`.
@@ -156,11 +138,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             The pro-atom parameters.
 
         """
-        if propars is None:
-            propars = self.cache.load("propars")
-        rgrid = self.get_rgrid(iatom)
-        propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
+        return get_proatom_rho(self, iatom, propars=propars)
 
     @property
     def maxiter(self):
@@ -193,11 +171,18 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             [
                 ("Maximum outer iterations", self.maxiter),
                 ("lmax", self.lmax),
-                ("Basis function type", self.basis_func),
+                (
+                    "Solver",
+                    self._solver.__name__ if callable(self._solver) else self._solver.upper(),
+                ),
+                ("Basis function type", self._func_type),
                 ("Local grid radius", self.radius_cutoff),
             ]
         )
+        for k, v in self._solver_options.items():
+            info_list.append((k, str(v)))
         deflist(self.logger, info_list)
+        self.logger.info(" ")
         # biblio.cite(
         #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
         # )
@@ -205,45 +190,13 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
     def _finalize_propars(self):
         self._cache.load("charges")
 
-    # TODO: this function is repeated as it is already defined in ISAWPart class.
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
-        self.history_propars = []
-        self.history_charges = []
-        self.history_entropies = []
-        self.history_time_update_at_weights = []
-        self.history_time_update_propars_atoms = []
+        return gisa.init_propars(self)
 
-        self._ranges = [0]
-        self._nshells = []
-        for iatom in range(self.natom):
-            nshell = self.bs_helper.get_nshell(self.numbers[iatom])
-            self._ranges.append(self._ranges[-1] + nshell)
-            self._nshells.append(nshell)
-        ntotal = self._ranges[-1]
-        propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
-        propars[:] = 1.0
-        for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = self.bs_helper.get_initial(
-                self.numbers[iatom]
-            )
-        self._evaluate_basis_functions()
-        return propars
-
-    # TODO: this function is repeated as it is already defined in ISAWPart class.
     @just_once
     def _evaluate_basis_functions(self):
-        for iatom in range(self.natom):
-            rgrid = self.get_rgrid(iatom)
-            r = rgrid.points
-            nshell = self._ranges[iatom + 1] - self._ranges[iatom]
-            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
-            bs_funcs[:, :] = np.array(
-                [
-                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
-                    for ishell in range(nshell)
-                ]
-            )
+        gisa.evaluate_basis_functions(self)
 
     @just_once
     def do_partitioning(self):
@@ -259,10 +212,13 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             t0 = time.time()
             new_propars = self._opt_propars(**self._solver_options)
             t1 = time.time()
-            self.logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
+            self.history_time_update_propars_atoms.append(t1 - t0)
+
+            # self.logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
             propars = self.cache.load("propars")
             propars[:] = new_propars
 
+            t0 = time.time()
             self.update_at_weights()
             # compute the new charge
             charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
@@ -275,6 +231,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 spherical_average = spline(r)
                 pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
                 charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+            t1 = time.time()
+            self.history_time_update_at_weights.append(t1 - t0)
 
             self._finalize_propars()
             self.cache.dump("niter", np.nan, tags="o")
@@ -457,57 +415,30 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     def _finalize_propars(self):
         """Restore the pro-atom parameters."""
-        charges = self._cache.load("charges")
-        self.cache.dump("history_propars", np.array(self.history_propars), tags="o")
-        self.cache.dump("history_charges", np.array(self.history_charges), tags="o")
-        self.cache.dump("history_entropies", np.array(self.history_entropies), tags="o")
-        self.cache.dump("populations", self.numbers - charges, tags="o")
-        self.cache.dump("pseudo_populations", self.pseudo_numbers - charges, tags="o")
-        self.cache.dump(
-            "history_time_update_at_weights",
-            np.array(self.history_time_update_at_weights),
-            tags="o",
-        )
-        self.cache.dump(
-            "history_time_update_propars_atoms",
-            np.array(self.history_time_update_propars_atoms),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_update_at_weights",
-            np.sum(self.history_time_update_at_weights),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_update_propars_atoms",
-            np.sum(self.history_time_update_propars_atoms),
-            tags="o",
-        )
-        self.cache.dump(
-            "history_time_update_promolecule",
-            np.array(self.time_usage["history_time_update_promolecule"]),
-            tags="o",
-        )
-        self.cache.dump(
-            "history_time_compute_at_weights",
-            np.array(self.time_usage["history_time_compute_at_weights"]),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_update_promolecule",
-            np.sum(self.time_usage["history_time_update_promolecule"]),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_compute_at_weights",
-            np.sum(self.time_usage["history_time_compute_at_weights"]),
-            tags="o",
-        )
+        iterstock.finalize_propars(self)
 
     # -----------------------
     # builtin global solvers
     # -----------------------
     def solver_cvxopt(self, allow_neg_pars=False, verbose=False, **cvxopt_options):
+        """
+        Convex optimization solver.
+
+        Parameters
+        ----------
+        allow_neg_pars : bool, optional
+            Whether negative parameters are allowed.
+        verbose : bool, optional
+            Whether print more info.
+        cvxopt_options : dict
+            Settings for ``cvxopt` solver.
+
+        Returns
+        -------
+        np.array
+            Optimized parameters, 1D array.
+
+        """
         rho, propars = self._moldens, self.propars
 
         nb_par = len(propars)
@@ -528,12 +459,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 return 0, cvxopt.matrix(propars[:])
             x = np.asarray(x).flatten()
             rho0 = self.calc_promol_dens(x)
-            #
             # Note: the propars and pro-mol density could be negative during the optimization.
-            #
-            # check_pro_atom_parameters(
-            #     x, pro_atom_density=rho0, check_monotonicity=False
-            # )
 
             if z is None:
                 f, df = self._working_matrix(rho, rho0, nb_par, 1)
@@ -566,51 +492,37 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         )
         return propars
 
-    def solver_sc(self, density_cutoff=1e-15):
-        # 1. load molecular and pro-molecule density from cache
-        rho, all_propars = self._moldens, self.propars
-        old_propars = all_propars.copy()
+    def solver_sc(self, density_cutoff=1e-15, niter_print=1):
+        """
+        Self-Consistent solver.
 
+        Parameters
+        ----------
+        density_cutoff : float, optional
+            Density that is smaller than cutoff is set to zero.
+        niter_print : int, optional
+            Print info every `niter_print` iterations.
+
+        Returns
+        -------
+        np.array
+            Optimized parameters, 1D array.
+
+        """
+        propars = self.propars
         self.logger.info("Iteration       Change")
-
-        counter = 0
+        iter = 0
         while True:
-            old_rho0 = self.calc_promol_dens(old_propars)
-            sick = (rho < density_cutoff) | (old_rho0 < density_cutoff)
-
-            ishell = 0
-            for iatom in range(self.natom):
-                # 2. load old propars
-                propars = all_propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-
-                # 3. compute basis functions on molecule grid
-                new_propars = []
-                local_grid = self.local_grids[iatom]
-                indices = local_grid.indices
-                for k, c_ak in enumerate(propars.copy()):
-                    # g_ak = self.cache.load(("pro_shell", iatom, k))
-                    g_ak = self.load_pro_shell(iatom, k)
-                    rho0_ak = g_ak * c_ak
-
-                    with np.errstate(all="ignore"):
-                        integrand = rho[indices] * rho0_ak / old_rho0[indices]
-                    integrand[sick[indices]] = 0.0
-
-                    new_propars.append(local_grid.integrate(integrand))
-                    ishell += 1
-
-                # 4. get new propars using fixed-points
-                propars[:] = np.asarray(new_propars)
-
-            change = self.compute_change(all_propars, old_propars)
-            if counter % 10 == 0:
-                self.logger.info("%9i   %10.5e" % (counter, change))
+            old_propars = propars.copy()
+            propars[:] = self.function_g(propars, density_cutoff=density_cutoff)
+            change = self.compute_change(propars, old_propars)
+            self.logger.debug(f"            {iter+1:<4}    {change:.3e}")
+            if iter % niter_print == 0:
+                self.logger.info("%9i   %10.5e" % (iter, change))
             if change < self._threshold:
-                self.logger.info("%9i   %10.5e" % (counter, change))
                 break
-            old_propars = all_propars.copy()
-            counter += 1
-        return all_propars
+            iter += 1
+        return propars
 
     def function_g(self, x, density_cutoff=1e-15):
         """The fixed-point equation :math:`g(x)=x`."""
@@ -645,72 +557,37 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         return new_x
 
     # TODO: this is duplicated
-    def solver_diis(self, diis_size=8, use_dmrs=False, version="P"):
-        """Version P of CDIIS."""
-        history_x = []
-        history_r = []
-        history_g = []
+    # def solver_diis(self, maxiter=1000, diis_size=8, use_dmrs=False, version="P"):
+    def solver_diis(self, use_dmrs=False, **diis_options):
+        """DIIS solver"""
 
-        x_mol = self.propars
-        rho0 = None
-
-        self.logger.info("Iteration       Change")
-        for i in range(1000):
-            # the size of subspace of DIIS
-            depth = min(i + 1, diis_size)
-
-            old_x_mol = x_mol.copy()  # old_x_mol = x_i
-            g_i = self.function_g(old_x_mol)
-            r_i = g_i - old_x_mol
-
-            # if we use DRMS as threshold.
+        def conv_func(residual, x, old_x):
             if use_dmrs:
-                drms = np.linalg.norm(r_i)
-                if drms < self._threshold * self.natom:
-                    check_pro_atom_parameters(
-                        x_mol,
-                        pro_atom_density=self.calc_promol_dens(x_mol),
-                        total_population=self.mol_pop,
-                        check_monotonicity=False,
-                    )
-                    return x_mol
-                self.logger.info(f"           {i:<4}    {drms:.6E}")
-
-            # Append trail & residual vectors to lists
-            history_r.append(r_i)
-
-            r_list = history_r[-depth:]
-            if version == "P":
-                # Anderson-Pulay version P
-                history_x.append(x_mol.copy())
-                x_list = history_x[-depth:]
-                x_tilde = lstsq_spsolver(x_list, r_list)
-                x_mol = self.function_g(x_tilde)
+                val = np.linalg.norm(residual)
             else:
-                # Anderson-Pulay version A
-                history_g.append(g_i)
-                g_list = history_g[-depth:]
-                x_mol = lstsq_spsolver(g_list, r_list)
+                old_rho0 = self.calc_promol_dens(old_x)
+                rho0 = self.calc_promol_dens(x)
+                val = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
+            return val
 
-            if not np.all(x_mol >= -1e-10).all():
-                warnings.warn("Negative parameters found!")
+        propars = self.propars
+        propars[:] = diis(
+            propars,
+            self.function_g,
+            self.threshold,
+            conv_func=conv_func,
+            verbose=True,
+            logger=self.logger,
+            **diis_options,
+        )
 
-            # if we use the same threshold as the SC method.
-            if not use_dmrs:
-                old_rho0 = rho0 if rho0 is not None else self.calc_promol_dens(old_x_mol)
-                rho0 = self.calc_promol_dens(x_mol)
-                change = np.sqrt(self.grid.integrate((rho0 - old_rho0) ** 2))
-                self.logger.info(f"           {i:<4}    {change:.6E}")
-                if change < self._threshold:
-                    check_pro_atom_parameters(
-                        x_mol,
-                        pro_atom_density=self.calc_promol_dens(x_mol),
-                        total_population=self.mol_pop,
-                        check_monotonicity=False,
-                    )
-                    return x_mol
-
-        raise RuntimeError("Error: inner iteration is not converge!")
+        check_pro_atom_parameters(
+            propars,
+            pro_atom_density=self.calc_promol_dens(propars),
+            total_population=self.mol_pop,
+            check_monotonicity=False,
+        )
+        return propars
 
     def solver_trust_region(self, allow_neg_pars=False):
         """Optimize the promodel using the trust-constr minimizer from SciPy."""
@@ -778,26 +655,15 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         return self.function_g(x) - x
 
     # TODO: use **solver_options instead of passing all parameters.
-    def solver_cdiis(
-        self,
-        diis_size=8,
-        param=1e-4,
-        mode="AD-CDIIS",
-        modeQR="full",
-        minrestart=1,
-        slidehole=False,
-    ):
+    def solver_cdiis(self, **cdiis_options):
         conv, nbiter, rnormlist, mklist, cnormlist, xlast = cdiis(
             self.propars,
             self.function_g,
             self.threshold,
             self.maxiter,
-            modeQR,
-            mode,
-            diis_size,
-            param,
-            minrestart,
-            slidehole,
+            logger=self.logger,
+            verbose=True,
+            **cdiis_options,
         )
         if not conv:
             raise RuntimeError("Not converged!")

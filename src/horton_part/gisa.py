@@ -25,13 +25,73 @@ import warnings
 import numpy as np
 import qpsolvers
 
+from horton_part.core import iterstock
+
 from .core.basis import BasisFuncHelper
 from .core.cache import just_once
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
 from .utils import check_pro_atom_parameters
 
-__all__ = ["GaussianISAWPart"]
+__all__ = [
+    "GaussianISAWPart",
+    "get_proatom_rho",
+    "init_propars",
+    "evaluate_basis_functions",
+]
+
+
+def get_proatom_rho(part, iatom, propars=None):
+    """Get pro-atom density for atom `iatom`.
+
+    If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
+
+    Parameters
+    ----------
+    iatom: int
+        The index of atom `iatom`.
+    propars: np.array
+        The pro-atom parameters.
+
+    """
+    if propars is None:
+        propars = part.cache.load("propars")
+    rgrid = part.get_rgrid(iatom)
+    propars = propars[part._ranges[iatom] : part._ranges[iatom + 1]]
+    return part.bs_helper.compute_proatom_dens(part.numbers[iatom], propars, rgrid.points, 1)
+
+
+def init_propars(part):
+    iterstock.init_propars(part)
+    part._ranges = [0]
+    part._nshells = []
+    for iatom in range(part.natom):
+        nshell = part.bs_helper.get_nshell(part.numbers[iatom])
+        part._ranges.append(part._ranges[-1] + nshell)
+        part._nshells.append(nshell)
+    ntotal = part._ranges[-1]
+    propars = part.cache.load("propars", alloc=ntotal, tags="o")[0]
+    propars[:] = 1.0
+    for iatom in range(part.natom):
+        propars[part._ranges[iatom] : part._ranges[iatom + 1]] = part.bs_helper.get_initial(
+            part.numbers[iatom]
+        )
+    part._evaluate_basis_functions()
+    return propars
+
+
+def evaluate_basis_functions(part):
+    for iatom in range(part.natom):
+        rgrid = part.get_rgrid(iatom)
+        r = rgrid.points
+        nshell = part._ranges[iatom + 1] - part._ranges[iatom]
+        bs_funcs = part.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
+        bs_funcs[:, :] = np.array(
+            [
+                part.bs_helper.compute_proshell_dens(part.numbers[iatom], ishell, 1.0, r)
+                for ishell in range(nshell)
+            ]
+        )
 
 
 class GaussianISAWPart(AbstractISAWPart):
@@ -163,22 +223,7 @@ class GaussianISAWPart(AbstractISAWPart):
         )
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
-        self._ranges = [0]
-        self._nshells = []
-        for iatom in range(self.natom):
-            nshell = self.bs_helper.get_nshell(self.numbers[iatom])
-            self._ranges.append(self._ranges[-1] + nshell)
-            self._nshells.append(nshell)
-        ntotal = self._ranges[-1]
-        propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
-        propars[:] = 1.0
-        for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = self.bs_helper.get_initial(
-                self.numbers[iatom]
-            )
-        self._evaluate_basis_functions()
-        return propars
+        return init_propars(self)
 
     def _update_propars_atom(self, iatom):
         # compute spherical average

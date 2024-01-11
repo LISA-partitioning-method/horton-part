@@ -21,15 +21,14 @@
 Module of CDIIS algorithm.
 """
 
-import logging
 
 import numpy as np
 import scipy.linalg
 from scipy.linalg import solve_triangular
 
-__all__ = ["cdiis"]
+from horton_part.core.logging import get_print_func
 
-logger = logging.getLogger(__name__)
+__all__ = ["cdiis"]
 
 
 def cdiis(
@@ -43,6 +42,8 @@ def cdiis(
     param=0.1,
     minrestart=1,
     slidehole=False,
+    logger=None,
+    verbose=False,
 ):
     r"""
     CDIIS algorithm.
@@ -99,26 +100,28 @@ def cdiis(
         """The residual."""
         return func(x) - x
 
+    print_func = get_print_func(logger, verbose)
+
     if mode == "Roothaan":
         booldiis = False
     else:
         booldiis = True
 
-    logger.debug("\n\n\n-----------------------------------------\nCDIIS like program")
-    logger.debug("---- Mode: " + str(mode))
+    print_func("\n\n\n-----------------------------------------\nCDIIS like program")
+    print_func("---- Mode: " + str(mode))
 
     if mode == "R-CDIIS" or mode == "AD-CDIIS":
-        logger.debug("---- param value: " + str(param))
+        print_func("---- param value: " + str(param))
 
     x = x0
     npar = len(x)
     if npar < diis_size:
         diis_size = npar
-        logger.debug(
+        print_func(
             f"The DIIS size is less than the number of parameters, and it is reduced to the number of parameters {npar}"
         )
     if mode == "FD-CDIIS":
-        logger.debug("---- sizediis: " + str(diis_size))
+        print_func("---- sizediis: " + str(diis_size))
 
     r = residual(x)  # residual
     # lists to save the iterates
@@ -152,14 +155,14 @@ def cdiis(
         rnormlist.append(np.linalg.norm(r))
         mklist.append(mk)
 
-        logger.debug("======================")
-        logger.debug("iteration: " + str(nbiter))
-        logger.debug("mk value: " + str(mk))
-        logger.debug("||r(k)|| = " + str(np.linalg.norm(history_r[-1])))
+        print_func("======================")
+        print_func("iteration: " + str(nbiter))
+        print_func("mk value: " + str(mk))
+        print_func("||r(k)|| = " + str(np.linalg.norm(history_r[-1])))
 
         if mk > 0 and booldiis:
             # if there exist previous iterates and diis mode
-            logger.debug("size of Cs: " + str(np.shape(history_dr)))
+            print_func("size of Cs: " + str(np.shape(history_dr)))
             if mode == "R-CDIIS":
                 if modeQR == "full":
                     if mk == 1 or restart is True:
@@ -214,7 +217,7 @@ def cdiis(
             c = np.zeros(mk + 1)
             # the function gamma to c depends on the algorithm choice
             if mode == "AD-CDIIS" or mode == "FD-CDIIS":
-                logger.debug(
+                print_func(
                     "size of c: " + str(np.shape(c)[0]) + ", size of gamma: " + str(np.shape(gamma))
                 )
                 # Algorithm 3 and version P
@@ -245,7 +248,7 @@ def cdiis(
         history_x.append(x)
         # residual
         r = residual(x)
-        logger.debug("||r_{k+1}|| = " + str(np.linalg.norm(r)))
+        print_func("||r_{k+1}|| = " + str(np.linalg.norm(r)))
 
         # compute the s^k vector
         if mode in ["AD-CDIIS", "FD-CDIIS"]:
@@ -256,6 +259,8 @@ def cdiis(
             s = r - history_r[0]
         elif mode == "Roothaan":
             s = r.copy()
+        else:
+            raise RuntimeError(f"Unknown mode: {mode}")
 
         history_r.append(r)
         slist.append(s)
@@ -267,7 +272,7 @@ def cdiis(
 
         if mode == "R-CDIIS":
             if mk > 0:
-                logger.debug(
+                print_func(
                     "tau*||s^(k)|| = "
                     + str(tau * np.linalg.norm(history_dr[:, -1]))
                     + "   >?  ||s^(k)-Q*Q.T*s^(k)|| = "
@@ -315,7 +320,7 @@ def cdiis(
 
             if indexList:
                 mk -= outNbr
-                logger.debug("Indexes out :" + str(indexList))
+                print_func("Indexes out :" + str(indexList))
                 # delete the corresponding s vectores
                 history_dr = np.delete(history_dr, indexList, axis=1)
                 for ll in sorted(indexList, reverse=True):
@@ -326,9 +331,9 @@ def cdiis(
 
             # Check if mk == npar + 1. This is actually FD-CDIIS
             if mk == npar + 1:
-                logger.debug(str(np.shape(history_dr)))
+                print_func(str(np.shape(history_dr)))
                 history_dr = history_dr[:, 1 : mk + 1]
-                logger.debug(str(np.shape(history_dr)))
+                print_func(str(np.shape(history_dr)))
                 history_x.pop(0)
                 slist.pop(0)
                 history_r.pop(0)
@@ -337,9 +342,9 @@ def cdiis(
         elif mode == "FD-CDIIS":
             # keep only sizediis iterates
             if mk == diis_size:
-                logger.debug(str(np.shape(history_dr)))
+                print_func(str(np.shape(history_dr)))
                 history_dr = history_dr[:, 1 : mk + 1]
-                logger.debug(str(np.shape(history_dr)))
+                print_func(str(np.shape(history_dr)))
                 history_x.pop(0)
                 slist.pop(0)
                 history_r.pop(0)

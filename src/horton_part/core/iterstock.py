@@ -26,9 +26,79 @@ import numpy as np
 from .cache import just_once
 from .stockholder import AbstractStockholderWPart
 
-__all__ = ["AbstractISAWPart"]
+__all__ = ["AbstractISAWPart", "compute_change", "init_propars"]
 
-# logger = logging.getLogger(__name__)
+
+def compute_change(part, propars1, propars2):
+    """Compute the difference between an old and a new proatoms"""
+    # Compute mean-square deviation
+    msd = 0.0
+    for index in range(part.natom):
+        rgrid = part.get_rgrid(index)
+        rho1, deriv1 = part.get_proatom_rho(index, propars1)
+        rho2, deriv2 = part.get_proatom_rho(index, propars2)
+        delta = rho1 - rho2
+        msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
+    return np.sqrt(msd)
+
+
+def init_propars(part):
+    """Initial pro-atom parameters and cache lists."""
+    part.history_propars = []
+    part.history_charges = []
+    part.history_entropies = []
+    part.history_time_update_at_weights = []
+    part.history_time_update_propars_atoms = []
+
+
+def finalize_propars(part):
+    """Restore the pro-atom parameters."""
+    charges = part._cache.load("charges")
+    part.cache.dump("history_propars", np.array(part.history_propars), tags="o")
+    part.cache.dump("history_charges", np.array(part.history_charges), tags="o")
+    part.cache.dump("history_entropies", np.array(part.history_entropies), tags="o")
+    part.cache.dump("populations", part.numbers - charges, tags="o")
+    part.cache.dump("pseudo_populations", part.pseudo_numbers - charges, tags="o")
+    part.cache.dump(
+        "history_time_update_at_weights",
+        np.array(part.history_time_update_at_weights),
+        tags="o",
+    )
+    part.cache.dump(
+        "history_time_update_propars_atoms",
+        np.array(part.history_time_update_propars_atoms),
+        tags="o",
+    )
+    part.cache.dump(
+        "time_update_at_weights",
+        np.sum(part.history_time_update_at_weights),
+        tags="o",
+    )
+    part.cache.dump(
+        "time_update_propars_atoms",
+        np.sum(part.history_time_update_propars_atoms),
+        tags="o",
+    )
+    part.cache.dump(
+        "history_time_update_promolecule",
+        np.array(part.time_usage["history_time_update_promolecule"]),
+        tags="o",
+    )
+    part.cache.dump(
+        "history_time_compute_at_weights",
+        np.array(part.time_usage["history_time_compute_at_weights"]),
+        tags="o",
+    )
+    part.cache.dump(
+        "time_update_promolecule",
+        np.sum(part.time_usage["history_time_update_promolecule"]),
+        tags="o",
+    )
+    part.cache.dump(
+        "time_compute_at_weights",
+        np.sum(part.time_usage["history_time_compute_at_weights"]),
+        tags="o",
+    )
 
 
 class AbstractISAWPart(AbstractStockholderWPart):
@@ -114,22 +184,11 @@ class AbstractISAWPart(AbstractStockholderWPart):
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
         # Compute mean-square deviation
-        msd = 0.0
-        for index in range(self.natom):
-            rgrid = self.get_rgrid(index)
-            rho1, deriv1 = self.get_proatom_rho(index, propars1)
-            rho2, deriv2 = self.get_proatom_rho(index, propars2)
-            delta = rho1 - rho2
-            msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
-        return np.sqrt(msd)
+        return compute_change(self, propars1, propars2)
 
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
-        self.history_propars = []
-        self.history_charges = []
-        self.history_entropies = []
-        self.history_time_update_at_weights = []
-        self.history_time_update_propars_atoms = []
+        init_propars(self)
 
     def _update_propars(self):
         """Update pro-atom parameters."""
@@ -166,52 +225,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
 
     def _finalize_propars(self):
         """Restore the pro-atom parameters."""
-        charges = self._cache.load("charges")
-        self.cache.dump("history_propars", np.array(self.history_propars), tags="o")
-        self.cache.dump("history_charges", np.array(self.history_charges), tags="o")
-        self.cache.dump("history_entropies", np.array(self.history_entropies), tags="o")
-        self.cache.dump("populations", self.numbers - charges, tags="o")
-        self.cache.dump("pseudo_populations", self.pseudo_numbers - charges, tags="o")
-        self.cache.dump(
-            "history_time_update_at_weights",
-            np.array(self.history_time_update_at_weights),
-            tags="o",
-        )
-        self.cache.dump(
-            "history_time_update_propars_atoms",
-            np.array(self.history_time_update_propars_atoms),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_update_at_weights",
-            np.sum(self.history_time_update_at_weights),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_update_propars_atoms",
-            np.sum(self.history_time_update_propars_atoms),
-            tags="o",
-        )
-        self.cache.dump(
-            "history_time_update_promolecule",
-            np.array(self.time_usage["history_time_update_promolecule"]),
-            tags="o",
-        )
-        self.cache.dump(
-            "history_time_compute_at_weights",
-            np.array(self.time_usage["history_time_compute_at_weights"]),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_update_promolecule",
-            np.sum(self.time_usage["history_time_update_promolecule"]),
-            tags="o",
-        )
-        self.cache.dump(
-            "time_compute_at_weights",
-            np.sum(self.time_usage["history_time_compute_at_weights"]),
-            tags="o",
-        )
+        finalize_propars(self)
 
     @just_once
     def do_partitioning(self):

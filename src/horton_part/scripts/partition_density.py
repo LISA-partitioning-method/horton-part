@@ -122,13 +122,16 @@ class PartDensProg(PartProg):
         }
 
         # Arguments for specific methods.
-        if args.type in ["gisa", "lisa"]:
+        if args.type in ["gisa", "lisa", "glisa"]:
             if hasattr(args, "solver"):
                 part_kwargs["solver"] = args.solver
             if hasattr(args, "solver_options"):
                 part_kwargs["solver_options"] = args.solver_options
-        if "lisa" in args.type:
-            part_kwargs["basis_func"] = args.func_file or args.basis_func
+
+            if args.type in ["lisa", "glisa"]:
+                part_kwargs["basis_func"] = args.func_file or args.basis_func
+                if args.type in ["glisa"]:
+                    part_kwargs.pop("inner_threshold")
 
         # Create part object
         part = wpart_schemes(args.type)(**part_kwargs)
@@ -172,7 +175,7 @@ class PartDensProg(PartProg):
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
         part_data.update(data)
-        path = os.path.dirname(fn_out)
+        path = os.path.dirname(os.path.abspath(fn_out))
         if not os.path.exists(path):
             os.makedirs(path)
         np.savez_compressed(fn_out, **part_data)

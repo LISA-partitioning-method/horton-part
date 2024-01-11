@@ -21,7 +21,7 @@ import logging
 import os
 import sys
 
-__all__ = ["deflist", "setup_logger"]
+__all__ = ["deflist", "setup_logger", "get_print_func"]
 
 
 def deflist(logger: logging.Logger, l: list) -> None:
@@ -92,3 +92,11 @@ def setup_logger(logger, log_level=logging.INFO, log_file=None, overwrite=True):
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
+
+
+def get_print_func(logger=None, verbose=False):
+    if logger is None:
+        print_func = print
+    else:
+        print_func = logger.info if verbose else logger.debug
+    return print_func

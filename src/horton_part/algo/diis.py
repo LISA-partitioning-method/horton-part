@@ -21,7 +21,6 @@
 Module of CDIIS algorithm.
 """
 
-import logging
 import warnings
 
 import numpy as np
@@ -29,14 +28,14 @@ import qpsolvers
 from scipy.linalg import eigh
 from scipy.sparse.linalg import spsolve
 
+from horton_part.core.logging import get_print_func
+
 __all__ = [
     "diis",
     "lstsq_spsolver",
     "lstsq_solver_dyn",
     "lstsq_solver_with_extra_constr",
 ]
-
-logger = logging.getLogger(__name__)
 
 
 def diis(
@@ -47,6 +46,9 @@ def diis(
     diis_size=8,
     version="P",
     lstsq_solver=None,
+    conv_func=None,
+    verbose=False,
+    logger=None,
 ):
     r"""
     DIIS algorithm.
@@ -73,6 +75,8 @@ def diis(
        this dimension is also used for the adaptative algorithm
     lstsq_solver : str, optional
         The different method for least-square problem to determine combination coefficients.
+    conv_func : callable, optional
+        The convergence func. The default is `None`.
 
 
     Returns
@@ -90,23 +94,22 @@ def diis(
     history_x = []
     history_g = []
 
-    logger.debug("            Iter.    dRMS      ")
-    logger.debug("            -----    ------    ")
+    print_func = get_print_func(logger, verbose)
+    print_func("            Iter.    dRMS      ")
+    print_func("            -----    ------    ")
 
     x = x0
     for i in range(maxiter):
         g_i = func(x)  # propars = x_i
         r_i = g_i - x
-        drms = np.linalg.norm(r_i)
-        logger.debug(f"           {i:<4}    {drms:.6E}")
-        if drms < threshold:
-            return x
+        x_old = x.copy()
 
         # Append trail & residual vectors to lists
         history_r.append(r_i)
         depth = min(i + 1, diis_size)
         r_list = history_r[-depth:]
 
+        # get new x
         if version == "P":
             # Anderson-Pulay version P
             history_x.append(x.copy())
@@ -118,6 +121,18 @@ def diis(
             history_g.append(g_i)
             g_list = history_g[-depth:]
             x = lstsq_solver(g_list, r_list)
+
+        if conv_func is None:
+            # use DRMS as convergence value.
+            conv_val_i = np.linalg.norm(r_i)
+            if conv_val_i < threshold:
+                return x
+        else:
+            conv_val_i = conv_func(r_i, x, x_old)
+
+        print_func(f"           {i:<4}    {conv_val_i:.6E}")
+        if conv_val_i < threshold:
+            return x
     raise RuntimeError("Error: not converge!")
 
 
@@ -147,7 +162,7 @@ def lstsq_spsolver(propars_list, residues_list):
     sol = spsolve(B, rhs)
     result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list))
     if (np.isnan(result)).any():
-        logger.info("DIIS: singular matrix.")
+        print("DIIS: singular matrix.")
         result = propars_list[-1]
     return result
 
@@ -191,17 +206,17 @@ def lstsq_solver_dyn(propars_list, residues_list):
             result = np.einsum("i, ip->p", sol[:-1], np.asarray(propars_list[begin:]))
             if (result < -1e-8).any():
                 # result = propars_list[-1]
-                logger.warning(
+                warnings.warn(
                     "Use result from the last iteration due to negative parameters found!"
                 )
-            logger.debug(f"Updated size of DIIS subspace: {len(sol[:-1])}")
+            print(f"Updated size of DIIS subspace: {len(sol[:-1])}")
             break
         else:
             begin += nb_small_val
     else:
         warnings.warn("Linear dependence found in DIIS error vectors.")
         result = propars_list[-1]
-        logger.debug("real DIIS size: 1")
+        print("real DIIS size: 1")
     return result
 
 

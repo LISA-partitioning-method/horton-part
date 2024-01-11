@@ -43,13 +43,14 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
 
 __all__ = [
-    "LinearISAWPart",
     "solver_sc",
     "solver_diis",
     "solver_newton",
     "solver_trust_region",
     "solver_cvxopt",
     "solver_cdiis",
+    "setup_bs_helper",
+    "LinearISAWPart",
 ]
 
 
@@ -668,6 +669,26 @@ def solver_cdiis(
     return xlast
 
 
+def setup_bs_helper(part):
+    """Setup basis function helper."""
+    if part._bs_helper is None:
+        if isinstance(part.basis_func, str):
+            bs_name = part.basis_func.lower()
+            if bs_name in ["gauss", "slater"]:
+                part.logger.info(f"Load {bs_name.upper()} basis functions")
+                part._bs_helper = BasisFuncHelper.from_function_type(bs_name)
+            else:
+                part.logger.info(f"Load basis functions from custom json file: {part.basis_func}")
+                part._bs_helper = BasisFuncHelper.from_json(part.basis_func)
+        elif isinstance(part.basis_func, BasisFuncHelper):
+            part._bs_helper = part.basis_func
+        else:
+            raise NotImplementedError(
+                "The type of basis_func should be one of string or class BasisFuncHelper."
+            )
+    return part._bs_helper
+
+
 class LinearISAWPart(GaussianISAWPart):
     r"""
     Implements the Linear Iterative Stockholder Analysis (L-ISA) partitioning scheme.
@@ -772,25 +793,7 @@ class LinearISAWPart(GaussianISAWPart):
     @property
     def bs_helper(self):
         """A basis function helper."""
-        if self._bs_helper is None:
-            if isinstance(self.basis_func, str):
-                bs_name = self.basis_func.lower()
-                if bs_name in ["gauss", "slater"]:
-                    self.logger.info(f"Load {bs_name.upper()} basis functions")
-                    self._bs_helper = BasisFuncHelper.from_function_type(bs_name)
-                else:
-                    self.logger.info(
-                        f"Load basis functions from custom json file: {self.basis_func}"
-                    )
-                    self._bs_helper = BasisFuncHelper.from_json(self.basis_func)
-            elif isinstance(self.basis_func, BasisFuncHelper):
-                self._bs_helper = self.basis_func
-            else:
-                raise NotImplementedError(
-                    "The type of basis_func should be one of string or class BasisFuncHelper."
-                )
-
-        return self._bs_helper
+        return setup_bs_helper(self)
 
     def _init_log_scheme(self):
         # if log.do_medium:
