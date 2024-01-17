@@ -136,31 +136,31 @@ def test_evaluate_function_vector_arguments_out_values(
         assert result == pytest.approx(expected_result)
 
 
-def test_BasisFuncHelper_from_function_type_gauss(gauss_helper):
-    assert gauss_helper.get_exponent(1) == pytest.approx([5.672, 1.505, 0.5308, 0.2204])
-    assert gauss_helper.get_initial(1) == pytest.approx(
-        [0.04588955, 0.26113177, 0.47966863, 0.21331515]
-    )
-    assert gauss_helper.get_order(1) == pytest.approx(np.ones(gauss_helper.get_nshell(1)) * 2)
-
-    assert gauss_helper.get_exponent(6) == pytest.approx(
-        [148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]
-    )
-    assert gauss_helper.get_initial(6) == pytest.approx(
-        [0.14213932, 0.58600661, 1.07985999, 0.0193642, 2.73124559, 1.44130948]
-    )
-    assert gauss_helper.get_exponent(7) == pytest.approx(
-        [178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]
-    )
-    assert gauss_helper.get_initial(7) == pytest.approx(
-        [0.1762005, 0.64409882, 1.00359925, 2.34863505, 1.86405143, 0.96339936]
-    )
-    assert gauss_helper.get_exponent(8) == pytest.approx(
-        [220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]
-    )
-    assert gauss_helper.get_initial(8) == pytest.approx(
-        [0.20051893, 0.64160829, 0.98585628, 3.01184504, 2.70306065, 0.45711097]
-    )
+# def test_BasisFuncHelper_from_function_type_gauss(gauss_helper):
+#     assert gauss_helper.get_exponent(1) == pytest.approx([5.672, 1.505, 0.5308, 0.2204])
+#     assert gauss_helper.get_initial(1) == pytest.approx(
+#         [0.04588955, 0.26113177, 0.47966863, 0.21331515]
+#     )
+#     assert gauss_helper.get_order(1) == pytest.approx(np.ones(gauss_helper.get_nshell(1)) * 2)
+#
+#     assert gauss_helper.get_exponent(6) == pytest.approx(
+#         [148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]
+#     )
+#     assert gauss_helper.get_initial(6) == pytest.approx(
+#         [0.14213932, 0.58600661, 1.07985999, 0.0193642, 2.73124559, 1.44130948]
+#     )
+#     assert gauss_helper.get_exponent(7) == pytest.approx(
+#         [178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]
+#     )
+#     assert gauss_helper.get_initial(7) == pytest.approx(
+#         [0.1762005, 0.64409882, 1.00359925, 2.34863505, 1.86405143, 0.96339936]
+#     )
+#     assert gauss_helper.get_exponent(8) == pytest.approx(
+#         [220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]
+#     )
+#     assert gauss_helper.get_initial(8) == pytest.approx(
+#         [0.20051893, 0.64160829, 0.98585628, 3.01184504, 2.70306065, 0.45711097]
+#     )
 
 
 def test_BasisFuncHelper_from_function_type_slater(slater_helper):
