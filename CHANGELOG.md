@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0]  - 2024-01-17
+
+### Added
+
+- Documentation
+- CDIIS solver instead of using the old DIIS solver in LISA scheme.
+- Global LISA method with the same sovlers used in local LISA scheme.
+- Unit tests
+- Main program with support for a `yaml` configure file.
+- General exponential basis functions.
+- Big rewrite with new API.
+
+### Fixed
+
+- DIIS solver
+
 ## [1.0.10] - 2023-08-29
 
 ### Added
