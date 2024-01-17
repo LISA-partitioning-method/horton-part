@@ -121,18 +121,19 @@ def diis(
             history_g.append(g_i)
             g_list = history_g[-depth:]
             x = lstsq_solver(g_list, r_list)
+            history_x.append(x)
 
         if conv_func is None:
             # use DRMS as convergence value.
             conv_val_i = np.linalg.norm(r_i)
             if conv_val_i < threshold:
-                return x
+                return x, i + 1, history_x
         else:
             conv_val_i = conv_func(r_i, x, x_old)
 
         print_func(f"           {i:<4}    {conv_val_i:.6E}")
         if conv_val_i < threshold:
-            return x
+            return x, i + 1, history_x
     raise RuntimeError("Error: not converge!")
 
 

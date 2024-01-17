@@ -61,7 +61,7 @@ def cdiis(
     threshold : float
         Convergence threshold for the iterative process.
     param : float, optional
-        default value : 0:1
+        default value : 0.1
         tau parameter for the R-CDIIS algorithm
         delta parameter for the AD-CDIIS algorithm
     threshold : float, optional
@@ -141,7 +141,7 @@ def cdiis(
     notfirst = 0
     restart = True  # boolean to manage the QR decomposition when restart occurs
     history_dr = None
-    xlast = None
+    xlast = x
 
     # for the reader of the paper
     if mode == "R-CDIIS":

@@ -34,6 +34,7 @@ import time
 
 import cvxopt
 import numpy as np
+from scipy.linalg import solve
 from scipy.optimize import SR1, LinearConstraint, minimize
 
 from horton_part import gisa
@@ -473,8 +474,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             A=matrix_constraint_eq,
             b=vector_constraint_eq,
             verbose=verbose,
-            # options={"show_progress": log.do_medium, "feastol": self._threshold},
-            # options={"show_progress": 3, "feastol": self._threshold},
             options=cvxopt_options,
         )
 
@@ -486,8 +485,48 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             check_monotonicity=False,
         )
 
-        # TODO: collect info
-        return propars
+        if opt_CVX["status"] == "optimal":
+            # TODO: collect info
+            self.cache.dump("niter", np.nan, tags="o")
+            return propars
+        else:
+            raise RuntimeError("CVXOPT not converged!")
+
+    def solver_newton(self):
+        rho, propars = self._moldens, self.propars
+        nb_par = len(propars)
+
+        oldpro = None
+        change = 1e100
+        self.logger.info("            Iter.    Change    ")
+        self.logger.info("            -----    ------    ")
+        for irep in range(1000):
+            pro = self.calc_promol_dens(propars)
+            # check for convergence
+            if oldpro is not None:
+                error = oldpro - pro
+                change = self.grid.integrate(error, error)
+
+            # compute entropy
+            entropy = self._compute_entropy(rho, pro)
+            self.history_entropies.append(entropy)
+
+            self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
+
+            if change < self.threshold:
+                pop = self.grid.integrate(rho)
+                check_pro_atom_parameters(propars, total_population=pop, pro_atom_density=pro)
+                self.cache.dump("niter", irep + 1, tags="o")
+                return propars
+
+            f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
+            delta = solve(hess, -1 - df, assume_a="sym")
+            # delta = spsolve(hess, -1 - df)
+            # self.logger.info(" delta:")
+            # self.logger.info(delta)
+            self.history_propars.append(propars.copy())
+            propars += delta
+            oldpro = pro
 
     def solver_sc(self, density_cutoff=1e-15, niter_print=1):
         """
@@ -580,7 +619,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             return val
 
         propars = self.propars
-        propars[:] = diis(
+        propars[:], niter, history_propars = diis(
             propars,
             self.function_g,
             self.threshold,
@@ -596,7 +635,14 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             total_population=self.mol_pop,
             check_monotonicity=False,
         )
-        # TODO: collect opt info
+
+        # Collect info
+        self.cache.dump("niter", niter, tags="o")
+        for x in history_propars:
+            rho0 = self.calc_promol_dens(x)
+            entropy = self._compute_entropy(self._moldens, rho0)
+            self.history_entropies.append(entropy)
+        self.history_propars = history_propars
         return propars
 
     def solver_trust_region(self, allow_neg_pars=False):

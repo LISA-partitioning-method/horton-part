@@ -433,7 +433,9 @@ def solver_diis(
         pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
-    new_propars = diis(propars, function_g, threshold, logger=logger, verbose=False, **diis_options)
+    new_propars, niter, history_x = diis(
+        propars, function_g, threshold, logger=logger, verbose=False, **diis_options
+    )
     check_pro_atom_parameters(new_propars, bs_funcs)
     return new_propars
 

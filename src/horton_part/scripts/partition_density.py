@@ -89,7 +89,7 @@ class PartDensProg(PartProg):
         # Convert the log level string to a logging level
         self.setup_logger(args, fn_log, overwrite=False)
         exclude_keys = []
-        if args.type not in ["glisa"]:
+        if args.type in ["glisa"]:
             exclude_keys = ["inner_threshold"]
         if args.type not in ["gisa", "lisa", "glisa"]:
             exclude_keys = ["solver", "basis_func"]
