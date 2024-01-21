@@ -74,13 +74,7 @@ class PartDensProg(PartProg):
             f"{'  Update Weights':<45} : {part.cache['time_update_at_weights']:>10.2f} s"
         )
         self.logger.info(
-            f"{'    Update Promolecule Density (N_atom**2)':<45} : {part.cache['time_update_promolecule']:>10.2f} s"
-        )
-        self.logger.info(
-            f"{'    Update AIM Weights (N_atom)':<45} : {part.cache['time_compute_at_weights']:>10.2f} s"
-        )
-        self.logger.info(
-            f"{'  Update Atomic Parameters (iter*N_atom)':<45} : {part.cache['time_update_propars_atoms']:>10.2f} s"
+            f"{'  Update Atomic Parameters (iter*N_atom)':<45} : {part.cache['time_update_propars']:>10.2f} s"
         )
         # logger.info(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
         self.print_line()
@@ -167,24 +161,25 @@ class PartDensProg(PartProg):
             "lmax": args.lmax,
             "maxiter": args.maxiter,
             "threshold": args.threshold,
-            "inner_threshold": args.threshold,
+            "inner_threshold": args.inner_threshold if args.type not in ["glisa"] else np.nan,
             "solver": args.solver,
             # results
             "charges": part.cache["charges"],
             "time": part.time_usage["do_partitioning"],
             "time_update_at_weights": part.cache["time_update_at_weights"],
-            "time_update_promolecule": part.cache["time_update_promolecule"],
-            "time_compute_at_weights": part.cache["time_compute_at_weights"],
-            "time_update_propars_atoms": part.cache["time_update_propars_atoms"],
+            "time_update_propars": part.cache["time_update_propars"],
             "niter": part.cache["niter"],
             "history_charges": part.cache["history_charges"],
             "history_propars": part.cache["history_propars"],
             "history_entropies": part.cache["history_entropies"],
+            "history_changes": part.cache["history_changes"],
         }
 
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
-        part_data.update(data)
+
+        # NOTE: do not restore molecular density and grids
+        # part_data.update(data)
         path = os.path.dirname(os.path.abspath(fn_out))
         if not os.path.exists(path):
             os.makedirs(path)

@@ -35,7 +35,7 @@ from .algo.diis import diis
 from .core.basis import BasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
-from .utils import check_for_pro_error, check_pro_atom_parameters, compute_quantities
+from .utils import check_pro_atom_parameters, compute_quantities
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -64,6 +64,7 @@ def solver_cvxopt(
     logger,
     density_cutoff=1e-15,
     allow_neg_params=False,
+    **cvxopt_options,
 ):
     """
     Optimize parameters for pro-atom density functions using convex optimization method.
@@ -121,38 +122,10 @@ def solver_cvxopt(
             rho, x, bs_funcs, density_cutoff
         )
 
-        if logger.level >= logging.DEBUG:
-            # if log.do_debug:
-            try:
-                check_for_pro_error(pro)
-            except RuntimeError as e:
-                logger.info(bs_funcs.shape)
-                logger.info("bs_funcs.T:")
-                logger.info(bs_funcs.T)
-                logger.info("[in obj_func]: pro-atom parameters:")
-                logger.info(np.asarray(x))
-                logger.info("pro-atom density:")
-                logger.info(pro.reshape((-1, 1)))
-                logger.info("atomic density:")
-                logger.info(rho.reshape((-1, 1)))
-                np.savez_compressed(
-                    "dump_negative_dens.npz",
-                    points=points,
-                    weights=weights,
-                    bs_funcs=bs_funcs,
-                    propars=np.asarray(x),
-                    pro=pro,
-                    rho=rho,
-                )
-                raise e
-
-        # f = -np.einsum("i,i,i", int_weights, rho, ln_pro)
         f = np.einsum("i,i,i", weights, rho, ln_ratio)
 
         # compute gradient
         grad = weights * ratio
-        # if log.do_debug:
-        #     check_for_grad_error(grad)
         df = -np.einsum("j,ij->i", grad, bs_funcs)
         df = cvxopt.matrix(df.reshape((1, nprim)))
         if z is None:
@@ -161,14 +134,16 @@ def solver_cvxopt(
         # compute hessian
         hess = np.divide(grad, pro, out=np.zeros_like(grad), where=~sick)
         d2f = np.einsum("k,ik,jk->ij", hess, bs_funcs, bs_funcs)
-        # if log.do_debug:
-        #     check_for_hessian_error(d2f)
         d2f = z[0] * cvxopt.matrix(d2f)
         return f, df, d2f
 
-    show_progress = 0
-    if logger.level <= logging.DEBUG:
-        show_progress = 3
+    if len(cvxopt_options) == 0:
+        show_progress = 0
+        if logger.level <= logging.DEBUG:
+            show_progress = 3
+        options = {"show_progress": show_progress, "feastol": threshold}
+    else:
+        options = cvxopt_options
 
     opt_CVX = cvxopt.solvers.cp(
         obj_func,
@@ -176,14 +151,16 @@ def solver_cvxopt(
         h=vector_constraint_ineq,
         A=matrix_constraint_eq,
         b=vector_constraint_eq,
-        options={"show_progress": show_progress, "feastol": threshold},
-        # options={"show_progress": log.do_medium, "feastol": threshold},
+        options=options,
     )
 
-    optimized_res = opt_CVX["x"]
-    new_propars = np.asarray(optimized_res).flatten()
-    check_pro_atom_parameters(new_propars, bs_funcs)
-    return new_propars
+    if opt_CVX["status"] == "optimal":
+        optimized_res = opt_CVX["x"]
+        new_propars = np.asarray(optimized_res).flatten()
+        check_pro_atom_parameters(new_propars, bs_funcs)
+        return new_propars
+    else:
+        raise RuntimeError("CVXOPT not converged!")
 
 
 def solver_sc(bs_funcs, rho, propars, points, weights, threshold, logger, density_cutoff=1e-15):

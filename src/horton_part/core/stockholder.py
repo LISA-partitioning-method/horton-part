@@ -24,6 +24,7 @@ import time
 import warnings
 
 import numpy as np
+from grid import LEBEDEV_DEGREES
 from scipy.interpolate import CubicHermiteSpline, CubicSpline
 
 from .base import WPart
@@ -130,9 +131,9 @@ class AbstractStockholderWPart(WPart):
             if len(r) == len(atom_grid.degrees):
                 r_mask = r <= self.radius_cutoff
                 degrees = np.asarray(atom_grid.degrees)[r_mask]
-                degrees_str = [str(d) for d in degrees]
+                degrees_str = [str(LEBEDEV_DEGREES[d]) for d in degrees]
                 self.logger.info(f"   |-- Radial grid size: {len(r[r_mask])}")
-                self.logger.info(f"   |-- Angular grid {len(degrees)} degrees: ")
+                self.logger.info("   |-- Angular grid sizes: ")
                 nb = 20
                 prefix = "          "
                 for j in range(len(degrees_str) // nb + 1):

@@ -47,8 +47,9 @@ def init_propars(part):
     part.history_propars = []
     part.history_charges = []
     part.history_entropies = []
+    part.history_changes = []
     part.history_time_update_at_weights = []
-    part.history_time_update_propars_atoms = []
+    part.history_time_update_propars = []
 
 
 def finalize_propars(part):
@@ -57,48 +58,11 @@ def finalize_propars(part):
     part.cache.dump("history_propars", np.array(part.history_propars), tags="o")
     part.cache.dump("history_charges", np.array(part.history_charges), tags="o")
     part.cache.dump("history_entropies", np.array(part.history_entropies), tags="o")
+    part.cache.dump("history_changes", np.array(part.history_changes), tags="o")
     part.cache.dump("populations", part.numbers - charges, tags="o")
     part.cache.dump("pseudo_populations", part.pseudo_numbers - charges, tags="o")
-    part.cache.dump(
-        "history_time_update_at_weights",
-        np.array(part.history_time_update_at_weights),
-        tags="o",
-    )
-    part.cache.dump(
-        "history_time_update_propars_atoms",
-        np.array(part.history_time_update_propars_atoms),
-        tags="o",
-    )
-    part.cache.dump(
-        "time_update_at_weights",
-        np.sum(part.history_time_update_at_weights),
-        tags="o",
-    )
-    part.cache.dump(
-        "time_update_propars_atoms",
-        np.sum(part.history_time_update_propars_atoms),
-        tags="o",
-    )
-    part.cache.dump(
-        "history_time_update_promolecule",
-        np.array(part.time_usage["history_time_update_promolecule"]),
-        tags="o",
-    )
-    part.cache.dump(
-        "history_time_compute_at_weights",
-        np.array(part.time_usage["history_time_compute_at_weights"]),
-        tags="o",
-    )
-    part.cache.dump(
-        "time_update_promolecule",
-        np.sum(part.time_usage["history_time_update_promolecule"]),
-        tags="o",
-    )
-    part.cache.dump(
-        "time_compute_at_weights",
-        np.sum(part.time_usage["history_time_compute_at_weights"]),
-        tags="o",
-    )
+    part.cache.dump("time_update_at_weights", np.sum(part.history_time_update_at_weights), tags="o")
+    part.cache.dump("time_update_propars", np.sum(part.history_time_update_propars), tags="o")
 
 
 class AbstractISAWPart(AbstractStockholderWPart):
@@ -190,16 +154,15 @@ class AbstractISAWPart(AbstractStockholderWPart):
         """Initial pro-atom parameters and cache lists."""
         init_propars(self)
 
-    def _update_propars(self):
-        """Update pro-atom parameters."""
-        # Keep track of history
-        self.history_propars.append(self.cache.load("propars").copy())
+    def _update_entropy(self):
         if "promoldens" in self.cache:
             rho = self._moldens
             rho0 = self.cache.load("promoldens")
             entropy = self._compute_entropy(rho, rho0)
             self.history_entropies.append(entropy)
 
+    def _update_propars(self):
+        """Update pro-atom parameters."""
         # Update the partitioning based on the latest proatoms
         t0 = time.time()
         self.update_at_weights()
@@ -211,9 +174,10 @@ class AbstractISAWPart(AbstractStockholderWPart):
         t2 = time.time()
 
         self.history_time_update_at_weights.append(t1 - t0)
-        self.history_time_update_propars_atoms.append(t2 - t1)
+        self.history_time_update_propars.append(t2 - t1)
 
         # Keep track of history
+        self.history_propars.append(self.cache.load("propars").copy())
         self.history_charges.append(self.cache.load("charges").copy())
 
     def _update_propars_atom(self, index):
@@ -235,9 +199,9 @@ class AbstractISAWPart(AbstractStockholderWPart):
         if new:
             propars = self._init_propars()
             self.logger.info("Iteration       Change      Entropy")
+            # self.history_propars.append(propars.copy())
 
             counter = 0
-            entropy = np.inf
             while True:
                 counter += 1
                 self.cache.dump("niter", counter, tags="o")
@@ -245,10 +209,13 @@ class AbstractISAWPart(AbstractStockholderWPart):
                 # Update the parameters that determine the pro-atoms.
                 old_propars = propars.copy()
                 self._update_propars()
+                # NOTE: the entropy with initial propars is not included.
+                self._update_entropy()
 
                 # Check for convergence
                 change = self.compute_change(propars, old_propars)
-                entropy = self.history_entropies[-1] if counter > 1 else entropy
+                entropy = self.history_entropies[counter - 1]
+                self.history_changes.append(change)
                 self.logger.info("%9i   %10.5e   %10.5e" % (counter, change, entropy))
                 if change < self._threshold or counter >= self._maxiter:
                     break

@@ -210,7 +210,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             t0 = time.time()
             new_propars = self._opt_propars(**self._solver_options)
             t1 = time.time()
-            self.history_time_update_propars_atoms.append(t1 - t0)
+            self.history_time_update_propars.append(t1 - t0)
 
             # self.logger.info(f"Time usage for partitioning: {t1-t0:.2f} s")
             propars = self.cache.load("propars")
@@ -448,6 +448,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         matrix_constraint_eq = cvxopt.matrix(1.0, (1, nb_par))
         mol_pop = self.grid.integrate(rho)
         vector_constraint_eq = cvxopt.matrix(mol_pop, (1, 1))
+        history_propars = [propars.copy()]
 
         def obj_func(x=None, z=None):
             """The objective function of the global optimization method."""
@@ -465,6 +466,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             f, df, hess = self._working_matrix(rho, rho0, nb_par, 2)
             df = df.reshape((1, nb_par))
             hess = z[0] * cvxopt.matrix(hess)
+            if not np.allclose(x, history_propars[-1]):
+                history_propars.append(x)
             return f, cvxopt.matrix(df), hess
 
         opt_CVX = cvxopt.solvers.cp(
@@ -485,9 +488,14 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             check_monotonicity=False,
         )
 
+        # TODO: collect info
         if opt_CVX["status"] == "optimal":
-            # TODO: collect info
-            self.cache.dump("niter", np.nan, tags="o")
+            self.cache.dump("niter", len(history_propars) - 1, tags="o")
+            for x in history_propars[1:]:
+                rho0 = self.calc_promol_dens(x)
+                entropy = self._compute_entropy(self._moldens, rho0)
+                self.history_entropies.append(entropy)
+            self.history_propars = history_propars[1:]
             return propars
         else:
             raise RuntimeError("CVXOPT not converged!")
@@ -525,6 +533,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # self.logger.info(" delta:")
             # self.logger.info(delta)
             self.history_propars.append(propars.copy())
+            self.history_changes.append(change)
             propars += delta
             oldpro = pro
 
@@ -550,7 +559,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         iter = 0
         while True:
             old_propars = propars.copy()
-            self.history_propars.append(propars.copy())
 
             propars[:] = self.function_g(propars, density_cutoff=density_cutoff)
             change = self.compute_change(propars, old_propars)
@@ -558,6 +566,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             rho0 = self.calc_promol_dens(propars)
             entropy = self._compute_entropy(self._moldens, rho0)
             self.history_entropies.append(entropy)
+            self.history_changes.append(change)
+            self.history_propars.append(propars.copy())
 
             # self.logger.debug(f"            {iter+1:<4}    {change:.3e}")
             if iter % niter_print == 0:
@@ -638,11 +648,11 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
         # Collect info
         self.cache.dump("niter", niter, tags="o")
-        for x in history_propars:
+        for x in history_propars[1:]:
             rho0 = self.calc_promol_dens(x)
             entropy = self._compute_entropy(self._moldens, rho0)
             self.history_entropies.append(entropy)
-        self.history_propars = history_propars
+        self.history_propars = history_propars[1:]
         return propars
 
     def solver_trust_region(self, allow_neg_pars=False):
@@ -711,7 +721,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         """The definition of residual."""
         return self.function_g(x) - x
 
-    # TODO: use **solver_options instead of passing all parameters.
     def solver_cdiis(self, **cdiis_options):
         conv, nbiter, rnormlist, mklist, cnormlist, propars, history_propars = cdiis(
             self.propars,
@@ -731,12 +740,13 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             check_monotonicity=False,
         )
 
-        self.cache.dump("niter", nbiter - 1, tags="o")
-        self.cache.dump("change", rnormlist, tags="o")
+        self.cache.dump("niter", nbiter, tags="o")
+        # self.cache.dump("change", rnormlist[-1], tags="o")
 
-        for x in history_propars:
+        for x in history_propars[1:]:
             rho0 = self.calc_promol_dens(x)
             entropy = self._compute_entropy(self._moldens, rho0)
             self.history_entropies.append(entropy)
-        self.history_propars = history_propars
+        self.history_propars = history_propars[1:]
+        self.history_changes = rnormlist
         return propars
