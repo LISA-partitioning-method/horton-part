@@ -147,11 +147,12 @@ class AbstractStockholderWPart(WPart):
         self.logger.info("=" * 80)
         self.logger.info(" ")
 
-    def _compute_entropy(self, rho, rho0):
-        # This is okay, because rho0 and rho are non-negative.
-        rho0 = np.clip(rho0, 1e-100, np.inf)
-        rho = np.clip(rho, 1e-100, np.inf)
-        entropy = self._grid.integrate(rho, np.log(rho) - np.log(rho0))
+    def _compute_entropy(self, rho, rho0, density_cutoff=1e-15):
+        sick = (rho0 < density_cutoff) | (rho < density_cutoff)
+        with np.errstate(all="ignore"):
+            ratio = np.divide(rho, rho0, out=np.zeros_like(rho), where=~sick)
+            ln_ratio = np.log(ratio, out=np.zeros_like(rho), where=~sick)
+        entropy = self._grid.integrate(rho, ln_ratio)
         return entropy
 
     def update_pro(self, index, proatdens, promoldens):
