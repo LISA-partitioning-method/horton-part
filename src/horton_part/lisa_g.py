@@ -598,6 +598,91 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         else:
             raise RuntimeError("Not converged!")
 
+    def solver_quasi_newton(self, maxiter=1000, linspace_size=40, niter_newton=1):
+        rho, propars = self._moldens, self.propars
+        nb_par = len(propars)
+
+        def linear_search(delta, propars):
+            for x in np.linspace(1, 0, linspace_size):
+                new_propars = propars + x * delta
+                new_pro = self.calc_promol_dens(new_propars)
+                if (new_pro > NEGATIVE_CUTOFF).all():
+                    self.logger.debug(f"x: {x}")
+                    self.logger.debug(f" sum of delta: {np.sum(delta)}")
+                    self.logger.debug(f" sum of propars: {np.sum(new_propars)}")
+                    return new_propars
+            else:
+                return propars
+
+        oldpro = None
+        change = 1e100
+        H = None
+        olddf = None
+        oldH = None
+        s = None
+        self.logger.info("            Iter.    Change    ")
+        self.logger.info("            -----    ------    ")
+        for irep in range(maxiter):
+            pro = self.calc_promol_dens(propars)
+            # check for convergence
+            if oldpro is not None:
+                error = oldpro - pro
+                change = self.grid.integrate(error, error)
+
+            # compute entropy
+            entropy = self._compute_entropy(rho, pro)
+            self.history_entropies.append(entropy)
+
+            self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
+
+            if change < self.threshold:
+                pop = self.grid.integrate(rho)
+                check_pro_atom_parameters(
+                    propars,
+                    total_population=pop,
+                    pro_atom_density=pro,
+                    check_monotonicity=False,
+                )
+                self.cache.dump("niter", irep + 1, tags="o")
+                return propars
+
+            if H is None or irep <= niter_newton - 1:
+                if niter_newton == 0:
+                    f, df = self._working_matrix(rho, pro, nb_par, 1)
+                    hess = np.identity(len(df))
+                else:
+                    f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
+                H = np.linalg.inv(hess)
+            else:
+                f, df = self._working_matrix(rho, pro, nb_par, 1)
+                # TODO: construct new hess
+                y = df - olddf
+                H = (
+                    oldH
+                    + (s @ y + np.einsum("i,ij,j->", y, oldH, y))
+                    * np.einsum("i,j->ij", s, s)
+                    / (s @ y) ** 2
+                    - (oldH @ np.einsum("i,j->ij", y, s) + np.einsum("i,j->ij", s, y) @ oldH)
+                    / (s @ y)
+                )
+
+            # delta = solve(hess, -1 - df, assume_a="sym")
+            delta = H @ (-1 - df)
+
+            # delta = spsolve(hess, -1 - df)
+            # self.logger.info(" delta:")
+            # self.logger.info(delta)
+            self.history_propars.append(propars.copy())
+            self.history_changes.append(change)
+            propars[:] = linear_search(delta, propars)
+            # propars += delta
+            oldpro = pro
+            olddf = df
+            oldH = H
+            s = delta
+        else:
+            raise RuntimeError("Not converged!")
+
     def solver_sc(self, density_cutoff=1e-15, niter_print=1):
         """
         Self-Consistent solver.
