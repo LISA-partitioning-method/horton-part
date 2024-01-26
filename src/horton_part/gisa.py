@@ -194,11 +194,12 @@ class GaussianISAWPart(AbstractISAWPart):
             The pro-atom parameters.
 
         """
-        if propars is None:
-            propars = self.cache.load("propars")
-        rgrid = self.get_rgrid(iatom)
-        propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
+        return get_proatom_rho(self, iatom, propars)
+        # if propars is None:
+        #     propars = self.cache.load("propars")
+        # rgrid = self.get_rgrid(iatom)
+        # propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+        # return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
 
     def eval_proatom(self, index, output, grid):
         """Evaluate function on a local grid.

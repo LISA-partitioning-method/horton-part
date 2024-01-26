@@ -27,7 +27,7 @@ from grid.atomgrid import AtomGrid
 from grid.basegrid import OneDGrid
 from grid.molgrid import MolGrid
 
-from horton_part import wpart_schemes
+from horton_part import PERIODIC_TABLE, wpart_schemes
 
 from .program import PartProg
 
@@ -78,6 +78,23 @@ class PartDensProg(PartProg):
         )
         # logger.info(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
         self.print_line()
+
+    def print_propars(self, part):
+        """Print optimized pro-atom parameters.
+
+        The optimized pro-atom parameters are printed out if ISA methods with basis functions are used.
+        """
+        if part.name in ["gisa", "mbis", "lisa", "glisa"]:
+            propars = part.cache["history_propars"][-1, :]
+            self.print_header("Optimized pro-atom parameters")
+            for i in range(part.natom):
+                begin, end = part._ranges[i], part._ranges[i + 1]
+                propars_i = propars[begin:end]
+                self.logger.info(f"Propars for atom {PERIODIC_TABLE[part.numbers[i]]}:")
+                for par in propars_i:
+                    self.logger.info(f"{par:>20.8f}")
+                self.logger.info(" ")
+            self.print_line()
 
     def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log):
         # Convert the log level string to a logging level
@@ -149,6 +166,7 @@ class PartDensProg(PartProg):
         # logger.info(part.cache["cartesian_multipoles"])
         # logger.info("radial moments:")
         # logger.info(part.cache["radial_moments"])
+        self.print_propars(part)
         self.print_part_time(part)
 
         # Collect partition data

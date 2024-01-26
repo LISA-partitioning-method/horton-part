@@ -35,7 +35,7 @@ from .algo.diis import diis
 from .core.basis import BasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
-from .utils import check_pro_atom_parameters, compute_quantities
+from .utils import NEGATIVE_CUTOFF, check_pro_atom_parameters, compute_quantities
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -46,6 +46,7 @@ __all__ = [
     "solver_sc",
     "solver_diis",
     "solver_newton",
+    "solver_m_newton",
     "solver_trust_region",
     "solver_cvxopt",
     "solver_cdiis",
@@ -476,7 +477,7 @@ def solver_newton(
             logger.debug("Pass.")
 
     for irep in range(1000):
-        _, pro, sick, ratio, _ = compute_quantities(rho, propars, bs_funcs, density_cutoff)
+        _, pro, sick, ratio, ln_ratio = compute_quantities(rho, propars, bs_funcs, density_cutoff)
         integrand = bs_funcs * ratio
         logger.debug(" Optimized pro-atom parameters:")
         logger.debug(propars)
@@ -502,7 +503,134 @@ def solver_newton(
         delta = solve(jacob, -h, assume_a="sym")
         logger.debug(" delta:")
         logger.debug(delta)
+        # TODO: modified newton
         propars += delta
+        oldpro = pro
+    raise RuntimeError("Inner loop: Newton does not converge!")
+
+
+def solver_m_newton(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    logger,
+    density_cutoff=1e-15,
+):
+    r"""
+    Optimize parameters for pro-atom density functions using Newton method
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
+    logger.debug("            Iter.    Change    ")
+    logger.debug("            -----    ------    ")
+
+    oldpro = None
+    change = 1e100
+
+    if logger.level <= logging.DEBUG:
+        diff = rho[:-1] - rho[1:]
+        logger.debug(" Check monotonicity of density ".center(80, "*"))
+        if len(diff[diff < -1e-5]):
+            logger.debug("The spherical average density is not monotonically decreasing.")
+            logger.debug("The different between densities on two neighboring points are negative:")
+            logger.debug(diff[diff < -1e-5])
+        else:
+            logger.debug("Pass.")
+
+    # def linear_search(delta, old_f, propars):
+    #     for x in np.linspace(1, 0, 20):
+    #         new_propars = propars + x * delta
+    #         _, _, _, _, ln_ratio = compute_quantities(
+    #             rho, new_propars, bs_funcs, density_cutoff
+    #         )
+    #         new_f = np.einsum("i,i", rho * ln_ratio, weights)
+    #         if new_f <= old_f:
+    #             logger.info(f"The sum of propars: {np.sum(new_propars)}")
+    #             logger.info(f"The pop of atom: {np.einsum('i,i',rho, weights)}")
+    #             logger.info(f"new_f: {new_f}")
+    #             logger.info(f"old_f: {old_f}")
+    #             logger.info(f"x: {x}")
+    #             return new_propars
+    #     else:
+    #         return propars
+
+    def linear_search(delta, propars):
+        for x in np.linspace(1, 0, 20):
+            new_propars = propars + x * delta
+            _, new_pro, _, _, ln_ratio = compute_quantities(
+                rho, new_propars, bs_funcs, density_cutoff
+            )
+            # if (new_pro > NEGATIVE_CUTOFF).all() and (
+            #     new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
+            # ).all():
+            if (new_pro > NEGATIVE_CUTOFF).all():
+                logger.debug(f"x: {x}")
+                return new_propars
+        else:
+            return propars
+
+    for irep in range(1000):
+        _, pro, sick, ratio, ln_ratio = compute_quantities(rho, propars, bs_funcs, density_cutoff)
+        logger.debug(" Optimized pro-atom parameters:")
+        logger.debug(propars)
+
+        # check for convergence
+        if oldpro is not None:
+            error = oldpro - pro
+            change = np.sqrt(np.einsum("i,i,i", weights, error, error))
+        logger.debug(f"            {irep+1:<4}    {change:.3e}")
+        if change < threshold:
+            check_pro_atom_parameters(
+                propars, total_population=float(np.sum(pro)), pro_atom_density=pro
+            )
+            return propars
+
+        # update propars
+        integrand = bs_funcs * ratio
+        with np.errstate(all="ignore"):
+            grad_integrand = integrand / pro
+        grad_integrand[:, sick] = 0.0
+
+        jacob = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
+        h = 1 - np.einsum("kp,p->k", integrand, weights)
+        delta = solve(jacob, -h, assume_a="sym")
+        logger.debug(" delta:")
+        logger.debug(delta)
+        logger.debug("the sum of delta:")
+        logger.debug(np.sum(delta))
+
+        # TODO: modified newton
+        propars[:] = linear_search(delta, propars)
         oldpro = pro
     raise RuntimeError("Inner loop: Newton does not converge!")
 
@@ -714,6 +842,7 @@ class LinearISAWPart(GaussianISAWPart):
         "diis": solver_diis,
         # Not robust
         "newton": solver_newton,
+        "m-newton": solver_m_newton,
         # Explicit constr is faster than implicit
         "trust-region": solver_trust_region,
         "sc-1-iter": solver_sc_1_iter,

@@ -47,7 +47,7 @@ from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .gisa import get_proatom_rho
 from .lisa import setup_bs_helper
-from .utils import check_pro_atom_parameters
+from .utils import NEGATIVE_CUTOFF, check_pro_atom_parameters
 
 __all__ = ["GlobalLinearISAWPart"]
 
@@ -229,6 +229,10 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 spherical_average = spline(r)
                 pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
                 charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+                rho0_iatom, _ = self.get_proatom_rho(iatom, propars)
+                # check rho0_iatom if it is monotonic
+                if not (rho0_iatom[:-1] - rho0_iatom[1:] > NEGATIVE_CUTOFF).all():
+                    raise RuntimeError(f"The proatom density of atom {iatom} is not monotonic!")
             t1 = time.time()
             self.history_time_update_at_weights.append(t1 - t0)
 
@@ -536,6 +540,63 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.history_changes.append(change)
             propars += delta
             oldpro = pro
+
+    def solver_m_newton(self, maxiter=1000):
+        rho, propars = self._moldens, self.propars
+        nb_par = len(propars)
+
+        def linear_search(delta, propars):
+            for x in np.linspace(1, 0, 20):
+                new_propars = propars + x * delta
+                new_pro = self.calc_promol_dens(new_propars)
+                if (new_pro > NEGATIVE_CUTOFF).all():
+                    self.logger.debug(f"x: {x}")
+                    self.logger.debug(f" sum of delta: {np.sum(delta)}")
+                    self.logger.debug(f" sum of propars: {np.sum(new_propars)}")
+                    return new_propars
+            else:
+                return propars
+
+        oldpro = None
+        change = 1e100
+        self.logger.info("            Iter.    Change    ")
+        self.logger.info("            -----    ------    ")
+        for irep in range(maxiter):
+            pro = self.calc_promol_dens(propars)
+            # check for convergence
+            if oldpro is not None:
+                error = oldpro - pro
+                change = self.grid.integrate(error, error)
+
+            # compute entropy
+            entropy = self._compute_entropy(rho, pro)
+            self.history_entropies.append(entropy)
+
+            self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
+
+            if change < self.threshold:
+                pop = self.grid.integrate(rho)
+                check_pro_atom_parameters(
+                    propars,
+                    total_population=pop,
+                    pro_atom_density=pro,
+                    check_monotonicity=False,
+                )
+                self.cache.dump("niter", irep + 1, tags="o")
+                return propars
+
+            f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
+            delta = solve(hess, -1 - df, assume_a="sym")
+            # delta = spsolve(hess, -1 - df)
+            # self.logger.info(" delta:")
+            # self.logger.info(delta)
+            self.history_propars.append(propars.copy())
+            self.history_changes.append(change)
+            propars[:] = linear_search(delta, propars)
+            # propars += delta
+            oldpro = pro
+        else:
+            raise RuntimeError("Not converged!")
 
     def solver_sc(self, density_cutoff=1e-15, niter_print=1):
         """
