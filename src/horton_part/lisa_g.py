@@ -537,110 +537,101 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         else:
             raise RuntimeError("CVXOPT not converged!")
 
-    def solver_newton(self):
-        rho, propars = self._moldens, self.propars
-        nb_par = len(propars)
+    def solver_newton(self, maxiter=100, density_cutoff=1e-15):
+        """Default, Exact Newton method."""
+        return self._solver_general_newton(
+            maxiter=maxiter, mode="exact", density_cutoff=density_cutoff
+        )
 
-        oldpro = None
-        change = 1e100
-        self.logger.info("            Iter.    Change    ")
-        self.logger.info("            -----    ------    ")
-        for irep in range(1000):
-            pro = self.calc_promol_dens(propars)
-            # check for convergence
-            if oldpro is not None:
-                error = oldpro - pro
-                change = self.grid.integrate(error, error)
-
-            # compute entropy
-            entropy = self._compute_entropy(rho, pro)
-            self.history_entropies.append(entropy)
-
-            self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
-
-            if change < self.threshold:
-                pop = self.grid.integrate(rho)
-                check_pro_atom_parameters(propars, total_population=pop, pro_atom_density=pro)
-                self.cache.dump("niter", irep + 1, tags="o")
-                return propars
-
-            f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
-            delta = solve(hess, -1 - df, assume_a="sym")
-            # delta = spsolve(hess, -1 - df)
-            # self.logger.info(" delta:")
-            # self.logger.info(delta)
-            self.history_propars.append(propars.copy())
-            self.history_changes.append(change)
-            propars += delta
-            oldpro = pro
-
-    def solver_m_newton(self, maxiter=1000):
-        rho, propars = self._moldens, self.propars
-        nb_par = len(propars)
-
-        def linear_search(delta, propars):
-            for x in np.linspace(1, 0, 20):
-                new_propars = propars + x * delta
-                new_pro = self.calc_promol_dens(new_propars)
-                if (new_pro > NEGATIVE_CUTOFF).all():
-                    self.logger.debug(f"x: {x}")
-                    self.logger.debug(f" sum of delta: {np.sum(delta)}")
-                    self.logger.debug(f" sum of propars: {np.sum(new_propars)}")
-                    return new_propars
-            else:
-                return propars
-
-        oldpro = None
-        change = 1e100
-        self.logger.info("            Iter.    Change    ")
-        self.logger.info("            -----    ------    ")
-        for irep in range(maxiter):
-            pro = self.calc_promol_dens(propars)
-            # check for convergence
-            if oldpro is not None:
-                error = oldpro - pro
-                change = self.grid.integrate(error, error)
-
-            # compute entropy
-            entropy = self._compute_entropy(rho, pro)
-            self.history_entropies.append(entropy)
-            self.history_propars.append(propars.copy())
-            self.history_changes.append(change)
-
-            self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
-
-            if change < self.threshold:
-                pop = self.grid.integrate(rho)
-                check_pro_atom_parameters(
-                    propars,
-                    total_population=pop,
-                    pro_atom_density=pro,
-                    check_monotonicity=False,
-                )
-                self.cache.dump("niter", irep + 1, tags="o")
-                return propars
-
-            f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
-            delta = solve(hess, -1 - df, assume_a="sym")
-            # delta = spsolve(hess, -1 - df)
-            # self.logger.info(" delta:")
-            # self.logger.info(delta)
-            propars[:] = linear_search(delta, propars)
-            # propars += delta
-            oldpro = pro
-        else:
-            raise RuntimeError("Not converged!")
+    def solver_m_newton(
+        self,
+        maxiter=100,
+        linspace_size=40,
+        tau=1.0,
+        linesearch_mode="valid-promol",
+        density_cutoff=1e-15,
+    ):
+        """Default Modified Newton method"""
+        return self._solver_general_newton(
+            mode="modified",
+            maxiter=maxiter,
+            linesearch_mode=linesearch_mode,
+            tau=tau,
+            linspace_size=linspace_size,
+            density_cutoff=density_cutoff,
+        )
 
     def solver_quasi_newton(
         self,
-        maxiter=1000,
-        linspace_size=40,
-        niter_newton=0,
-        tau=1.0,
         mode="bfgs",
-        density_cutoff=1e-15,
+        maxiter=1000,
+        niter_exact_newton=0,
         linesearch_mode="valid-promol",
+        tau=1.0,
+        linspace_size=40,
+        density_cutoff=1e-15,
     ):
+        """Default Quasi-Newton method."""
+        assert mode in ["bfgs"]
+        return self._solver_general_newton(
+            mode=mode,
+            maxiter=maxiter,
+            niter_exact_newton=niter_exact_newton,
+            linesearch_mode=linesearch_mode,
+            tau=tau,
+            linspace_size=linspace_size,
+            density_cutoff=density_cutoff,
+        )
+
+    def _solver_general_newton(
+        self,
+        mode="bfgs",
+        maxiter=1000,
+        niter_exact_newton=0,
+        linesearch_mode="valid-promol",
+        tau=1.0,
+        linspace_size=40,
+        density_cutoff=1e-15,
+    ):
+        """
+        Implements a Newton solver with various modes and line search strategies for optimization problems,
+        particularly in molecular density calculations.
+
+        Parameters
+        ----------
+        mode : str, optional
+            Mode for the Newton solver. Choices are 'exact', 'modified', and 'bfgs'. Default is 'bfgs'.
+        maxiter : int, optional
+            Maximum number of iterations for the Newton solver. Default is 1000.
+        niter_exact_newton : int, optional
+            Number of iterations to use Newton's method. Default is 0.
+        linesearch_mode : str, optional
+            Mode for the line search algorithm. Choices are 'valid-promol' and 'with-extended-kl'.
+            Default is 'valid-promol'.
+        tau : float, optional
+            Initial step size in the line search. Default is 1.0.
+        linspace_size : int, optional
+            Size of the linspace used in the line search. Default is 40.
+        density_cutoff : float, optional
+            Cutoff value for small density. Default is 1e-15.
+
+        Raises
+        ------
+        RuntimeError
+            If the provided mode or linesearch_mode is invalid.
+            If the line search fails.
+            If the solver does not converge within the maximum iterations.
+
+        Returns
+        -------
+        list
+            Updated parameters (propars) after optimization.
+
+        """
+        valid_modes = ["exact", "modified", "bfgs"]
+        if mode not in valid_modes:
+            raise RuntimeError(f"Wrong Newton mode :{mode}. It should be one of {valid_modes}")
+
         valid_ls_modes = ["valid-promol", "with-extended-kl"]
         if linesearch_mode not in valid_ls_modes:
             raise RuntimeError(
@@ -718,8 +709,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 return propars
 
             if mode == "bfgs":
-                if irep == 0 or irep <= niter_newton - 1:
-                    if niter_newton == 0:
+                if irep == 0 or irep <= niter_exact_newton - 1:
+                    if niter_exact_newton == 0:
                         f, df = self._working_matrix(rho, pro, nb_par, 1)
                         hess = np.identity(len(df))
                     else:
