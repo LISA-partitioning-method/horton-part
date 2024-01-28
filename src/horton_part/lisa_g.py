@@ -47,7 +47,7 @@ from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .gisa import get_proatom_rho
 from .lisa import setup_bs_helper
-from .utils import NEGATIVE_CUTOFF, check_pro_atom_parameters
+from .utils import NEGATIVE_CUTOFF, PERIODIC_TABLE, check_pro_atom_parameters
 
 __all__ = ["GlobalLinearISAWPart"]
 
@@ -229,14 +229,47 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 spherical_average = spline(r)
                 pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
                 charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
-                rho0_iatom, _ = self.get_proatom_rho(iatom, propars)
-                # check rho0_iatom if it is monotonic
-                if not (rho0_iatom[:-1] - rho0_iatom[1:] > NEGATIVE_CUTOFF).all():
-                    raise RuntimeError(f"The proatom density of atom {iatom} is not monotonic!")
+                self.check_pro(iatom, propars)
+
             t1 = time.time()
             self.history_time_update_at_weights.append(t1 - t0)
 
             self._finalize_propars()
+
+    def is_promol_valid(self, propars):
+        valid = True
+        for iatom in range(self.natom):
+            valid_i = self.is_proatom_valid(iatom, propars)
+            if valid_i != 0:
+                valid = False
+                break
+        return valid
+
+    def is_proatom_valid(self, iatom, propars):
+        rho0_iatom, _ = self.get_proatom_rho(iatom, propars)
+        valid = 0
+        if (rho0_iatom < NEGATIVE_CUTOFF).any() or (
+            rho0_iatom[:-1] - rho0_iatom[1:] < NEGATIVE_CUTOFF
+        ).any():
+            if (rho0_iatom < NEGATIVE_CUTOFF).any():
+                valid = 1
+            else:
+                valid = 2
+        return valid
+
+    def check_pro(self, iatom, propars):
+        valid = self.is_proatom_valid(iatom, propars)
+        if valid != 0:
+            self.logger.debug(f"{PERIODIC_TABLE[self.numbers[iatom]]} with index = {iatom}")
+            exps = self.bs_helper.exponents[self.numbers[iatom]]
+            caks = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+            self.logger.debug(f"{'Exp.':>20}{'c_ak':>20} ")
+            for exp, c_ak in zip(exps, caks):
+                self.logger.debug(f"{exp:>20.8f}       {c_ak:>20.8f}")
+            if valid == 1:
+                raise RuntimeError("The proatom density is negative somewhere!")
+            elif valid == 2:
+                raise RuntimeError("The proatom density is not monotonic decay!")
 
     @just_once
     def eval_pro_shells(self):
@@ -571,6 +604,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # compute entropy
             entropy = self._compute_entropy(rho, pro)
             self.history_entropies.append(entropy)
+            self.history_propars.append(propars.copy())
+            self.history_changes.append(change)
 
             self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
 
@@ -590,8 +625,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # delta = spsolve(hess, -1 - df)
             # self.logger.info(" delta:")
             # self.logger.info(delta)
-            self.history_propars.append(propars.copy())
-            self.history_changes.append(change)
             propars[:] = linear_search(delta, propars)
             # propars += delta
             oldpro = pro
@@ -602,28 +635,53 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         self,
         maxiter=1000,
         linspace_size=40,
-        niter_newton=1,
+        niter_newton=0,
         tau=1.0,
-        mode="BFGS",
+        mode="bfgs",
         density_cutoff=1e-15,
+        linesearch_mode="valid-promol",
     ):
+        valid_ls_modes = ["valid-promol", "with-extended-kl"]
+        if linesearch_mode not in valid_ls_modes:
+            raise RuntimeError(
+                f"Wrong linesearch_mode {linesearch_mode}. It should be one of {valid_ls_modes}"
+            )
+
         assert tau >= 0
         rho, propars = self._moldens, self.propars
+        pop = self.grid.integrate(rho)
         nb_par = len(propars)
 
-        def linesearch(delta, propars, old_f=None):
-            for x in np.linspace(tau, 0.001, linspace_size):
-                new_propars = propars + x * delta
-                new_pro = self.calc_promol_dens(new_propars)
-                # f = self._working_matrix(rho, new_pro, nb_par, 0)
-                if (new_pro > NEGATIVE_CUTOFF).all():
-                    self.logger.debug(f"x: {x}")
-                    self.logger.debug(f" sum of delta: {np.sum(delta)}")
-                    self.logger.debug(f" sum of propars: {np.sum(new_propars)}")
-                    s = x * delta
-                    return new_propars, s
+        def linesearch(mode, delta, propars, old_pro_pop=None, old_f=None):
+            if mode == "exact":
+                return propars + delta, delta
+
+            x, _s, new_propars = None, None, None
+            for x in np.linspace(tau, 0, linspace_size, endpoint=False):
+                _s = x * delta
+                new_propars = propars + _s
+                if self.is_promol_valid(new_propars):
+                    if linesearch_mode == "valid-promol":
+                        break
+                    elif linesearch_mode == "with-extended-kl":
+                        new_pro = self.calc_promol_dens(new_propars)
+                        f = self._working_matrix(rho, new_pro, nb_par, 0)
+                        pro_pop = self.grid.integrate(new_pro)
+                        extended_kl = f + pro_pop
+                        old_extended_kl = old_f + old_pro_pop
+
+                        if (extended_kl - old_extended_kl) < NEGATIVE_CUTOFF:
+                            break
             else:
-                return self.function_g(propars, density_cutoff=density_cutoff), delta
+                # self-consistent step
+                # new_propars = self.function_g(propars, density_cutoff=density_cutoff)
+                # _s = 0.5 * delta
+                raise RuntimeError("Line search failed!")
+
+            self.logger.debug(f"x: {x}")
+            self.logger.debug(f" sum of delta: {np.sum(delta)}")
+            self.logger.debug(f" sum of propars: {np.sum(new_propars)}")
+            return new_propars, _s
 
         oldpro = None
         change = 1e100
@@ -643,21 +701,23 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # compute entropy
             entropy = self._compute_entropy(rho, pro)
             self.history_entropies.append(entropy)
+            self.history_propars.append(propars.copy())
+            self.history_changes.append(change)
 
             self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
 
             if change < self.threshold:
-                pop = self.grid.integrate(rho)
                 check_pro_atom_parameters(
                     propars,
                     total_population=pop,
                     pro_atom_density=pro,
                     check_monotonicity=False,
+                    check_propars_negativity=False,
                 )
                 self.cache.dump("niter", irep + 1, tags="o")
                 return propars
 
-            if mode == "BFGS":
+            if mode == "bfgs":
                 if irep == 0 or irep <= niter_newton - 1:
                     if niter_newton == 0:
                         f, df = self._working_matrix(rho, pro, nb_par, 1)
@@ -677,16 +737,16 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                         - (oldH @ np.einsum("i,j->ij", y, s) + np.einsum("i,j->ij", s, y) @ oldH)
                         / sy
                     )
+                delta = H @ (-1 - df)
+            elif mode in ["exact", "modified"]:
+                f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
+                delta = solve(hess, -1 - df, assume_a="sym")
             else:
                 raise NotImplementedError
 
-            delta = H @ (-1 - df)
-
-            # Save propars and change
-            self.history_propars.append(propars.copy())
-            self.history_changes.append(change)
-
-            propars[:], s = linesearch(delta, propars, f)
+            propars[:], s = linesearch(
+                mode, delta, propars, old_pro_pop=self.grid.integrate(pro), old_f=f
+            )
             oldpro = pro
             olddf = df
             oldH = H

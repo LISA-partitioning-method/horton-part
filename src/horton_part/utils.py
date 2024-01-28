@@ -39,6 +39,8 @@ __all__ = [
     "POPULATION_CUTOFF",
     "ANGSTROM",
     "PERIODIC_TABLE",
+    "NegativeDensityError",
+    "NotMonotonicDecayError",
 ]
 
 
@@ -469,6 +471,8 @@ def check_pro_atom_parameters(
     total_population=None,
     pro_atom_density=None,
     check_monotonicity=True,
+    check_dens_negativity=True,
+    check_propars_negativity=True,
 ):
     """
     Check the validity of pro-atom parameters.
@@ -491,6 +495,10 @@ def check_pro_atom_parameters(
         from pro_atom_params and basis_functions.
     check_monotonicity: bool, optional
         Check if the density is monotonically decreased w.r.t. radial radius.
+    check_dens_negativity: bool, optional
+        Check if the density is non-negativity.
+    check_propars_negativity: bool, optional
+        Check if the propars is negative.
 
     Raises
     ------
@@ -523,7 +531,7 @@ def check_pro_atom_parameters(
             raise ValueError("pro_atom_density must be a 1D array")
 
     # Check if pro-atom parameters are positive
-    if (pro_atom_params < NEGATIVE_CUTOFF).any():
+    if check_propars_negativity and (pro_atom_params < NEGATIVE_CUTOFF).any():
         warnings.warn("Not all pro-atom parameters are positive!")
 
     # Calculate pro-atom density if not provided
@@ -535,7 +543,7 @@ def check_pro_atom_parameters(
         pro_atom_density = (basis_functions * pro_atom_params[:, None]).sum(axis=0)
 
     # Check for negative pro-atom density
-    if pro_atom_density is not None and (pro_atom_density < NEGATIVE_CUTOFF).any():
+    if check_dens_negativity and (pro_atom_density < NEGATIVE_CUTOFF).any():
         raise RuntimeError("Negative pro-atom density found!")
 
     # Check if the sum of pro-atom parameters matches total population
@@ -574,3 +582,15 @@ def check_for_hessian_error(hess):
     if (np.linalg.eigvals(hess) <= NEGATIVE_CUTOFF).any():
         # raise RuntimeError("All eigenvalues of Hessian matrix are not all")
         warnings.warn("All eigenvalues of Hessian matrix are not all")
+
+
+class NegativeDensityError(RuntimeError):
+    """Negative density error."""
+
+    pass
+
+
+class NotMonotonicDecayError(RuntimeError):
+    """The pro-density is not monotonic decay error."""
+
+    pass
