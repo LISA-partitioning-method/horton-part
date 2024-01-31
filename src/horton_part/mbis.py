@@ -38,8 +38,14 @@ def _get_nshell(number):
     return noble.searchsorted(number) + 1
 
 
+def _get_real_nshell(number):
+    noble = np.array([2, 10, 18, 36, 54, 86, 118])
+    return noble.searchsorted(number) + 2
+
+
 def _get_initial_mbis_propars(number):
-    nshell = _get_nshell(number)
+    _nshell = _get_nshell(number)
+    nshell = _get_real_nshell(number)
     propars = np.zeros(2 * nshell, float)
     S0 = 2.0 * number
     if nshell > 1:
@@ -48,10 +54,10 @@ def _get_initial_mbis_propars(number):
     else:
         alpha = 1.0
     nel_in_shell = np.array([2.0, 8.0, 8.0, 18.0, 18.0, 32.0, 32.0])
-    for ishell in range(nshell):
-        propars[2 * ishell] = nel_in_shell[ishell]
-        propars[2 * ishell + 1] = S0 * alpha**ishell
-    propars[-2] = number - propars[:-2:2].sum()
+    for ishell in range(_nshell):
+        propars[2 * ishell : 2 * _nshell] = nel_in_shell[ishell]
+        propars[2 * ishell + 1 : 2 * _nshell] = S0 * alpha**ishell
+    propars[-2] = number - propars[: 2 * _nshell][:-2:2].sum()
     return propars
 
 
@@ -89,7 +95,10 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             m0 = rgrid.integrate(4 * np.pi * r**2, terms[ishell])
             m1 = rgrid.integrate(4 * np.pi * r**2, terms[ishell], r)
             propars[2 * ishell] = m0
-            propars[2 * ishell + 1] = 3 * m0 / m1
+            if np.isclose(0.0, m1):
+                propars[2 * ishell + 1] = 1e-3
+            else:
+                propars[2 * ishell + 1] = 3 * m0 / m1
         # check for convergence
         if oldpro is None:
             change = 1e100
@@ -195,7 +204,7 @@ class MBISWPart(AbstractISAWPart):
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
-            nshell = _get_nshell(self.numbers[iatom])
+            nshell = _get_real_nshell(self.numbers[iatom])
             self._ranges.append(self._ranges[-1] + 2 * nshell)
             self._nshells.append(nshell)
         ntotal = self._ranges[-1]
