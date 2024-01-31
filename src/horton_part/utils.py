@@ -543,7 +543,11 @@ def check_pro_atom_parameters(
         pro_atom_density = (basis_functions * pro_atom_params[:, None]).sum(axis=0)
 
     # Check for negative pro-atom density
-    if check_dens_negativity and (pro_atom_density < NEGATIVE_CUTOFF).any():
+    if (
+        check_dens_negativity
+        and pro_atom_density is not None
+        and (pro_atom_density < NEGATIVE_CUTOFF).any()
+    ):
         raise RuntimeError("Negative pro-atom density found!")
 
     # Check if the sum of pro-atom parameters matches total population

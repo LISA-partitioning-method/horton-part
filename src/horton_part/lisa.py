@@ -32,6 +32,7 @@ from scipy.sparse import SparseEfficiencyWarning
 
 from .algo.cdiis import cdiis
 from .algo.diis import diis
+from .algo.quasi_newton import bfgs
 from .core.basis import BasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
@@ -460,53 +461,17 @@ def solver_newton(
         If the inner iteration does not converge.
 
     """
-    logger.debug("            Iter.    Change    ")
-    logger.debug("            -----    ------    ")
-
-    oldpro = None
-    change = 1e100
-
-    if logger.level <= logging.DEBUG:
-        diff = rho[:-1] - rho[1:]
-        logger.debug(" Check monotonicity of density ".center(80, "*"))
-        if len(diff[diff < -1e-5]):
-            logger.debug("The spherical average density is not monotonically decreasing.")
-            logger.debug("The different between densities on two neighboring points are negative:")
-            logger.debug(diff[diff < -1e-5])
-        else:
-            logger.debug("Pass.")
-
-    for irep in range(1000):
-        _, pro, sick, ratio, ln_ratio = compute_quantities(rho, propars, bs_funcs, density_cutoff)
-        integrand = bs_funcs * ratio
-        logger.debug(" Optimized pro-atom parameters:")
-        logger.debug(propars)
-
-        # check for convergence
-        if oldpro is not None:
-            error = oldpro - pro
-            change = np.sqrt(np.einsum("i,i,i", weights, error, error))
-        logger.debug(f"            {irep+1:<4}    {change:.3e}")
-        if change < threshold:
-            check_pro_atom_parameters(
-                propars, total_population=float(np.sum(pro)), pro_atom_density=pro
-            )
-            return propars
-
-        # update propars
-        with np.errstate(all="ignore"):
-            grad_integrand = integrand / pro
-        grad_integrand[:, sick] = 0.0
-
-        jacob = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
-        h = 1 - np.einsum("kp,p->k", integrand, weights)
-        delta = solve(jacob, -h, assume_a="sym")
-        logger.debug(" delta:")
-        logger.debug(delta)
-        # TODO: modified newton
-        propars += delta
-        oldpro = pro
-    raise RuntimeError("Inner loop: Newton does not converge!")
+    return _solver_general_newton(
+        bs_funcs,
+        rho,
+        propars,
+        points,
+        weights,
+        threshold,
+        logger,
+        density_cutoff,
+        "exact",
+    )
 
 
 def solver_m_newton(
@@ -521,6 +486,117 @@ def solver_m_newton(
 ):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
+    return _solver_general_newton(
+        bs_funcs,
+        rho,
+        propars,
+        points,
+        weights,
+        threshold,
+        logger,
+        density_cutoff,
+        "modified",
+    )
+
+
+def solver_quasi_newton(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    logger,
+    density_cutoff=1e-15,
+):
+    r"""
+    Optimize parameters for pro-atom density functions using Quasi-Newton method
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    points : 1D np.ndarray
+        Radial coordinates of grid points, with shape (N,).
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    threshold : float
+        Convergence threshold for the iterative process.
+    density_cutoff : float
+        Density values below this cutoff are considered invalid.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
+    return _solver_general_newton(
+        bs_funcs,
+        rho,
+        propars,
+        points,
+        weights,
+        threshold,
+        logger,
+        density_cutoff,
+        "bfgs",
+    )
+
+
+def _solver_general_newton(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    logger,
+    density_cutoff=1e-15,
+    mode="bfgs",
+):
+    r"""
+    Optimize parameters for pro-atom density functions using Quasi-Newton method
 
     Parameters
     ----------
@@ -567,38 +643,29 @@ def solver_m_newton(
         else:
             logger.debug("Pass.")
 
-    # def linear_search(delta, old_f, propars):
-    #     for x in np.linspace(1, 0, 20):
-    #         new_propars = propars + x * delta
-    #         _, _, _, _, ln_ratio = compute_quantities(
-    #             rho, new_propars, bs_funcs, density_cutoff
-    #         )
-    #         new_f = np.einsum("i,i", rho * ln_ratio, weights)
-    #         if new_f <= old_f:
-    #             logger.info(f"The sum of propars: {np.sum(new_propars)}")
-    #             logger.info(f"The pop of atom: {np.einsum('i,i',rho, weights)}")
-    #             logger.info(f"new_f: {new_f}")
-    #             logger.info(f"old_f: {old_f}")
-    #             logger.info(f"x: {x}")
-    #             return new_propars
-    #     else:
-    #         return propars
+    def linesearch(delta, propars):
+        if mode == "exact":
+            return propars + delta, delta
 
-    def linear_search(delta, propars):
         for x in np.linspace(1, 0, 20):
-            new_propars = propars + x * delta
+            _s = x * delta
+            new_propars = propars + _s
             _, new_pro, _, _, ln_ratio = compute_quantities(
                 rho, new_propars, bs_funcs, density_cutoff
             )
-            # if (new_pro > NEGATIVE_CUTOFF).all() and (
-            #     new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
-            # ).all():
-            if (new_pro > NEGATIVE_CUTOFF).all():
-                logger.debug(f"x: {x}")
-                return new_propars
+            if (new_pro > NEGATIVE_CUTOFF).all() and (
+                new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
+            ).all():
+                # if (new_pro > NEGATIVE_CUTOFF).all():
+                #     logger.debug(f"x: {x}")
+                return new_propars, _s
         else:
-            return propars
+            raise RuntimeError("Line search failed!")
 
+    H = None
+    olddf = None
+    oldH = None
+    s = None
     for irep in range(1000):
         _, pro, sick, ratio, ln_ratio = compute_quantities(rho, propars, bs_funcs, density_cutoff)
         logger.debug(" Optimized pro-atom parameters:")
@@ -621,17 +688,32 @@ def solver_m_newton(
             grad_integrand = integrand / pro
         grad_integrand[:, sick] = 0.0
 
-        jacob = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
-        h = 1 - np.einsum("kp,p->k", integrand, weights)
-        delta = solve(jacob, -h, assume_a="sym")
+        if mode == "bfgs":
+            if irep == 0:
+                hess = np.identity(len(propars))
+                H = np.linalg.inv(hess)
+                df = -np.einsum("kp,p->k", integrand, weights)
+            else:
+                df = -np.einsum("kp,p->k", integrand, weights)
+                H = bfgs(df, s, olddf, oldH)
+            delta = H @ (-1 - df)
+        elif mode in ["exact", "modified"]:
+            df = -np.einsum("kp,p->k", integrand, weights)
+            hess = np.einsum("kp, jp, p->kj", grad_integrand, bs_funcs, weights)
+            delta = solve(hess, -1 - df, assume_a="sym")
+        else:
+            raise NotImplementedError
+
+        propars[:], s = linesearch(delta, propars)
+
         logger.debug(" delta:")
         logger.debug(delta)
         logger.debug("the sum of delta:")
         logger.debug(np.sum(delta))
 
-        # TODO: modified newton
-        propars[:] = linear_search(delta, propars)
         oldpro = pro
+        olddf = df
+        oldH = H
     raise RuntimeError("Inner loop: Newton does not converge!")
 
 
@@ -843,6 +925,7 @@ class LinearISAWPart(GaussianISAWPart):
         # Not robust
         "newton": solver_newton,
         "m-newton": solver_m_newton,
+        "quasi-newton": solver_quasi_newton,
         # Explicit constr is faster than implicit
         "trust-region": solver_trust_region,
         "sc-1-iter": solver_sc_1_iter,

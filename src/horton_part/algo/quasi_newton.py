@@ -17,6 +17,33 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-from .cdiis import *
-from .diis import *
-from .quasi_newton import *
+import numpy as np
+
+__all__ = ["bfgs"]
+
+
+def bfgs(df, s, olddf, oldH):
+    """
+    BFGS method to construct the inversion of the Hessian matrix
+
+    Parameters
+    ----------
+    df
+    s
+    olddf
+    oldH
+
+    Returns
+    -------
+    np.ndarray
+        The inverse of Hessian matrix.
+
+    """
+    y = df - olddf
+    sy = s @ y
+    H = (
+        oldH
+        + (sy + np.einsum("i,ij,j->", y, oldH, y)) * np.einsum("i,j->ij", s, s) / sy**2
+        - (oldH @ np.einsum("i,j->ij", y, s) + np.einsum("i,j->ij", s, y) @ oldH) / sy
+    )
+    return H

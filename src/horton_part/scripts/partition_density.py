@@ -91,9 +91,31 @@ class PartDensProg(PartProg):
                 begin, end = part._ranges[i], part._ranges[i + 1]
                 propars_i = propars[begin:end]
                 self.logger.info(f"Propars for atom {PERIODIC_TABLE[part.numbers[i]]}:")
-                for par in propars_i:
-                    self.logger.info(f"{par:>20.8f}")
+                if part.name == "mbis":
+                    self.logger.info(f"{'Populations':>20}    {'Exponents':>20}")
+                    for par, exp in zip(propars_i[::2], propars_i[1::2]):
+                        self.logger.info(f"{par:>20.8f}    {exp:>20.8f}")
+                else:
+                    for par in propars_i:
+                        self.logger.info(f"{par:>20.8f}")
                 self.logger.info(" ")
+            self.print_line()
+
+    def print_basis(self, part):
+        """Print basis functions used in Partitioning methods."""
+        if part.name in ["gisa", "lisa", "glisa"]:
+            self.print_header("Basis functions")
+            self.logger.info("    Exponential order  Exponents coefficients  Initials values")
+            self.logger.info("    -----------------  ----------------------  ---------------")
+            numbers = sorted(set(part.numbers))
+            bs_helper = part.bs_helper
+            for number in numbers:
+                self.logger.info(f"Atom {PERIODIC_TABLE[number]}")
+                orders = bs_helper.orders[number]
+                exponents = bs_helper.exponents[number]
+                initials = bs_helper.initials[number]
+                for n, cak, pop in zip(orders, exponents, initials):
+                    self.logger.info(f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}")
             self.print_line()
 
     def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log):
@@ -160,6 +182,7 @@ class PartDensProg(PartProg):
         # part.do_moments()
 
         # Print results
+        self.print_basis(part)
         self.print_header("Results")
         self.print_charges(data["atnums"], part.cache["charges"])
         # logger.info("cartesian multipoles:")

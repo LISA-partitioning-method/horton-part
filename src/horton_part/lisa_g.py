@@ -40,7 +40,7 @@ from scipy.optimize import SR1, LinearConstraint, minimize
 from horton_part import gisa
 from horton_part.core import iterstock
 
-from .algo import cdiis, diis
+from .algo import bfgs, cdiis, diis
 from .core.cache import just_once
 from .core.iterstock import compute_change
 from .core.logging import deflist
@@ -718,16 +718,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                     H = np.linalg.inv(hess)
                 else:
                     f, df = self._working_matrix(rho, pro, nb_par, 1)
-                    y = df - olddf
-                    sy = s @ y
-                    H = (
-                        oldH
-                        + (sy + np.einsum("i,ij,j->", y, oldH, y))
-                        * np.einsum("i,j->ij", s, s)
-                        / sy**2
-                        - (oldH @ np.einsum("i,j->ij", y, s) + np.einsum("i,j->ij", s, y) @ oldH)
-                        / sy
-                    )
+                    H = bfgs(df, s, olddf, oldH)
+
                 delta = H @ (-1 - df)
             elif mode in ["exact", "modified"]:
                 f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
