@@ -46,7 +46,8 @@ def _get_real_nshell(number):
 def _get_initial_mbis_propars(number):
     _nshell = _get_nshell(number)
     nshell = _get_real_nshell(number)
-    propars = np.zeros(2 * nshell, float)
+    # propars = np.zeros(2 * nshell, float)
+    propars = np.ones(2 * nshell, float)
     S0 = 2.0 * number
     if nshell > 1:
         S1 = 2.0
@@ -57,7 +58,8 @@ def _get_initial_mbis_propars(number):
     for ishell in range(_nshell):
         propars[2 * ishell : 2 * _nshell] = nel_in_shell[ishell]
         propars[2 * ishell + 1 : 2 * _nshell] = S0 * alpha**ishell
-    propars[-2] = number - propars[: 2 * _nshell][:-2:2].sum()
+    # propars[-2] = number - propars[: 2 * _nshell][:-2:2].sum()
+    propars[::2] = propars[::2] * number / np.sum(propars[::2])
     return propars
 
 
@@ -69,7 +71,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     oldpro = None
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
-    for irep in range(1000):
+    for irep in range(100000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
             N = propars[2 * ishell]
