@@ -103,6 +103,8 @@ class ISAWPart(AbstractISAWPart):
         r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
         spline = atgrid.spherical_average(at_weights * dens)
         spherical_average = np.clip(spline(r), 1e-100, np.inf)
+        self.cache.dump(f"radial_points_{index}", r, tags="o")
+        self.cache.dump(f"spherical_average_{index}", spherical_average, tags="o")
 
         # assign as new propars
         propars = self.cache.load("propars")

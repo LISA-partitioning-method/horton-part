@@ -101,20 +101,33 @@ class PartDensProg(PartProg):
                 self.logger.info(" ")
             self.print_line()
 
+    def load_basis_info(self, part):
+        if part.name not in ["gisa", "lisa", "glisa"]:
+            return {}
+
+        res = {}
+        numbers = sorted(set(part.numbers))
+        bs_helper = part.bs_helper
+        for number in numbers:
+            orders = bs_helper.orders[number]
+            exponents = bs_helper.exponents[number]
+            initials = bs_helper.initials[number]
+            res[number] = [orders, exponents, initials]
+        return res
+
     def print_basis(self, part):
         """Print basis functions used in Partitioning methods."""
+
         if part.name in ["gisa", "lisa", "glisa"]:
+            bs_info = self.load_basis_info(part)
+
             self.print_header("Basis functions")
             self.logger.info("    Exponential order  Exponents coefficients  Initials values")
             self.logger.info("    -----------------  ----------------------  ---------------")
             numbers = sorted(set(part.numbers))
-            bs_helper = part.bs_helper
             for number in numbers:
                 self.logger.info(f"Atom {PERIODIC_TABLE[number]}")
-                orders = bs_helper.orders[number]
-                exponents = bs_helper.exponents[number]
-                initials = bs_helper.initials[number]
-                for n, cak, pop in zip(orders, exponents, initials):
+                for n, cak, pop in zip(*bs_info[number]):
                     self.logger.info(f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}")
             self.print_line()
 
@@ -174,7 +187,8 @@ class PartDensProg(PartProg):
         # Create part object
         part = wpart_schemes(args.type)(**part_kwargs)
         try:
-            part.do_partitioning()
+            getattr(part, args.part_job_type)()
+            # part.do_partitioning()
         except RuntimeError as e:
             self.logger.info(e)
             return 1
@@ -218,6 +232,14 @@ class PartDensProg(PartProg):
 
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
+
+        if args.part_job_type == "do_density_decomposition":
+            bs_info = self.load_basis_info(part)
+            for iatom in range(part.natom):
+                for k in [f"radial_points_{iatom}", f"spherical_average_{iatom}"]:
+                    part_data[k] = part.cache[k]
+                if len(bs_info):
+                    part_data[f"bs_info_{iatom}"] = np.asarray(bs_info[part.numbers[iatom]]).T
 
         # NOTE: do not restore molecular density and grids
         # part_data.update(data)
@@ -316,6 +338,12 @@ class PartDensProg(PartProg):
             type=str,
             default=None,
             help="The objective function type for GISA and LISA methods. [default=%(default)s]",
+        )
+        parser.add_argument(
+            "--part_job_type",
+            type=str,
+            default="do_partitioning",
+            help="The type of partitioning job. [default=%(default)s]",
         )
         parser.add_argument(
             "--config_file",

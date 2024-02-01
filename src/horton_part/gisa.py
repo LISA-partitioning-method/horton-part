@@ -236,6 +236,9 @@ class GaussianISAWPart(AbstractISAWPart):
         points = atgrid.rgrid.points
         spherical_average = spline(points)
 
+        self.cache.dump(f"radial_points_{iatom}", points, tags="o")
+        self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
+
         # assign as new propars
         propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
         bs_funcs = self.cache.load("bs_funcs", iatom)
