@@ -216,6 +216,8 @@ class MBISWPart(AbstractISAWPart):
         points = rgrid.points
         spherical_average = spline(points)
         # spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
+        self.cache.dump(f"radial_points_{iatom}", points, tags="o")
+        self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
 
         # assign as new propars
         my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
