@@ -273,21 +273,14 @@ def cdiis(
 
         if mode == "R-CDIIS":
             if mk > 0:
-                print_func(
-                    "tau*||s^(k)|| = "
-                    + str(tau * np.linalg.norm(history_dr[:, -1]))
-                    + "   >?  ||s^(k)-Q*Q.T*s^(k)|| = "
-                    + str(
-                        np.linalg.norm(
-                            history_dr[:, -1] - np.dot(Q1, np.dot(Q1.T, history_dr[:, -1]))
-                        )
-                    )
+                tau_dr = tau * np.linalg.norm(history_dr[:, -1])
+                _criteria = np.linalg.norm(
+                    history_dr[:, -1] - np.dot(Q1, np.dot(Q1.T, history_dr[:, -1]))
                 )
+                print_func(f"tau*||s^(k)|| = {tau_dr}   >?  ||s^(k)-Q*Q.T*s^(k)|| = {_criteria}")
 
                 # Cs[:, -1] - np.dot(Q1, np.dot(Q1.T, Cs[:, -1]))
-                if tau * np.linalg.norm(history_dr[:, -1]) > np.linalg.norm(
-                    history_dr[:, -1] - Q1 @ Q1.T @ history_dr[:, -1]
-                ):
+                if tau_dr > _criteria:
                     # logger.info("********* Restart ***********")
                     restartIt.append(nbiter)
                     mk = minrestart - 1
