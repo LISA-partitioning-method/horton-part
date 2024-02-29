@@ -58,9 +58,9 @@ Functionality
 
     * Gaussian iterative stockholder approach (GISA)
 
-    * Local Linear approximation of the ISA (L-ISA) method
+    * Local Linear approximation of the ISA (LISA) method
 
-    * Global Linear approximation of the ISA (GL-ISA) method
+    * Global Linear approximation of the ISA (GLISA) method
 
 
 
