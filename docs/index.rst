@@ -1,4 +1,4 @@
-.. image:: horton_part_logo.png
+.. image:: horton_part_logo.svg
   :width: 450
   :align: center
 

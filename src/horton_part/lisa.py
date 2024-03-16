@@ -1003,13 +1003,13 @@ class LinearISAWPart(GaussianISAWPart):
             ("Using global ISA", False),
         ]
 
-        if not callable(self._solver):
-            if self._solver in ["cvxopt-ng", "diis", "newton"]:
-                allow_negative_params = True
-            else:
-                allow_negative_params = False
-        else:
-            allow_negative_params = "Unknown"
+        # if not callable(self._solver):
+        #     if self._solver in ["cvxopt-ng", "diis", "newton"]:
+        #         allow_negative_params = True
+        #     else:
+        #         allow_negative_params = False
+        # else:
+        #     allow_negative_params = "Unknown"
 
         info_list.extend(
             [
@@ -1021,7 +1021,7 @@ class LinearISAWPart(GaussianISAWPart):
                 ),
                 ("Basis function type", self._func_type),
                 ("Local grid radius", self._radius_cutoff),
-                ("Allow negative parameters", allow_negative_params),
+                # ("Allow negative parameters", allow_negative_params),
             ]
         )
         for k, v in self._solver_options.items():
