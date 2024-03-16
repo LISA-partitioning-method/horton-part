@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1]  - 2024-03-16
+
+### Added
+- Update new logo
+
+### Fixed
+- GISA docs error.
+
 ## [1.1.0]  - 2024-01-17
 
 ### Added
