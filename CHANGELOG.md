@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2]  - 2024-03-24
+
+### Added
+- Package version in documentation.
+
+### Fixed
+- Initial values for GLISA-SC/LISA-SC and Newton methods.
+
 ## [1.1.1]  - 2024-03-16
 
 ### Added
