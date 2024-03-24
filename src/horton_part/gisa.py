@@ -72,10 +72,20 @@ def init_propars(part):
     ntotal = part._ranges[-1]
     propars = part.cache.load("propars", alloc=ntotal, tags="o")[0]
     propars[:] = 1.0
+    # print("Set initial value")
+    # print("-" * 80)
+    # print(part.pseudo_numbers)
+    # print(np.sum(part.pseudo_numbers))
+    # print(part.nelec)
+    # print("-" * 80)
     for iatom in range(part.natom):
-        propars[part._ranges[iatom] : part._ranges[iatom + 1]] = part.bs_helper.get_initial(
-            part.numbers[iatom]
+        inits = part.bs_helper.get_initial(part.numbers[iatom])
+        # Note: the zero initials are not activated in self-consistent method.
+        inits[inits < 1e-4] = 1e-4
+        propars[part._ranges[iatom] : part._ranges[iatom + 1]] = (
+            inits / np.sum(inits) * part.pseudo_numbers[iatom]
         )
+    propars[:] = propars / np.sum(propars) * part.nelec
     part._evaluate_basis_functions()
     return propars
 

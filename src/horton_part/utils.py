@@ -554,7 +554,10 @@ def check_pro_atom_parameters(
     if total_population is not None and not np.allclose(
         np.sum(pro_atom_params), total_population, atol=POPULATION_CUTOFF
     ):
-        warnings.warn("The sum of pro-atom parameters is not equal to atomic population")
+        warnings.warn(
+            r"The sum of pro-atom parameters is not equal to atomic population."
+            # rf"The difference is {np.sum(pro_atom_params) - total_population}"
+        )
 
     if check_monotonicity and pro_atom_density is not None:
         if (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any():

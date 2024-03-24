@@ -723,7 +723,10 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 delta = H @ (-1 - df)
             elif mode in ["exact", "modified"]:
                 f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
-                delta = solve(hess, -1 - df, assume_a="sym")
+                try:
+                    delta = solve(hess, -1 - df, assume_a="sym")
+                except np.linalg.LinAlgError as e:
+                    raise RuntimeError(e)
             else:
                 raise NotImplementedError
 

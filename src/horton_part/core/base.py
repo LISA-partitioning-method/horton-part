@@ -119,6 +119,11 @@ class Part(JustOnceClass):
         return self._pseudo_numbers
 
     @property
+    def nelec(self):
+        """The number of electrons in the molecule."""
+        return self.grid.integrate(self._moldens)
+
+    @property
     def grid(self):
         """Molecular grid."""
         return self.get_grid()

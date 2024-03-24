@@ -13,6 +13,8 @@
 import os
 import sys
 
+from horton_part import __version__
+
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../"))
 
@@ -21,6 +23,8 @@ sys.path.insert(0, os.path.abspath("../"))
 project = "Horton-Part"
 copyright = "2023, YingXing Cheng"
 author = "YingXing Cheng"
+version = __version__
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------

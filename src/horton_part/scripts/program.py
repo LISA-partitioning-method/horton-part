@@ -24,7 +24,7 @@ import os
 
 import yaml
 
-from horton_part import PERIODIC_TABLE, setup_logger
+from horton_part import PERIODIC_TABLE, __version__, setup_logger
 
 __all__ = ["PartProg", "load_settings_from_yaml_file"]
 
@@ -128,7 +128,9 @@ class PartProg:
 
     def print_settings(self, args, fn_in, fn_out, fn_log, exclude_keys=None):
         """Print setting for this program."""
-        self.print_header(f"Settings for {self.program_name} program")
+        self.print_header(
+            f"Settings for {self.program_name} program with Horton-Part {__version__}"
+        )
         for k, v in vars(args).items():
             if exclude_keys and k in exclude_keys:
                 continue

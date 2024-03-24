@@ -34,7 +34,7 @@ from .mulliken import *
 from .utils import *
 
 try:
-    from _version import __version__
+    from ._version import __version__, __version_tuple__
 except ImportError:
     __version__ = "0.0.0a-dev"
     __version_tuple__ = (0, 0, 0, "a-dev")

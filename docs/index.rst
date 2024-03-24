@@ -11,11 +11,12 @@ In HORTON3, all sub-modules have been rewritten using the pure Python programmin
 However, the algorithm implemented in ``denspart`` only uses one-step optimization, which can be computationally expensive for large systems. Additionally, ``denspart`` only supports the ``MBIS`` partitioning scheme.
 Another ``part`` module has been rewritten in pure Python programming language by Farnaz Heidar-Zadeh (2). However, the integration grid implemented in this module still uses the old 'grid' from Horton2. `HORTON-PART <https://github.com/yingxingcheng/horton-part>`_ with version ``0.0.X`` is based on this module. Starting from version ``1.X.X``, `HORTON-PART <https://github.com/yingxingcheng/horton-part>`_ supports the new integration `qc-grid <https://github.com/theochem/grid>`_.
 
-This version contains contributions from YingXing Cheng (1), Toon Verstraelen (1), Pawel Tecmer (2), Farnaz Heidar-Zadeh (2), Cristina E. González-Espinoza (2), Matthew Chan (2), Taewon D. Kim (2), Katharina Boguslawski (2), Stijn Fias (3), Steven Vandenbrande (1), Diego Berrocal (2), and Paul W. Ayers (2)
+This version contains contributions from YingXing Cheng (4), Toon Verstraelen (1), Pawel Tecmer (2), Farnaz Heidar-Zadeh (2), Cristina E. González-Espinoza (2), Matthew Chan (2), Taewon D. Kim (2), Katharina Boguslawski (2), Stijn Fias (3), Steven Vandenbrande (1), Diego Berrocal (2), and Paul W. Ayers (2)
 
 - (1) Center for Molecular Modeling (CMM), Ghent University, Ghent, Belgium.
 - (2) The Ayers Group, McMaster University, Hamilton, Ontario, Canada.
 - (3) General Chemistry (ALGC), Free University of Brussels, Brussels, Belgium.
+- (4) Numerical Mathematics for High Performance Computing (NMH), University of Stuttgart, Stuttgart, Germany.
 
 More information about HORTON can be found on this `website <http://theochem.github.com/horton/>`_.
 
@@ -31,7 +32,7 @@ The Horton-Part source code is hosted on GitHub and is released under the GNU Ge
 any contributions to the Horton-Part library in accordance with our Code of Conduct; please see our Contributing
 Guidelines. Please report any issues you encounter while using Horton-Part library on
 `GitHub Issues <https://github.com/yingxingcheng/horton-part/issues/new>`_. For further
-information and inquiries please contact us at yingxing.cheng@icould.com.
+information and inquiries please contact us at yxcheng2buaa@gmail.com.
 
 
 Functionality

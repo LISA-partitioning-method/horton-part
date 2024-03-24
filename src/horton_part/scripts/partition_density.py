@@ -27,7 +27,7 @@ from grid.atomgrid import AtomGrid
 from grid.basegrid import OneDGrid
 from grid.molgrid import MolGrid
 
-from horton_part import PERIODIC_TABLE, wpart_schemes
+from horton_part import PERIODIC_TABLE, __version__, wpart_schemes
 
 from .program import PartProg
 
@@ -251,7 +251,7 @@ class PartDensProg(PartProg):
 
     def build_parser(self):
         """Parse command-line arguments."""
-        description = "Molecular density partitioning with HORTON3."
+        description = f"Molecular density partitioning with HORTON3 {__version__}."
         parser = argparse.ArgumentParser(prog="part-dens", description=description)
 
         # for part
