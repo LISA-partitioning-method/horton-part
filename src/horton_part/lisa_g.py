@@ -29,7 +29,6 @@ Module for Global Linear Iterative Stockholder Analysis (GL-ISA) partitioning sc
     - Alternating method (`name` = "glisa_sc")
     - DIIS (`name` = "glisa_diis")
 """
-
 import time
 
 import cvxopt
@@ -643,14 +642,56 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         pop = self.grid.integrate(rho)
         nb_par = len(propars)
 
+        # Function to update propars
+        def update_propars(exp_array, propars, delta):
+            sorted_indices = np.argsort(exp_array)
+            check_diffused = True
+            fixed_indices = []
+            for index in sorted_indices:
+                # Check if the corresponding c_ak is non-zero and ensure positivity
+                if check_diffused and np.abs(propars[index]) < 1e-4 and delta[index] < 0.0:
+                    fixed_indices.append(index)
+                else:
+                    check_diffused = False
+                    # if check_diffused:
+                    #     assert propars[index] > 0.0
+            return fixed_indices
+
         def linesearch(mode, delta, propars, old_pro_pop=None, old_f=None):
             if mode == "exact":
                 return propars + delta, delta
 
+            # check entropy
+            self.logger.debug(f"Extended KL: {old_f+old_pro_pop:.8f}, KL: {old_f:.8f}")
+
+            # We have a set of Gaussian functions with a set of exponential coefficients defined in an array
+            # called exp_array. The prefactors of these functions are stored in another array, named propars.
+            # These prefactors are updated as follows: propars = propars + delta, where delta is an increment array.
+            # The issue arises when the prefactor of the most diffused basis function, corresponding to the smallest
+            # exponential coefficient, cannot be negative. Therefore, we need to find the position of the most diffused
+            # function and determine the corresponding propars. If the corresponding c_ak is already zero, we need to
+            # check the second most diffused function, and so on, until we find the first non-zero one, which must
+            # always be positive.
+            # We then record all indices of the diffused functions we checked and the corresponding c_ak being zero.
+            # For these propars, we need to check if the corresponding delta elements are negative or non-negative.
+            # If they are positive, we can safely update propars = propars + delta; otherwise, we retain zeros.
+
+            global_fixed_index = np.ones_like(delta)
+            for iatom in range(self.natom):
+                exp_array_i = self.bs_helper.get_exponent(self.numbers[iatom])
+                propars_i = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+                delta_i = delta[self._ranges[iatom] : self._ranges[iatom + 1]]
+                fixed_index = update_propars(exp_array_i, propars_i, delta_i)
+                for _i in fixed_index:
+                    global_fixed_index[_i + self._ranges[iatom]] = 0
+            self.logger.debug(f"global_fixed_index: {global_fixed_index}")
+
             x, _s, new_propars = None, None, None
             for x in np.linspace(tau, 0, linspace_size, endpoint=False):
                 _s = x * delta
-                new_propars = propars + _s
+                new_propars = propars + global_fixed_index * _s
+                # new_propars *= global_fixed_index
+
                 if self.is_promol_valid(new_propars):
                     if linesearch_mode == "valid-promol":
                         break
@@ -667,6 +708,10 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 # self-consistent step
                 # new_propars = self.function_g(propars, density_cutoff=density_cutoff)
                 # _s = 0.5 * delta
+                # TODO: the line search may fail when c_ak of the most diffused function is negative.
+                self.logger.debug(f"delta: {delta}")
+                self.logger.debug(f"propars: {propars}")
+                self.logger.debug(f"new_propars: {new_propars}")
                 raise RuntimeError("Line search failed!")
 
             self.logger.debug(f"x: {x}")
@@ -695,7 +740,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.history_propars.append(propars.copy())
             self.history_changes.append(change)
 
-            self.logger.info(f"            {irep+1:<4}    {change:.3e}    {entropy:.3e}")
+            self.logger.info(f"            {irep+1:<4}    {change:.5e}    {entropy:.5e}")
 
             if change < self.threshold:
                 check_pro_atom_parameters(
