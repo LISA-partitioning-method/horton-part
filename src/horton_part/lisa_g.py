@@ -641,7 +641,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         if mode not in valid_modes:
             raise RuntimeError(f"Wrong Newton mode :{mode}. It should be one of {valid_modes}")
 
-        valid_ls_modes = ["valid-promol", "with-extended-kl"]
+        valid_ls_modes = ["valid-promol", "with-extended-kl", "non-negative"]
         if linesearch_mode not in valid_ls_modes:
             raise RuntimeError(
                 f"Wrong linesearch_mode {linesearch_mode}. It should be one of {valid_ls_modes}"
@@ -672,33 +672,41 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # If they are positive, we can safely update propars = propars + delta; otherwise, we retain zeros.
 
             global_fixed_index = np.ones_like(delta)
-            for iatom in range(self.natom):
-                exp_array_i = self.bs_helper.get_exponent(self.numbers[iatom])
-                propars_i = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                delta_i = delta[self._ranges[iatom] : self._ranges[iatom + 1]]
-                fixed_index = fix_propars(exp_array_i, propars_i, delta_i)
-                for _i in fixed_index:
-                    global_fixed_index[_i + self._ranges[iatom]] = 0
-            self.logger.debug(f"global_fixed_index: {global_fixed_index}")
+            if linesearch_mode != "non-negative":
+                for iatom in range(self.natom):
+                    exp_array_i = self.bs_helper.get_exponent(self.numbers[iatom])
+                    propars_i = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+                    delta_i = delta[self._ranges[iatom] : self._ranges[iatom + 1]]
+                    fixed_index = fix_propars(exp_array_i, propars_i, delta_i)
+                    for _i in fixed_index:
+                        global_fixed_index[_i + self._ranges[iatom]] = 0
+                self.logger.debug(f"global_fixed_index: {global_fixed_index}")
 
             x, _s, new_propars = None, None, None
             for x in np.linspace(tau, 0, linspace_size, endpoint=False):
                 _s = x * delta
-                new_propars = propars + global_fixed_index * _s
-                # new_propars *= global_fixed_index
+                if linesearch_mode != "non-negative":
+                    new_propars = propars + global_fixed_index * _s
+                    # new_propars *= global_fixed_index
+                else:
+                    new_propars = propars + _s
 
-                if self.is_promol_valid(new_propars):
-                    if linesearch_mode == "valid-promol":
+                if linesearch_mode == "non-negative":
+                    if (new_propars > NEGATIVE_CUTOFF).all():
                         break
-                    elif linesearch_mode == "with-extended-kl":
-                        new_pro = self.calc_promol_dens(new_propars)
-                        f = self._working_matrix(rho, new_pro, nb_par, 0)
-                        pro_pop = self.grid.integrate(new_pro)
-                        extended_kl = f + pro_pop
-                        old_extended_kl = old_f + old_pro_pop
-
-                        if (extended_kl - old_extended_kl) < NEGATIVE_CUTOFF:
+                else:
+                    if self.is_promol_valid(new_propars):
+                        if linesearch_mode == "valid-promol":
                             break
+                        elif linesearch_mode == "with-extended-kl":
+                            new_pro = self.calc_promol_dens(new_propars)
+                            f = self._working_matrix(rho, new_pro, nb_par, 0)
+                            pro_pop = self.grid.integrate(new_pro)
+                            extended_kl = f + pro_pop
+                            old_extended_kl = old_f + old_pro_pop
+
+                            if (extended_kl - old_extended_kl) < NEGATIVE_CUTOFF:
+                                break
             else:
                 # self-consistent step
                 # new_propars = self.function_g(propars, density_cutoff=density_cutoff)
@@ -708,6 +716,11 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 self.logger.debug(f"propars: {propars}")
                 self.logger.debug(f"new_propars: {new_propars}")
                 raise RuntimeError("Line search failed!")
+                # if linesearch_mode == "non-negative":
+                #     new_propars[new_propars < NEGATIVE_CUTOFF] = 1e-4
+                #     # new_propars = new_propars / np.sum(new_propars) * pop
+                # else:
+                #     raise RuntimeError("Line search failed!")
 
             self.logger.debug(f"x: {x}")
             self.logger.debug(f" sum of delta: {np.sum(delta)}")
