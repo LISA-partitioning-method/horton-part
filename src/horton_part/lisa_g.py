@@ -296,6 +296,11 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                     number, ishell, 1.0, self.radial_distances[iatom], 0
                 )
                 pro_shells[index, self.local_grids[iatom].indices] = g_ai
+                if np.isclose(self.grid.integrate(pro_shells[index, :]), 1e-4):
+                    raise RuntimeError(
+                        rf"The \int_R^3 g_({iatom},{ishell}(r) dr on the (local) grid of atom {iatom} is "
+                        f"not close to 1.0"
+                    )
                 index += 1
 
         rho_g = self.cache.load("rho*pro_shells", alloc=(nshell, self.grid.size))[0]
@@ -839,8 +844,14 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             for k, c_ak in enumerate(x_iatom.copy()):
                 g_ak = self.load_pro_shell(iatom, k)
                 rho0_ak = g_ak * c_ak
+                # n_ak = self.grid.integrate(g_ak)
+                # assert np.isclose(n_ak, 1.0, atol=1e-4)
+                # if not np.isclose(n_ak, 1.0):
+                #     print(n_ak)
+                # print(f"n_ak({iatom}, {k}) = {n_ak}")
 
                 with np.errstate(all="ignore"):
+                    # integrand = rho[indices] * rho0_ak / old_rho0[indices] / n_ak
                     integrand = rho[indices] * rho0_ak / old_rho0[indices]
                 integrand[sick[indices]] = 0.0
 
