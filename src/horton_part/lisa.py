@@ -214,8 +214,8 @@ def solver_sc(bs_funcs, rho, propars, points, weights, threshold, logger, densit
     logger.debug("            -----    ------    ")
     oldpro = None
     for irep in range(int(1e10)):
-        pro_shells, pro, sick, ratio, lnratio = compute_quantities(
-            rho, propars, bs_funcs, density_cutoff
+        pro_shells, pro, sick, ratio, _ = compute_quantities(
+            rho, propars, bs_funcs, density_cutoff, do_ln_ratio=False
         )
 
         # the partitions and the updated parameters
@@ -282,8 +282,8 @@ def solver_sc_1_iter(
         If the inner iteration does not converge.
 
     """
-    pro_shells, pro, sick, ratio, lnratio = compute_quantities(
-        rho, propars, bs_funcs, density_cutoff
+    pro_shells, pro, sick, ratio, _ = compute_quantities(
+        rho, propars, bs_funcs, density_cutoff, do_ln_ratio=False
     )
     propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
     return propars
@@ -339,8 +339,8 @@ def solver_sc_plus_cvxopt(
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     for irep in range(sc_iter_limit):
-        pro_shells, pro, sick, ratio, lnratio = compute_quantities(
-            rho, propars, bs_funcs, density_cutoff
+        pro_shells, pro, sick, ratio, _ = compute_quantities(
+            rho, propars, bs_funcs, density_cutoff, do_ln_ratio=False
         )
 
         # the partitions and the updated parameters
@@ -409,7 +409,9 @@ def solver_diis(
 
     def function_g(x):
         """The fixed-point equation :math:`g(x)=x`."""
-        pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
+        pro_shells, _, _, ratio, _ = compute_quantities(
+            rho, x, bs_funcs, density_cutoff, do_ln_ratio=False
+        )
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
     new_propars, niter, history_x = diis(
@@ -428,6 +430,7 @@ def solver_newton(
     threshold,
     logger,
     density_cutoff=1e-15,
+    **newton_options,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
@@ -471,6 +474,7 @@ def solver_newton(
         logger,
         density_cutoff,
         "exact",
+        **newton_options,
     )
 
 
@@ -483,6 +487,7 @@ def solver_m_newton(
     threshold,
     logger,
     density_cutoff=1e-15,
+    **newton_options,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
@@ -526,6 +531,7 @@ def solver_m_newton(
         logger,
         density_cutoff,
         "modified",
+        **newton_options,
     )
 
 
@@ -538,6 +544,7 @@ def solver_quasi_newton(
     threshold,
     logger,
     density_cutoff=1e-15,
+    **newton_options,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Quasi-Newton method
@@ -581,6 +588,7 @@ def solver_quasi_newton(
         logger,
         density_cutoff,
         "bfgs",
+        **newton_options,
     )
 
 
@@ -594,6 +602,8 @@ def _solver_general_newton(
     logger,
     density_cutoff=1e-15,
     mode="bfgs",
+    tau=1.0,
+    linspace_size=20,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Quasi-Newton method
@@ -647,12 +657,20 @@ def _solver_general_newton(
         if mode == "exact":
             return propars + delta, delta
 
-        for x in np.linspace(1, 0, 20):
+        for x in np.linspace(tau, 0, linspace_size):
             _s = x * delta
             new_propars = propars + _s
-            _, new_pro, _, _, ln_ratio = compute_quantities(
-                rho, new_propars, bs_funcs, density_cutoff
+            _, new_pro, sick, _, _ = compute_quantities(
+                rho,
+                new_propars,
+                bs_funcs,
+                density_cutoff,
+                do_ratio=False,
+                do_ln_ratio=False,
             )
+            # if ~sick.any():
+            #     return new_propars, _s
+
             if (new_pro > NEGATIVE_CUTOFF).all() and (
                 new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
             ).all():
@@ -660,12 +678,15 @@ def _solver_general_newton(
                 #     logger.debug(f"x: {x}")
                 return new_propars, _s
         else:
+            logger.debug(f"propars: {propars}")
+            logger.debug(f"new_propars: {new_propars}")
             raise RuntimeError("Line search failed!")
 
     H = None
     olddf = None
     oldH = None
     s = None
+    pop = np.einsum("i,i", weights, rho)
     for irep in range(1000):
         _, pro, sick, ratio, ln_ratio = compute_quantities(rho, propars, bs_funcs, density_cutoff)
         logger.debug(" Optimized pro-atom parameters:")
@@ -678,7 +699,10 @@ def _solver_general_newton(
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             check_pro_atom_parameters(
-                propars, total_population=float(np.sum(pro)), pro_atom_density=pro
+                propars,
+                total_population=pop,
+                pro_atom_density=pro,
+                check_propars_negativity=False,
             )
             return propars
 
@@ -845,7 +869,9 @@ def solver_cdiis(
 
     def function_g(x):
         """The objective fixed-point equation."""
-        pro_shells, _, _, ratio, _ = compute_quantities(rho, x, bs_funcs, density_cutoff)
+        pro_shells, _, _, ratio, _ = compute_quantities(
+            rho, x, bs_funcs, density_cutoff, do_ln_ratio=False
+        )
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
     conv, nbiter, rnormlist, mklist, cnormlist, xlast, history_x = cdiis(

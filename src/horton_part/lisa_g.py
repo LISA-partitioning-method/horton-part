@@ -46,7 +46,12 @@ from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .gisa import get_proatom_rho
 from .lisa import setup_bs_helper
-from .utils import NEGATIVE_CUTOFF, PERIODIC_TABLE, check_pro_atom_parameters
+from .utils import (
+    NEGATIVE_CUTOFF,
+    PERIODIC_TABLE,
+    check_pro_atom_parameters,
+    fix_propars,
+)
 
 __all__ = ["GlobalLinearISAWPart"]
 
@@ -642,21 +647,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         pop = self.grid.integrate(rho)
         nb_par = len(propars)
 
-        # Function to update propars
-        def update_propars(exp_array, propars, delta):
-            sorted_indices = np.argsort(exp_array)
-            check_diffused = True
-            fixed_indices = []
-            for index in sorted_indices:
-                # Check if the corresponding c_ak is non-zero and ensure positivity
-                if check_diffused and np.abs(propars[index]) < 1e-4 and delta[index] < 0.0:
-                    fixed_indices.append(index)
-                else:
-                    check_diffused = False
-                    # if check_diffused:
-                    #     assert propars[index] > 0.0
-            return fixed_indices
-
         def linesearch(mode, delta, propars, old_pro_pop=None, old_f=None):
             if mode == "exact":
                 return propars + delta, delta
@@ -681,7 +671,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 exp_array_i = self.bs_helper.get_exponent(self.numbers[iatom])
                 propars_i = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
                 delta_i = delta[self._ranges[iatom] : self._ranges[iatom + 1]]
-                fixed_index = update_propars(exp_array_i, propars_i, delta_i)
+                fixed_index = fix_propars(exp_array_i, propars_i, delta_i)
                 for _i in fixed_index:
                     global_fixed_index[_i + self._ranges[iatom]] = 0
             self.logger.debug(f"global_fixed_index: {global_fixed_index}")

@@ -41,6 +41,7 @@ __all__ = [
     "PERIODIC_TABLE",
     "NegativeDensityError",
     "NotMonotonicDecayError",
+    "fix_propars",
 ]
 
 
@@ -427,7 +428,15 @@ radius_covalent = {
 radius_covalent = {k: v if v is None else v * ANGSTROM for k, v in list(radius_covalent.items())}
 
 
-def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff):
+def compute_quantities(
+    density,
+    pro_atom_params,
+    basis_functions,
+    density_cutoff,
+    do_sick=True,
+    do_ratio=True,
+    do_ln_ratio=True,
+):
     """
     Compute various quantities based on input density, pro-atom parameters, and basis functions.
 
@@ -458,10 +467,15 @@ def compute_quantities(density, pro_atom_params, basis_functions, density_cutoff
     pro_atom_params = np.asarray(pro_atom_params).flatten()
     pro_shells = basis_functions * pro_atom_params[:, None]
     pro_density = np.einsum("ij->j", pro_shells)
-    sick = (density < density_cutoff) | (pro_density < density_cutoff)
+
+    sick = ratio = ln_ratio = None
+    if do_sick:
+        sick = (density < density_cutoff) | (pro_density < density_cutoff)
     with np.errstate(all="ignore"):
-        ratio = np.divide(density, pro_density, out=np.zeros_like(density), where=~sick)
-        ln_ratio = np.log(ratio, out=np.zeros_like(density), where=~sick)
+        if do_ratio:
+            ratio = np.divide(density, pro_density, out=np.zeros_like(density), where=~sick)
+        if do_ln_ratio:
+            ln_ratio = np.log(ratio, out=np.zeros_like(density), where=~sick)
     return pro_shells, pro_density, sick, ratio, ln_ratio
 
 
@@ -556,7 +570,7 @@ def check_pro_atom_parameters(
     ):
         warnings.warn(
             r"The sum of pro-atom parameters is not equal to atomic population."
-            # rf"The difference is {np.sum(pro_atom_params) - total_population}"
+            rf"The difference is {np.sum(pro_atom_params) - total_population}"
         )
 
     if check_monotonicity and pro_atom_density is not None:
@@ -601,3 +615,19 @@ class NotMonotonicDecayError(RuntimeError):
     """The pro-density is not monotonic decay error."""
 
     pass
+
+
+# Function to update propars
+def fix_propars(exp_array, propars, delta):
+    sorted_indices = np.argsort(exp_array)
+    check_diffused = True
+    fixed_indices = []
+    for index in sorted_indices:
+        # Check if the corresponding c_ak is non-zero and ensure positivity
+        if check_diffused and np.abs(propars[index]) < 1e-4 and delta[index] < 0.0:
+            fixed_indices.append(index)
+        else:
+            check_diffused = False
+            # if check_diffused:
+            #     assert propars[index] > 0.0
+    return fixed_indices

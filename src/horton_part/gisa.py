@@ -86,6 +86,7 @@ def init_propars(part):
             inits / np.sum(inits) * part.pseudo_numbers[iatom]
         )
     propars[:] = propars / np.sum(propars) * part.nelec
+    part.initial_propars_modified = propars.copy()
     part._evaluate_basis_functions()
     return propars
 
