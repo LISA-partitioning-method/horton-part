@@ -201,7 +201,8 @@ class PartDensProg(PartProg):
 
         # Print results
         self.print_basis(part)
-        self.print_propars(part, -np.inf, "The modified initial propars")
+        if args.type in ["gisa", "lisa", "glisa"]:
+            self.print_propars(part, -np.inf, "The modified initial propars")
         self.print_header("Results")
         self.print_charges(data["atnums"], part.cache["charges"])
         # logger.info("cartesian multipoles:")

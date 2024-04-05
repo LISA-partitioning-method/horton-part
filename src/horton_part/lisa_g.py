@@ -692,7 +692,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                         break
                     elif linesearch_mode == "with-extended-kl":
                         new_pro = self.calc_promol_dens(new_propars)
-                        f = self._working_matrix(rho, new_pro, nb_par, 0)
+                        f = self._working_matrix(rho, new_pro, nb_par, 0, density_cutoff)
                         pro_pop = self.grid.integrate(new_pro)
                         extended_kl = f + pro_pop
                         old_extended_kl = old_f + old_pro_pop
@@ -729,13 +729,15 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 error = oldpro - pro
                 change = self.grid.integrate(error, error)
 
-            # compute entropy
-            entropy = self._compute_entropy(rho, pro)
-            self.history_entropies.append(entropy)
-            self.history_propars.append(propars.copy())
-            self.history_changes.append(change)
+            # Note: the first entropy corresponds to the initial values.
+            if irep >= 0:
+                # compute entropy
+                entropy = self._compute_entropy(rho, pro, density_cutoff)
+                self.history_entropies.append(entropy)
+                self.history_propars.append(propars.copy())
+                self.history_changes.append(change)
 
-            self.logger.info(f"            {irep+1:<4}    {change:.5e}    {entropy:.5e}")
+                self.logger.info(f"            {irep:<4}    {change:.5e}    {entropy:.5e}")
 
             if change < self.threshold:
                 check_pro_atom_parameters(
@@ -751,18 +753,20 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             if mode == "bfgs":
                 if irep == 0 or irep <= niter_exact_newton - 1:
                     if niter_exact_newton == 0:
-                        f, df = self._working_matrix(rho, pro, nb_par, 1)
+                        f, df = self._working_matrix(rho, pro, nb_par, 1, density_cutoff)
                         hess = np.identity(len(df))
                     else:
-                        f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
+                        f, df, hess = self._working_matrix(rho, pro, nb_par, 2, density_cutoff)
                     H = np.linalg.inv(hess)
                 else:
-                    f, df = self._working_matrix(rho, pro, nb_par, 1)
+                    f, df = self._working_matrix(rho, pro, nb_par, 1, density_cutoff)
                     H = bfgs(df, s, olddf, oldH)
 
+                self.logger.debug("Hessian matrix:")
+                self.logger.debug(H)
                 delta = H @ (-1 - df)
             elif mode in ["exact", "modified"]:
-                f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
+                f, df, hess = self._working_matrix(rho, pro, nb_par, 2, density_cutoff)
                 try:
                     delta = solve(hess, -1 - df, assume_a="sym")
                 except np.linalg.LinAlgError as e:

@@ -63,6 +63,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     oldpro = None
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
+    pop = rgrid.integrate(4 * np.pi * r**2, rho)
     for irep in range(1000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
@@ -100,10 +101,14 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
 
         if change < threshold:
+            if not np.isclose(pop, np.sum(propars[0::2]), atol=1e-4):
+                raise RuntimeWarning("The sum of propars are not equal to the atomic pop.")
             check_pro_atom_parameters(
                 propars,
-                total_population=rgrid.integrate(4 * np.pi * r**2, rho),
                 pro_atom_density=pro,
+                check_monotonicity=True,
+                check_dens_negativity=True,
+                check_propars_negativity=True,
             )
             return propars
         oldpro = pro

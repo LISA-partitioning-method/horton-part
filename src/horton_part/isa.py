@@ -29,7 +29,6 @@ from .core.logging import deflist
 
 # from .core.log import log, biblio
 
-
 __all__ = ["ISAWPart"]
 
 logger = logging.getLogger(__name__)
