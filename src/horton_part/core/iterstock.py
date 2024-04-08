@@ -209,7 +209,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
                 # Update the parameters that determine the pro-atoms.
                 old_propars = propars.copy()
                 self._update_propars()
-                # NOTE: the entropy with initial propars is not included.
+                # NOTE: the entropy corresponds to old_propars, while the change is current propars - old_propars
                 self._update_entropy()
 
                 # Check for convergence

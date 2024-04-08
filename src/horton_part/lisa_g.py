@@ -537,7 +537,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         # TODO: collect info
         if opt_CVX["status"] == "optimal":
             self.cache.dump("niter", len(history_propars) - 1, tags="o")
-            for x in history_propars[1:]:
+            for x in history_propars[:-1]:
                 rho0 = self.calc_promol_dens(x)
                 entropy = self._compute_entropy(self._moldens, rho0)
                 self.history_entropies.append(entropy)
@@ -714,41 +714,15 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.logger.debug(f" sum of propars: {np.sum(new_propars)}")
             return new_propars, _s
 
-        oldpro = None
-        change = 1e100
         H = None
         olddf = None
         oldH = None
         s = None
-        self.logger.info("            Iter.    Change    ")
-        self.logger.info("            -----    ------    ")
+        self.logger.info("            Iter.    Change    Entropy")
+        self.logger.info("            -----    ------    -------")
         for irep in range(maxiter):
+            old_propars = propars.copy()
             pro = self.calc_promol_dens(propars)
-            # check for convergence
-            if oldpro is not None:
-                error = oldpro - pro
-                change = self.grid.integrate(error, error)
-
-            # Note: the first entropy corresponds to the initial values.
-            if irep >= 0:
-                # compute entropy
-                entropy = self._compute_entropy(rho, pro, density_cutoff)
-                self.history_entropies.append(entropy)
-                self.history_propars.append(propars.copy())
-                self.history_changes.append(change)
-
-                self.logger.info(f"            {irep:<4}    {change:.5e}    {entropy:.5e}")
-
-            if change < self.threshold:
-                check_pro_atom_parameters(
-                    propars,
-                    total_population=pop,
-                    pro_atom_density=pro,
-                    check_monotonicity=False,
-                    check_propars_negativity=False,
-                )
-                self.cache.dump("niter", irep + 1, tags="o")
-                return propars
 
             if mode == "bfgs":
                 if irep == 0 or irep <= niter_exact_newton - 1:
@@ -777,7 +751,28 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             propars[:], s = linesearch(
                 mode, delta, propars, old_pro_pop=self.grid.integrate(pro), old_f=f
             )
-            oldpro = pro
+
+            # Note: the first entropy corresponds to the initial values.
+            # Compute entropy, and we use oldpro instead rho to be consistent with LISA method.
+            entropy = self._compute_entropy(rho, pro, density_cutoff)
+            change = self.compute_change(propars, old_propars)
+            self.history_entropies.append(entropy)
+            self.history_propars.append(propars.copy())
+            self.history_changes.append(change)
+
+            self.logger.info(f"            {irep+1:<4}    {change:.5e}    {entropy:.5e}")
+
+            if change < self.threshold:
+                check_pro_atom_parameters(
+                    propars,
+                    total_population=pop,
+                    pro_atom_density=pro,
+                    check_monotonicity=False,
+                    check_propars_negativity=False,
+                )
+                self.cache.dump("niter", irep + 1, tags="o")
+                return propars
+
             olddf = df
             oldH = H
         else:
@@ -809,15 +804,16 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             propars[:] = self.function_g(propars, density_cutoff=density_cutoff)
             change = self.compute_change(propars, old_propars)
 
-            rho0 = self.calc_promol_dens(propars)
+            # Be consistent to LISA entropy corresponding to old_propars
+            rho0 = self.calc_promol_dens(old_propars)
             entropy = self._compute_entropy(self._moldens, rho0)
             self.history_entropies.append(entropy)
             self.history_changes.append(change)
             self.history_propars.append(propars.copy())
 
             # self.logger.debug(f"            {iter+1:<4}    {change:.3e}")
-            if iter % niter_print == 0:
-                self.logger.info("%9i   %10.5e   %10.5e" % (iter, change, entropy))
+            if (iter + 1) % niter_print == 0:
+                self.logger.info("%9i   %10.5e   %10.5e" % (iter + 1, change, entropy))
 
             if change < self._threshold:
                 break
