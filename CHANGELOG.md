@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3]  - 2024-04-08
+
+### Added
+- Fix the entropy of the first iteration of LISA/gLISA solvers.
+- Fix docs
+
 ## [1.1.2]  - 2024-03-24
 
 ### Added
