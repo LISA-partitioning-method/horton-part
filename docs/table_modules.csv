@@ -6,4 +6,4 @@ Modules;Description
 :func:`MBIS<horton_part.mbis>`; Minimal Basis Iterative Stockholder (MBIS) method
 :func:`GISA<horton_part.gisa>`; Gaussian iterative stockholder approach (GISA)
 :func:`LISA<horton_part.lisa>`; Linear approximation of the ISA method (LISA)
-:func:`GLISA<horton_part.lisa_g>`; Global linear approximation of the ISA method (GLISA)
+:func:`gLISA<horton_part.lisa_g>`; Global linear approximation of the ISA method (gLISA)

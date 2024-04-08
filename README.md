@@ -1,13 +1,11 @@
 # HORTON-PART
 <a href='https://docs.python.org/3.10/'><img src='https://img.shields.io/badge/python-3.10-blue.svg'></a>
 
-```text
-P_A__R_T
-/ (..) \  Welcome to HORTON-PART!
-\/ || \/
- |_''_|
-```
-[HORTON-PART](https://github.com/yingxingcheng/horton-part) is a computational chemistry package that supports different partition schemes.It is based on the sub-module `part` of `HORTON2`, which is written and maintained by Toon Verstraelen (1).
+<div align="center">
+  <img src="./docs/horton_part_logo.svg"  width="300px" />
+</div>
+
+[HORTON-PART](https://github.com/yingxingcheng/horton-part) is a computational chemistry package that supports different partition schemes. It is based on the sub-module `part` of `HORTON2`, which is written and maintained by Toon Verstraelen (1).
 
 In HORTON3, all sub-modules have been rewritten using the pure Python programming language to support Python 3+. The 'part' module has also been rewritten and is now called [denspart](https://github.com/theochem/denspart) module.
 
@@ -34,7 +32,8 @@ This package implements various partitioning schemes described in <a href=https:
 - Iterative stockholder approach (ISA)
 - Gaussian iterative stockholder approach (GISA)
 - Minimal Basis Iterative Stockholder (MBIS)
-- Linear approximation of the ISA (L-ISA) method
+- Linear approximation of the ISA (LISA) method
+- Global version of Linear approximation of the ISA (gLISA) method
 
 ## License
 
@@ -45,8 +44,6 @@ This package implements various partitioning schemes described in <a href=https:
 
 The following dependencies will be necessary for `horton-part` to build properly,
 
-* SciPy : http://www.scipy.org/
-* NumPy : http://www.numpy.org/
 * quadprog>=0.1.11 : https://github.com/quadprog/quadprog
 * cvxopt>=1.3.1 : https://github.com/cvxopt/cvxopt
 * qc-grid : https://github.com/theochem/grid

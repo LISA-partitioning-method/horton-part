@@ -81,7 +81,6 @@ Modules
     :caption: User Documentation
 
     ./installation.rst
-    ./conventions.rst
 
 
 
