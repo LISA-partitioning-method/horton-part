@@ -106,8 +106,8 @@ class PartProg:
         if log_files is None:
             log_files = [None] * len(inputs)
         assert len(inputs) == len(outputs) == len(log_files)
-        for fn_in, fn_out, fn_log in zip(inputs, outputs, log_files):
-            self.single_launch(args, fn_in, fn_out, fn_log)
+        for index, (fn_in, fn_out, fn_log) in enumerate(zip(inputs, outputs, log_files)):
+            self.single_launch(args, fn_in, fn_out, fn_log, index=index)
         return 0
 
     def setup_logger(self, args: argparse.Namespace, fn_log, **kwargs):

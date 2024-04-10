@@ -54,6 +54,7 @@ Changelog = "https://github.com/yingxingcheng/horton-part/CHANGELOG.md"
 part = "horton_part.__main__:main"
 part-gen = "horton_part.scripts.generate_density:main"
 part-dens = "horton_part.scripts.partition_density:main"
+part-cube = "horton_part.scripts.generate_cube:main"
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
