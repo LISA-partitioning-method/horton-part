@@ -32,10 +32,10 @@ from horton_part.scripts.program import PartProg
 np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
-__all__ = ["prepare_input_cube", "PartCubeProg"]
+__all__ = ["prepare_input_cube", "PartCubeProg", "_setup_cube_grid"]
 
 
-def prepare_input_cube(iodata, chunk_size, gradient, orbitals, logger):
+def prepare_input_cube(iodata, chunk_size, gradient, orbitals, logger, grid=None):
     """Prepare input for denspart with HORTON3 modules.
 
     Parameters
@@ -64,7 +64,8 @@ def prepare_input_cube(iodata, chunk_size, gradient, orbitals, logger):
         Qauntities evaluated on the grid, includeing the density.
 
     """
-    grid = _setup_cube_grid(iodata.atnums, iodata.atcoords, logger)
+    if grid is None:
+        grid = _setup_cube_grid(iodata.atnums, iodata.atcoords, logger)
     data = _compute_stuff(iodata, grid.points, gradient, orbitals, chunk_size, logger)
     return grid, data
 
@@ -191,28 +192,33 @@ class PartCubeProg(PartProg):
             }
         )
 
-        # The filename of output obtained by part-dens program
-        fn_partden = args.partdens[index]
-        partden_data = np.load(fn_partden)
-        # Load the optimized propars obtained by LISA/gLISA methods
-        propars = partden_data["history_propars"][-1, :]
-        # The distance array
-        dis_array = np.linalg.norm(grid.points[None, :, :] - iodata.atcoords[:, None, :], axis=2)
-        # Compute pro-atom density and store it in an array, 2d array and shape = N_atoms * N_points
-        rho0 = _compute_rho0(iodata.atnums, dis_array, propars, args.basis_func)
-        # Compute pro-molecule density, 1d array and shape = N_points
-        promol = np.sum(rho0, axis=0)
-        promol += 1e-100
-        # Compute AIM weights function, 2d array and shape = N_atoms * N_points
-        weights_funcs = rho0 / promol
-        density = data["density"]
-        # Compute AIM density, 2d array and N_atom * N_points
-        aim_rho = weights_funcs * density[None, :]
+        if args.with_partdens:
+            # The filename of output obtained by part-dens program
+            fn_partden = args.partdens[index]
+            partden_data = np.load(fn_partden)
+            # Load the optimized propars obtained by LISA/gLISA methods
+            propars = partden_data["history_propars"][-1, :]
+            # The distance array
+            dis_array = np.linalg.norm(
+                grid.points[None, :, :] - iodata.atcoords[:, None, :], axis=2
+            )
+            # Compute pro-atom density and store it in an array, 2d array and shape = N_atoms * N_points
+            rho0 = _compute_rho0(iodata.atnums, dis_array, propars, args.basis_func)
+            # Compute pro-molecule density, 1d array and shape = N_points
+            promol = np.sum(rho0, axis=0)
+            promol += 1e-100
+            # Compute AIM weights function, 2d array and shape = N_atoms * N_points
+            weights_funcs = rho0 / promol
+            density = data["density"]
+            # Compute AIM density, 2d array and N_atom * N_points
+            aim_rho = weights_funcs * density[None, :]
 
-        self.logger.info(f"The integral of density: {grid.integrate(density):.3f}")
-        self.logger.info(f"The number of electrons in the molecule: {np.sum(iodata.atcorenums)}")
+            self.logger.info(f"The integral of density: {grid.integrate(density):.3f}")
+            self.logger.info(
+                f"The number of electrons in the molecule: {np.sum(iodata.atcorenums)}"
+            )
 
-        if args.with_aim_cache:
+        if args.with_partdens and args.with_aim_cache:
             data.update(
                 {
                     "rho0": rho0,
@@ -228,24 +234,6 @@ class PartCubeProg(PartProg):
 
         if args.with_cube_files:
             fn_name = ".".join(fn_out.split(".")[:-1])
-            for i in range(len(iodata.atnums)):
-                to_cube(
-                    f"{fn_name}_rho_{i}.cube",
-                    iodata.atnums,
-                    iodata.atcorenums,
-                    iodata.atcoords,
-                    grid,
-                    aim_rho[i, :],
-                )
-                to_cube(
-                    f"{fn_name}_rho0_{i}.cube",
-                    iodata.atnums,
-                    iodata.atcorenums,
-                    iodata.atcoords,
-                    grid,
-                    rho0[i, :],
-                )
-
             to_cube(
                 f"{fn_name}_rho_mol.cube",
                 iodata.atnums,
@@ -254,16 +242,32 @@ class PartCubeProg(PartProg):
                 grid,
                 data["density"],
             )
-
-            to_cube(
-                f"{fn_name}_rho0_mol.cube",
-                iodata.atnums,
-                iodata.atcorenums,
-                iodata.atcoords,
-                grid,
-                promol,
-            )
-
+            if args.with_partdens:
+                for i in range(len(iodata.atnums)):
+                    to_cube(
+                        f"{fn_name}_rho_{i}.cube",
+                        iodata.atnums,
+                        iodata.atcorenums,
+                        iodata.atcoords,
+                        grid,
+                        aim_rho[i, :],
+                    )
+                    to_cube(
+                        f"{fn_name}_rho0_{i}.cube",
+                        iodata.atnums,
+                        iodata.atcorenums,
+                        iodata.atcoords,
+                        grid,
+                        rho0[i, :],
+                    )
+                to_cube(
+                    f"{fn_name}_rho0_mol.cube",
+                    iodata.atnums,
+                    iodata.atcorenums,
+                    iodata.atcoords,
+                    grid,
+                    promol,
+                )
         return 0
 
     def build_parser(self):
@@ -276,6 +280,12 @@ class PartCubeProg(PartProg):
             nargs="+",
             default=None,
             help="The outputs file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
+        )
+        parser.add_argument(
+            "--with_partdens",
+            default=False,
+            action="store_true",
+            help="Whether include info from partdens",
         )
         parser.add_argument(
             "--partdens",
