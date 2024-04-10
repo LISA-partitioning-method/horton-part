@@ -184,6 +184,9 @@ class PartCubeProg(PartProg):
                 "atcorenums": iodata.atcorenums,
                 "points": grid.points,
                 "weights": grid.weights,
+                "origin": grid.origin,
+                "shape": grid.shape,
+                "axes": grid.axes,
                 "nelec": iodata.mo.nelec,
             }
         )
