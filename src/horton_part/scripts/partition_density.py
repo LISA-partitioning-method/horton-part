@@ -135,7 +135,7 @@ class PartDensProg(PartProg):
                     self.logger.info(f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}")
             self.print_line()
 
-    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log):
+    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log, **kwargs):
         # Convert the log level string to a logging level
         self.setup_logger(args, fn_log, overwrite=False)
         exclude_keys = []

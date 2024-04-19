@@ -204,7 +204,7 @@ class PartGenProg(PartProg):
     def __init__(self, width=100):
         super().__init__("part-gen", width)
 
-    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log):
+    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log, **kwargs):
         self.setup_logger(args, fn_log)
         self.print_settings(args, fn_in, fn_out, fn_log)
         iodata = load_one(fn_in)
