@@ -116,7 +116,8 @@ class PartDensProg(PartProg):
             orders = bs_helper.orders[number]
             exponents = bs_helper.exponents[number]
             initials = bs_helper.initials[number]
-            res[number] = [orders, exponents, initials]
+            ells = bs_helper.ells[number]
+            res[number] = [orders, exponents, initials, ells]
         return res
 
     def print_basis(self, part):
@@ -126,13 +127,19 @@ class PartDensProg(PartProg):
             bs_info = self.load_basis_info(part)
 
             self.print_header("Basis functions")
-            self.logger.info("    Exponential order  Exponents coefficients  Initials values")
-            self.logger.info("    -----------------  ----------------------  ---------------")
+            self.logger.info(
+                "    Exponential order  Exponents coefficients  Initials values  Ell values     "
+            )
+            self.logger.info(
+                "    -----------------  ----------------------  ---------------  ---------------"
+            )
             numbers = sorted(set(part.numbers))
             for number in numbers:
                 self.logger.info(f"Atom {PERIODIC_TABLE[number]}")
-                for n, cak, pop in zip(*bs_info[number]):
-                    self.logger.info(f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}")
+                for n, cak, pop, ell in zip(*bs_info[number]):
+                    self.logger.info(
+                        f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}         {ell:>6}"
+                    )
             self.print_line()
 
     def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log, **kwargs):

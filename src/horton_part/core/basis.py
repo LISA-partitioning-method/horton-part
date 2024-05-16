@@ -49,16 +49,17 @@ def load_params(filename):
     """
     with open(filename) as file:
         data = json.load(file)
-    orders, exps, inits = {}, {}, {}
+    orders, exps, inits, ells = {}, {}, {}, {}
     for number, data in data.items():
         number = int(number)
         orders[number] = np.asarray(data[0])
         exps[number] = np.asarray(data[1])
         inits[number] = np.asarray(data[2])
-    return orders, exps, inits
+        ells[number] = np.asarray(data[3], dtype=int)
+    return orders, exps, inits, ells
 
 
-def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
+def evaluate_function(n, population, alpha, r, nderiv=0, axis=None, ell=0):
     r"""
     Evaluate a general function and its derivative, with support for vectorized operations.
 
@@ -70,7 +71,7 @@ def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
 
     .. math::
 
-        f(\mathbf{r}) = N(\alpha, n) \exp(-\alpha |\mathbf{r}|^n)
+        f(\mathbf{r}) = N(\alpha, n, \ell) \exp(-\alpha |\mathbf{r}|^n) |\mathbf{r}|^{\ell}
 
     where :math:`N(\alpha, n)` is a normalization factor ensuring the integral of :math:`f` over all space equals 1.
     The derivative of :math:`f` with respect to :math:`r` is also provided.
@@ -79,30 +80,31 @@ def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
 
     .. math::
 
-        \int N(\alpha, n)  f(\mathbf{r}) d\mathbf{r} =  4 \pi * \int_0^{\infty} r^2  \exp^{-\alpha r^n} = 1
+        \int N(\alpha, n, ell)  f(\mathbf{r}) d\mathbf{r} =  4 \pi * \int_0^{\infty} r^{\ell+2}  \exp^{-\alpha r^n} = 1
 
-        N(\alpha, n) = \frac{n \alpha^{3/n}}{4 \pi \Gamma(3/n)}
+        N(\alpha, n) = \frac{n \alpha^{(3+\ell)/n}}{4 \pi \Gamma((3+\ell)/n)}
 
-    where N(α, n) is a normalization factor ensuring the integral of f over all space equals 1.
+    where N(α, n, l) is a normalization factor ensuring the integral of f over all space equals 1.
 
 
     For Slater function, i.e., :math:`n=1`, the normalization factor is
 
     .. math::
 
-        N(\alpha, 1) = \frac{\alpha^3}{8 \pi}
+        N(\alpha, 1, 0) = \frac{\alpha^3}{8 \pi}
 
     For Gaussian function, :math:`n=2`, the normalization factor is
 
     .. math::
 
-        N(\alpha, 2) = (\frac{\alpha}{\pi})^{3/2}
+        N(\alpha, 2, 0) = (\frac{\alpha}{\pi})^{3/2}
 
     The derivative of function f w.r.t the :math:`|r|` is defined as:
 
     .. math::
 
-        \frac{\partial{f(\mathbf{r})}}{\partial{r}} = - n r^{n-1} \alpha f(\mathbf{r})
+        \frac{\partial{f(\mathbf{r})}}{\partial{r}} = - n r^{n-1+\ell} \alpha f(\mathbf{r})
+        + \ell r^{-1} f(\mathbf{r})
 
     Parameters
     ----------
@@ -134,7 +136,7 @@ def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
     if not isinstance(r, np.ndarray):
         raise ValueError("r must be a numpy array")
 
-    prefactor = population * n * alpha ** (3 / n) / (4 * np.pi * gamma(3 / n))
+    prefactor = population * n * alpha ** ((3 + ell) / n) / (4 * np.pi * gamma((3 + ell) / n))
     use_vec_version = not np.isscalar(n)
     if use_vec_version:
         # TODO: this version is slower than using for loop
@@ -144,9 +146,11 @@ def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
         r = r[np.newaxis, :]
         n = n[:, np.newaxis]
 
-    f = prefactor * np.exp(-alpha * r**n)
+    f = prefactor * np.exp(-alpha * r**n) * r**ell
     if nderiv > 0:
-        df = -n * r ** (n - 1) * f
+        # Note: alpha is missed in Horton-Part <= v1.1.3
+        # df = -alpha * n * r ** (n - 1) * f
+        df = -alpha * n * r ** (n - 1) * f + f * ell / r
 
     # Summing across the specified axis if required
     if use_vec_version and axis is not None:
@@ -173,25 +177,31 @@ class BasisFuncHelper:
 
     """
 
-    def __init__(self, exponents_orders, exponents=None, initials=None):
+    def __init__(self, exponents_orders, exponents=None, initials=None, ells=None):
         self._orders = exponents_orders
         self._exponents = exponents
         self._initials = initials
+        self._ells = ells
 
     @property
     def orders(self):
-        """A dictionary mapping atomic numbers to their exponential orders."""
+        """The exponential orders."""
         return self._orders
 
     @property
     def exponents(self):
-        """A dictionary mapping atomic numbers to their exponents."""
+        """Exponents."""
         return self._exponents
 
     @property
     def initials(self):
-        """A dictionary mapping atomic numbers to their initial values."""
+        """The initial values."""
         return self._initials
+
+    @property
+    def ells(self):
+        """Angular moment number."""
+        return self._ells
 
     def get_nshell(self, number):
         """Get number of basis functions based on the atomic number of an atom."""
@@ -209,11 +219,16 @@ class BasisFuncHelper:
         """Get exponent coefficient for an atom for its `ishell` basis function."""
         return self.exponents[number] if ishell is None else self.exponents[number][ishell]
 
+    def get_ell(self, number, ishell=None):
+        """Get angular momentum number for an atom for its `ishell` basis function."""
+        return self.ells[number] if ishell is None else self.ells[number][ishell]
+
     def compute_proshell_dens(self, number, ishell, population, points, nderiv=0):
         """Compute pro-shell density on points for an atom."""
         order = self.get_order(number, ishell)
         exp = self.get_exponent(number, ishell)
-        return evaluate_function(order, population, exp, points, nderiv, axis=None)
+        ell = self.get_ell(number, ishell)
+        return evaluate_function(order, population, exp, points, nderiv, axis=None, ell=ell)
 
     # def compute_proatom_dens_slow(self, number, populations, points, nderiv=0, axis=0):
     #     """Compute pro-atom density on points for an atom."""
@@ -250,9 +265,11 @@ class BasisFuncHelper:
     @classmethod
     def from_json(cls, filename):
         """Construct class from a file."""
-        orders, exponents, initials = load_params(filename)
+        orders, exponents, initials, ells = load_params(filename)
         # check if initials values are valid.
         for number, exps in exponents.items():
             if number not in initials:
                 initials[number] = np.ones_like(exps) / len(exps)
-        return cls(orders, exponents, initials)
+            if number not in ells:
+                ells[number] = np.zeros_like(exps)
+        return cls(orders, exponents, initials, ells)
