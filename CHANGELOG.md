@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4]  - 2024-05-16
+
+### Added
+- Add script to generate cube file to visualize results.
+
 ## [1.1.3]  - 2024-04-08
 
 ### Added
