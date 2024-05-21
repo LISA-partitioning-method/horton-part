@@ -24,6 +24,7 @@ from .algo import *
 from .becke import *
 from .core import *
 from .gisa import *
+from .gmbis import *
 from .hirshfeld import *
 from .hirshfeld_i import *
 from .isa import *

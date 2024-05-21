@@ -85,7 +85,7 @@ class PartDensProg(PartProg):
         The optimized pro-atom parameters are printed out if ISA methods with basis functions are used.
         """
         header = header or "Optimized pro-atom parameters"
-        if part.name in ["gisa", "mbis", "lisa", "glisa"]:
+        if part.name in ["gisa", "mbis", "lisa", "glisa", "gmbis"]:
             if niter == -np.inf:
                 propars = part.initial_propars_modified
             else:
@@ -99,6 +99,10 @@ class PartDensProg(PartProg):
                     self.logger.info(f"{'Populations':>20}    {'Exponents':>20}")
                     for par, exp in zip(propars_i[::2], propars_i[1::2]):
                         self.logger.info(f"{par:>20.8f}    {exp:>20.8f}")
+                elif part.name == "gmbis":
+                    self.logger.info(f"{'Populations':>20}    {'Exponents':>20}   {'Orders':>20}")
+                    for par, exp, order in zip(propars_i[::3], propars_i[1::3], propars_i[2::3]):
+                        self.logger.info(f"{par:>20.8f}    {exp:>20.8f}    {order:>20.8f}")
                 else:
                     for par in propars_i:
                         self.logger.info(f"{par:>20.8f}")
@@ -273,7 +277,7 @@ class PartDensProg(PartProg):
             "--type",
             type=str,
             default="lisa",
-            choices=["gisa", "lisa", "mbis", "is", "glisa"],
+            choices=["gisa", "lisa", "mbis", "is", "glisa", "gmbis"],
             help="Number of angular grid points. [default=%(default)s]",
         )
         parser.add_argument(
