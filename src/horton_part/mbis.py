@@ -64,7 +64,7 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     pop = rgrid.integrate(4 * np.pi * r**2, rho)
-    for irep in range(1000):
+    for irep in range(2000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
             N = propars[2 * ishell]
@@ -112,7 +112,9 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             )
             return propars
         oldpro = pro
-    assert False
+    logger.warn("MBIS not converged!")
+    return propars
+    # assert False
 
 
 class MBISWPart(AbstractISAWPart):
@@ -223,6 +225,7 @@ class MBISWPart(AbstractISAWPart):
         # spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
         self.cache.dump(f"radial_points_{iatom}", points, tags="o")
         self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
+        self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
 
         # assign as new propars
         my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]

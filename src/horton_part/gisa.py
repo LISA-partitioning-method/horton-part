@@ -249,6 +249,7 @@ class GaussianISAWPart(AbstractISAWPart):
 
         self.cache.dump(f"radial_points_{iatom}", points, tags="o")
         self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
+        self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
 
         # assign as new propars
         propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]

@@ -37,6 +37,25 @@ np.random.seed(44)
 __all__ = ["construct_molgrid_from_dict"]
 
 
+def float_dict(string):
+    try:
+        # Convert the input string to a dictionary
+        # Assuming format "key1_key2:value"
+        items = [item.split(":") for item in string.split(",")]
+        result = {}
+        for item in items:
+            key_part = item[0].split("_")
+            # Convert key parts to integers
+            key = (int(key_part[0]), int(key_part[1]))
+            value = float(item[1])
+            result[key] = value
+        return result
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "Each item must be in key1_key2:value format with keys as integers and value as float"
+        )
+
+
 def construct_molgrid_from_dict(data):
     atcoords = data["atcoords"]
     atnums = data["atnums"]
@@ -144,8 +163,10 @@ class PartDensProg(PartProg):
         self.setup_logger(args, fn_log, overwrite=False)
         exclude_keys = []
         if args.type in ["glisa"]:
-            exclude_keys = ["inner_threshold"]
-        if args.type not in ["gisa", "lisa", "glisa"]:
+            exclude_keys = ["inner_threshold", "exp_n"]
+        if args.type in ["gisa", "mbis", "isa"]:
+            exclude_keys = ["solver", "basis_func", "exp_n"]
+        if args.type in ["gmbis"]:
             exclude_keys = ["solver", "basis_func"]
         self.print_settings(args, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
 
@@ -191,6 +212,12 @@ class PartDensProg(PartProg):
                 part_kwargs["basis_func"] = args.func_file or args.basis_func
                 if args.type in ["glisa"]:
                     part_kwargs.pop("inner_threshold")
+        elif args.type in ["gmbis"]:
+            if args.exp_n is None:
+                exp_n = {}
+            else:
+                exp_n = float_dict(args.exp_n)
+            part_kwargs["exp_n"] = exp_n
 
         # Create part object
         part = wpart_schemes(args.type)(**part_kwargs)
@@ -245,11 +272,33 @@ class PartDensProg(PartProg):
 
         if args.part_job_type == "do_density_decomposition":
             bs_info = self.load_basis_info(part)
+            propars = part.cache["history_propars"][-1, :]
             for iatom in range(part.natom):
-                for k in [f"radial_points_{iatom}", f"spherical_average_{iatom}"]:
+                for k in [
+                    f"radial_points_{iatom}",
+                    f"spherical_average_{iatom}",
+                    f"radial_weights_{iatom}",
+                ]:
                     part_data[k] = part.cache[k]
-                if len(bs_info):
-                    part_data[f"bs_info_{iatom}"] = np.asarray(bs_info[part.numbers[iatom]]).T
+                # TODO: use optimized results
+                propars_a = propars[part._ranges[iatom] : part._ranges[iatom + 1]]
+                if args.type in ["gisa", "lisa", "glisa"]:
+                    info = np.asarray(bs_info[part.numbers[iatom]]).T
+                    info[:, -1] = propars_a
+                elif args.type in ["mbis"]:
+                    propars_a = propars_a.reshape((-1, 2))
+                    info = np.ones((propars_a.shape[0], 3))
+                    info[:, 1] = propars_a[:, 1]
+                    info[:, 2] = propars_a[:, 0]
+                elif args.type in ["gmbis"]:
+                    propars_a = propars_a.reshape((-1, 3))
+                    info = np.zeros((propars_a.shape[0], 3))
+                    info[:, 0] = propars_a[:, 2]
+                    info[:, 1] = propars_a[:, 1]
+                    info[:, 2] = propars_a[:, 0]
+                else:
+                    raise NotImplementedError
+                part_data[f"bs_info_{iatom}"] = info
 
         # NOTE: do not restore molecular density and grids
         # part_data.update(data)
@@ -348,6 +397,12 @@ class PartDensProg(PartProg):
             type=str,
             default=None,
             help="The objective function type for GISA and LISA methods. [default=%(default)s]",
+        )
+        parser.add_argument(
+            "--exp_n",
+            type=float_dict,
+            default=None,
+            help="The exponent of radial distance used in the Generalize MBIS method. [default=%(default)s]",
         )
         parser.add_argument(
             "--part_job_type",

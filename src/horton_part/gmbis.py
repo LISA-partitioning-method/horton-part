@@ -23,8 +23,7 @@
 import logging
 
 import numpy as np
-from scipy.optimize import fsolve
-from scipy.special import gamma, polygamma
+from scipy.special import gamma
 
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
@@ -41,7 +40,7 @@ logger = logging.getLogger(__name__)
 #     return noble.searchsorted(number) + 1
 
 
-def _get_initial_gmbis_propars(number):
+def _get_initial_gmbis_propars(number, exp_n):
     nshell = _get_nshell(number)
     propars = np.zeros(3 * nshell, float)
     S0 = 2.0 * number
@@ -54,7 +53,10 @@ def _get_initial_gmbis_propars(number):
     for ishell in range(nshell):
         propars[3 * ishell] = nel_in_shell[ishell]
         propars[3 * ishell + 1] = S0 * alpha**ishell
-        propars[3 * ishell + 2] = 1.0
+        if (number, ishell) in exp_n:
+            propars[3 * ishell + 2] = exp_n[(number, ishell)]
+        else:
+            propars[3 * ishell + 2] = 1.0
     propars[-3] = number - propars[:-3:3].sum()
     return propars
 
@@ -68,17 +70,18 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     pop = rgrid.integrate(4 * np.pi * r**2, rho)
-    for irep in range(2000):
+    for irep in range(1000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
             N = propars[3 * ishell]
             S = propars[3 * ishell + 1]
             n = propars[3 * ishell + 2]
             # terms[ishell] = N * S**3 * np.exp(-S * r) / (8 * np.pi)
-            func_g = n * S ** (3 / n) * np.exp(-S * r**n) / (4 * np.pi * gamma(3 / n))
-            terms[ishell] = N * func_g
+            func_g = n * S ** (3 / n) * np.exp(-S * r**n) / (4 * np.pi * gamma(3.0 / n))
+            terms[ishell] = func_g
 
-        pro = terms.sum(axis=0)
+        # pro = terms.sum(axis=0)
+        pro = np.sum(terms * propars[::3, None], axis=0)
         sick = (rho < density_cutoff) | (pro < density_cutoff)
         with np.errstate(all="ignore"):
             lnpro = np.log(pro)
@@ -99,7 +102,7 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             S = propars[3 * ishell + 1]
             n = propars[3 * ishell + 2]
 
-            m0 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell])
+            m0 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell] * N)
             m1 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell], r**n)
 
             # tmp = rgrid.integrate(
@@ -112,25 +115,14 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             # New N
             propars[3 * ishell] = m0
             # New S
-            new_S = 3 * m0 / m1 / n
-            propars[3 * ishell + 1] = new_S
+            propars[3 * ishell + 1] = 3 / (m1 * n)
             # New n
-            m2 = rgrid.integrate(
-                4 * np.pi * r**2, terms_ratio[ishell], S / N * r**n * np.log(r)
-            )
-
-            # new_n = 1 / (
-            #     m2 + 3 * np.log(new_S) / n**2 + 3 * polygamma(0, 3 / n) / n**2
+            # m2 = rgrid.integrate(
+            #     4 * np.pi * r**2, terms_ratio[ishell] / N, r**n * np.log(r)
             # )
+            # new_n = 3 * np.log(new_S) - 3 * polygamma(0, 3 / n) + n**2 * new_S * m2
 
-            def aug_h(n):
-                h = 1 / n - 3 * np.log(S) / n**2 + 3 * polygamma(0, 3 / n) / n**2
-                return h - m2
-
-            # TODO: find n from m2 == aug_h(n)
-            new_n = fsolve(aug_h, n)[0]
-            new_n = new_n if 0.3 <= new_n <= 3 else 0.3
-            propars[3 * ishell + 2] = new_n
+            # propars[3 * ishell + 2] = n
 
         # check for convergence
         if oldpro is None:
@@ -143,7 +135,7 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
 
         if change < threshold:
             if not np.isclose(pop, np.sum(propars[0::3]), atol=1e-4):
-                raise RuntimeWarning("The sum of propars are not equal to the atomic pop.")
+                RuntimeWarning("The sum of propars are not equal to the atomic pop.")
             check_pro_atom_parameters(
                 propars,
                 pro_atom_density=pro,
@@ -160,6 +152,50 @@ class GMBISWPart(AbstractISAWPart):
     """Generalize Minimal Basis Iterative Stockholder (MBIS)"""
 
     name = "gmbis"
+
+    def __init__(
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        spindens=None,
+        lmax=3,
+        logger=None,
+        threshold=1e-6,
+        maxiter=500,
+        inner_threshold=1e-8,
+        radius_cutoff=np.inf,
+        exp_n=1.0,
+    ):
+        r"""
+        Initial function.
+
+        **Optional arguments:** (that are not defined in :class:`horton_part.core.itertock.AbstractISAWPart`)
+
+        Parameters
+        ----------
+        exp_n : float
+            The power of radial distance :math:`r` in exponential function :math:`exp^{-\alpha r^n}`.
+
+        """
+        self._exp_n = exp_n
+
+        super().__init__(
+            coordinates,
+            numbers,
+            pseudo_numbers,
+            grid,
+            moldens,
+            spindens,
+            lmax=lmax,
+            logger=logger,
+            threshold=threshold,
+            maxiter=maxiter,
+            inner_threshold=inner_threshold,
+            radius_cutoff=radius_cutoff,
+        )
 
     def _init_log_scheme(self):
         logger.info("Initialized: %s" % self.__class__.__name__)
@@ -207,7 +243,7 @@ class GMBISWPart(AbstractISAWPart):
             # f = N * S**3 * np.exp(-S * r) / (8 * np.pi)
             # y += f
             # d -= S * f
-            f = N * n * S ** (3 / n) * np.exp(-S * r**n) / (4 * np.pi * gamma(3 / n))
+            f = N * n * S ** (3 / n) * np.exp(-S * r**n) / (4 * np.pi * gamma(3.0 / n))
             y += f
             d -= N * S * n * r ** (n - 1) * f
         return y, d
@@ -239,7 +275,7 @@ class GMBISWPart(AbstractISAWPart):
             # f = N * S**3 * np.exp(-S * r) / (8 * np.pi)
             # y += f
             # d -= S * f
-            f = N * n * S ** (3 / n) * np.exp(-S * r**n) / (4 * np.pi * gamma(3 / n))
+            f = N * n * S ** (3 / n) * np.exp(-S * r**n) / (4 * np.pi * gamma(3.0 / n))
             y += f
         output[:] = y
 
@@ -255,7 +291,7 @@ class GMBISWPart(AbstractISAWPart):
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         for iatom in range(self.natom):
             propars[self._ranges[iatom] : self._ranges[iatom + 1]] = _get_initial_gmbis_propars(
-                self.numbers[iatom]
+                self.numbers[iatom], self._exp_n
             )
         return propars
 
