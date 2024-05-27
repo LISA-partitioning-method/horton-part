@@ -37,6 +37,22 @@ np.random.seed(44)
 __all__ = ["construct_molgrid_from_dict"]
 
 
+def int_dict(string):
+    try:
+        # Convert the input string to a dictionary
+        # Assuming format "key1_key2:value"
+        items = [item.split(":") for item in string.split(",")]
+        result = {}
+        for item in items:
+            key, value = int(item[0]), int(item[1])
+            result[key] = value
+        return result
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "Each item must be in key:value format with keys as integers and value as int"
+        )
+
+
 def float_dict(string):
     try:
         # Convert the input string to a dictionary
@@ -104,7 +120,7 @@ class PartDensProg(PartProg):
         The optimized pro-atom parameters are printed out if ISA methods with basis functions are used.
         """
         header = header or "Optimized pro-atom parameters"
-        if part.name in ["gisa", "mbis", "lisa", "glisa", "gmbis"]:
+        if part.name in ["gisa", "mbis", "lisa", "glisa", "gmbis", "nlis"]:
             if niter == -np.inf:
                 propars = part.initial_propars_modified
             else:
@@ -114,11 +130,11 @@ class PartDensProg(PartProg):
                 begin, end = part._ranges[i], part._ranges[i + 1]
                 propars_i = propars[begin:end]
                 self.logger.info(f"Propars of No. {i+1} atom {PERIODIC_TABLE[part.numbers[i]]}:")
-                if part.name == "mbis":
+                if part.name in ["mbis"]:
                     self.logger.info(f"{'Populations':>20}    {'Exponents':>20}")
                     for par, exp in zip(propars_i[::2], propars_i[1::2]):
                         self.logger.info(f"{par:>20.8f}    {exp:>20.8f}")
-                elif part.name == "gmbis":
+                elif part.name in ["gmbis", "nlis"]:
                     self.logger.info(f"{'Populations':>20}    {'Exponents':>20}   {'Orders':>20}")
                     for par, exp, order in zip(propars_i[::3], propars_i[1::3], propars_i[2::3]):
                         self.logger.info(f"{par:>20.8f}    {exp:>20.8f}    {order:>20.8f}")
@@ -163,11 +179,14 @@ class PartDensProg(PartProg):
         self.setup_logger(args, fn_log, overwrite=False)
         exclude_keys = []
         if args.type in ["glisa"]:
-            exclude_keys = ["inner_threshold", "exp_n"]
+            exclude_keys = ["inner_threshold", "exp_n_dict", "nshell_dict"]
         if args.type in ["gisa", "mbis", "isa"]:
-            exclude_keys = ["solver", "basis_func", "exp_n"]
+            exclude_keys = ["solver", "basis_func", "exp_n_dict", "nshell_dict"]
         if args.type in ["gmbis"]:
+            exclude_keys = ["solver", "basis_func", "nshell_dict"]
+        if args.type in ["nlis"]:
             exclude_keys = ["solver", "basis_func"]
+
         self.print_settings(args, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
 
         self.logger.info(f"Load grid and density data from {fn_in} ...")
@@ -212,12 +231,20 @@ class PartDensProg(PartProg):
                 part_kwargs["basis_func"] = args.func_file or args.basis_func
                 if args.type in ["glisa"]:
                     part_kwargs.pop("inner_threshold")
-        elif args.type in ["gmbis"]:
-            if args.exp_n is None:
-                exp_n = {}
+
+        elif args.type in ["gmbis", "nlis"]:
+            if args.exp_n_dict is None:
+                exp_n_dict = {}
             else:
-                exp_n = float_dict(args.exp_n)
-            part_kwargs["exp_n"] = exp_n
+                exp_n_dict = float_dict(args.exp_n_dict)
+            part_kwargs["exp_n_dict"] = exp_n_dict
+
+        if args.type in ["nlis"]:
+            if args.nshell_dict is None:
+                nshell_dict = {}
+            else:
+                nshell_dict = int_dict(args.nshell_dict)
+            part_kwargs["nshell_dict"] = nshell_dict
 
         # Create part object
         part = wpart_schemes(args.type)(**part_kwargs)
@@ -290,7 +317,7 @@ class PartDensProg(PartProg):
                     info = np.ones((propars_a.shape[0], 3))
                     info[:, 1] = propars_a[:, 1]
                     info[:, 2] = propars_a[:, 0]
-                elif args.type in ["gmbis"]:
+                elif args.type in ["gmbis", "nlis"]:
                     propars_a = propars_a.reshape((-1, 3))
                     info = np.zeros((propars_a.shape[0], 3))
                     info[:, 0] = propars_a[:, 2]
@@ -326,7 +353,7 @@ class PartDensProg(PartProg):
             "--type",
             type=str,
             default="lisa",
-            choices=["gisa", "lisa", "mbis", "is", "glisa", "gmbis"],
+            choices=["gisa", "lisa", "mbis", "is", "glisa", "gmbis", "nlis"],
             help="Number of angular grid points. [default=%(default)s]",
         )
         parser.add_argument(
@@ -399,10 +426,18 @@ class PartDensProg(PartProg):
             help="The objective function type for GISA and LISA methods. [default=%(default)s]",
         )
         parser.add_argument(
-            "--exp_n",
+            "--exp_n_dict",
             type=float_dict,
             default=None,
-            help="The exponent of radial distance used in the Generalize MBIS method. [default=%(default)s]",
+            help="The exponent of radial distance used in the Generalize MBIS method. "
+            "[default=%(default)s]",
+        )
+        parser.add_argument(
+            "--nshell_dict",
+            type=int_dict,
+            default=None,
+            help="The dict of number of basis function used in theNLIS method. "
+            "[default=%(default)s]",
         )
         parser.add_argument(
             "--part_job_type",

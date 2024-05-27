@@ -17,7 +17,7 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-"""Generalize Minimal Basis Iterative Stockholder (GMBIS) partitioning"""
+"""Non-Linear approximation of Iterative Stockholder (NLIS) partitioning"""
 
 
 import logging
@@ -30,38 +30,35 @@ from .core.logging import deflist
 from .mbis import _get_nshell
 from .utils import check_pro_atom_parameters
 
-__all__ = ["GMBISWPart", "_get_initial_gmbis_propars"]
+__all__ = ["NLISWPart"]
 
 logger = logging.getLogger(__name__)
 
 
-# def _get_nshell(number):
-#     noble = np.array([2, 10, 18, 36, 54, 86, 118])
-#     return noble.searchsorted(number) + 1
+def _get_nlis_nshell(number, nshell_dict):
+    return nshell_dict.get(number, _get_nshell(number))
 
 
-def _get_initial_gmbis_propars(number, exp_n_dict):
-    nshell = _get_nshell(number)
-    propars = np.zeros(3 * nshell, float)
+def _get_initial_nlis_propars(number, exp_n_dict, nshell_dict):
+    nbs = _get_nlis_nshell(number, nshell_dict)
+    propars = np.ones(3 * nbs, float)
     S0 = 2.0 * number
-    if nshell > 1:
-        S1 = 2.0
-        alpha = (S1 / S0) ** (1.0 / (nshell - 1))
+    if nbs > 1:
+        S1 = 0.5
+        alpha = (S1 / S0) ** (1.0 / (nbs - 1))
     else:
         alpha = 1.0
-    nel_in_shell = np.array([2.0, 8.0, 8.0, 18.0, 18.0, 32.0, 32.0])
-    for ishell in range(nshell):
-        propars[3 * ishell] = nel_in_shell[ishell]
-        propars[3 * ishell + 1] = S0 * alpha**ishell
-        if (number, ishell) in exp_n_dict:
-            propars[3 * ishell + 2] = exp_n_dict[(number, ishell)]
+    for ibs in range(nbs):
+        propars[3 * ibs] = number / nbs
+        propars[3 * ibs + 1] = S0 * alpha**ibs
+        if (number, ibs) in exp_n_dict:
+            propars[3 * ibs + 2] = exp_n_dict[(number, ibs)]
         else:
-            propars[3 * ishell + 2] = 1.0
-    propars[-3] = number - propars[:-3:3].sum()
+            propars[3 * ibs + 2] = 1.0
     return propars
 
 
-def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
+def _opt_nlis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     assert len(propars) % 3 == 0
     nshell = len(propars) // 3
     r = rgrid.points
@@ -70,7 +67,7 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     pop = rgrid.integrate(4 * np.pi * r**2, rho)
-    for irep in range(1000):
+    for irep in range(2000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
             N = propars[3 * ishell]
@@ -106,7 +103,10 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             m1 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell], r**n)
 
             propars[3 * ishell] = m0
-            propars[3 * ishell + 1] = 3 / (m1 * n)
+            if np.isclose(m1, 0.0):
+                propars[3 * ishell + 1] = 1e-5
+            else:
+                propars[3 * ishell + 1] = 3 / (m1 * n)
 
         # check for convergence
         if oldpro is None:
@@ -129,15 +129,15 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             )
             return propars
         oldpro = pro
-    logger.warn("NLIS not converged!")
+    # logger.warn("NLIS not converged!")
     return propars
     # assert False
 
 
-class GMBISWPart(AbstractISAWPart):
-    """Generalize Minimal Basis Iterative Stockholder (MBIS)"""
+class NLISWPart(AbstractISAWPart):
+    """Non-Linear approximation of Iterative Stockholder (NLIS)"""
 
-    name = "gmbis"
+    name = "nlis"
 
     def __init__(
         self,
@@ -154,6 +154,7 @@ class GMBISWPart(AbstractISAWPart):
         inner_threshold=1e-8,
         radius_cutoff=np.inf,
         exp_n_dict=1.0,
+        nshell_dict=None,
     ):
         r"""
         Initial function.
@@ -167,6 +168,7 @@ class GMBISWPart(AbstractISAWPart):
 
         """
         self._exp_n_dict = exp_n_dict
+        self._nshell_dict = nshell_dict or {}
 
         super().__init__(
             coordinates,
@@ -188,7 +190,7 @@ class GMBISWPart(AbstractISAWPart):
         deflist(
             logger,
             [
-                ("Scheme", "Generalize Minimal Basis Iterative Stockholder (GMBIS)"),
+                ("Scheme", "Non-Linear approximation of Iterative Stockholder (NLIS)"),
                 ("Outer loop convergence threshold", "%.1e" % self._threshold),
                 (
                     "Inner loop convergence threshold",
@@ -197,7 +199,7 @@ class GMBISWPart(AbstractISAWPart):
                 ("Maximum iterations", self._maxiter),
             ],
         )
-        # biblio.cite("verstraelen2016", "the use of MBIS partitioning")
+        # biblio.cite("verstraelen2016", "the use of NLIS partitioning")
 
     def get_rgrid(self, iatom):
         """Get radial grid for `iatom` atom."""
@@ -262,14 +264,14 @@ class GMBISWPart(AbstractISAWPart):
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
-            nshell = _get_nshell(self.numbers[iatom])
+            nshell = _get_nlis_nshell(self.numbers[iatom], self._nshell_dict)
             self._ranges.append(self._ranges[-1] + 3 * nshell)
             self._nshells.append(nshell)
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = _get_initial_gmbis_propars(
-                self.numbers[iatom], self._exp_n_dict
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = _get_initial_nlis_propars(
+                self.numbers[iatom], self._exp_n_dict, self._nshell_dict
             )
         return propars
 
@@ -289,7 +291,7 @@ class GMBISWPart(AbstractISAWPart):
 
         # assign as new propars
         my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
-        my_propars[:] = _opt_gmbis_propars(
+        my_propars[:] = _opt_nlis_propars(
             spherical_average, my_propars.copy(), rgrid, self._inner_threshold
         )
 

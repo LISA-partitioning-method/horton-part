@@ -32,6 +32,7 @@ from .lisa import *
 from .lisa_g import *
 from .mbis import *
 from .mulliken import *
+from .nlis import *
 from .utils import *
 
 try:

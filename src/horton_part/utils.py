@@ -74,6 +74,10 @@ def wpart_schemes(scheme):
         from .mbis import MBISWPart
 
         wpart = MBISWPart
+    elif scheme == "nlis":
+        from .nlis import NLISWPart
+
+        wpart = NLISWPart
     elif scheme == "gmbis":
         from .gmbis import GMBISWPart
 
