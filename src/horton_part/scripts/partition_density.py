@@ -54,6 +54,7 @@ def int_dict(string):
 
 
 def float_dict(string):
+    # TODO: the 1_0:1.0 could be converted to 601.0, so one has to use quote "1_0:1.0".
     try:
         # Convert the input string to a dictionary
         # Assuming format "key1_key2:value"

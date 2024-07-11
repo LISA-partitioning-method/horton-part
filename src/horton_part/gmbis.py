@@ -106,7 +106,10 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             m1 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell], r**n)
 
             propars[3 * ishell] = m0
-            propars[3 * ishell + 1] = 3 / (m1 * n)
+            if np.isclose(m1, 0.0):
+                propars[3 * ishell + 1] = 1e-5
+            else:
+                propars[3 * ishell + 1] = 3 / (m1 * n)
 
         # check for convergence
         if oldpro is None:
@@ -129,7 +132,7 @@ def _opt_gmbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             )
             return propars
         oldpro = pro
-    logger.warn("NLIS not converged!")
+    # logger.warn("NLIS not converged!")
     return propars
     # assert False
 
