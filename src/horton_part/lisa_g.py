@@ -196,6 +196,28 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         """Initial pro-atom parameters and cache lists."""
         return gisa.init_propars(self)
 
+    def eval_proatom(self, index, output, grid):
+        """Evaluate function on a local grid.
+
+        The size of the local grid is specified by the radius of the sphere where the local grid is considered.
+        For example, when the radius is `np.inf`, the grid corresponds to the whole molecular grid.
+
+        Parameters
+        ----------
+        index: int
+            The index of an atom in the molecule.
+        output: np.array
+            The size of `output` should be the same as the size of the local grid.
+        grid: np.array
+            The local grid.
+
+        """
+        propars = self.cache.load("propars")
+        populations = propars[self._ranges[index] : self._ranges[index + 1]]
+        output[:] = self.bs_helper.compute_proatom_dens(
+            self.numbers[index], populations, self.radial_distances[index], 0
+        )
+
     @just_once
     def _evaluate_basis_functions(self):
         gisa.evaluate_basis_functions(self)
@@ -224,16 +246,63 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.update_at_weights()
             # compute the new charge
             charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+
+            # promol = self.calc_promol_dens(propars)
+            # promol += 1e-100 * self.natom
+
+            # tot_charge1 = 0.0
+            # tot_charge2 = 0.0
+            # tot_charge3 = 0.0
+            # tot_charge4 = 0.0
+
             for iatom in range(self.natom):
                 at_weights = self.cache.load("at_weights", iatom)
                 dens = self.get_moldens(iatom)
                 atgrid = self.get_grid(iatom)
-                spline = atgrid.spherical_average(at_weights * dens)
-                r = atgrid.rgrid.points
-                spherical_average = spline(r)
-                pseudo_population = atgrid.rgrid.integrate(4 * np.pi * r**2 * spherical_average)
-                charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+                # Method 1
+                nelec1 = atgrid.integrate(dens * at_weights)
+                charge1 = self.pseudo_numbers[iatom] - nelec1
                 self.check_pro(iatom, propars)
+                # tot_charge1 += charge1
+
+                # # Method 2
+                # mask = np.zeros_like(propars)
+                # mask[self._ranges[iatom] : self._ranges[iatom + 1]] = 1.0
+                # propars_iatom = propars * mask
+                # rhoa0 = self.calc_promol_dens(propars_iatom)
+                # assert (rhoa0 <= promol).all()
+                # at_weights2 = rhoa0 / promol
+                # nelec2 = self.grid.integrate(at_weights2 * self._moldens)
+                # charge2 = self.pseudo_numbers[iatom] - nelec2
+                # tot_charge2 += charge2
+
+                # # Method 3
+                # at_weights3 = self.to_atomic_grid(iatom, at_weights2)
+                # nelec3 = atgrid.integrate(at_weights3 * dens)
+                # charge3 = self.pseudo_numbers[iatom] - nelec3
+                # tot_charge3 += charge3
+
+                # # Method 4
+                # rhoa0_on_atom_grid = self.to_atomic_grid(iatom, rhoa0)
+                # molrho0_on_atom_grid = self.to_atomic_grid(iatom, promol)
+                # at_weights4 = rhoa0_on_atom_grid / molrho0_on_atom_grid
+                # nelec4 = atgrid.integrate(at_weights4 * dens)
+                # charge4 = self.pseudo_numbers[iatom] - nelec4
+                # tot_charge4 += charge4
+
+                # print(f"charge by method 1: {charge1}")
+                # print(f"charge by method 2: {charge2}")
+                # print(f"charge by method 3: {charge3}")
+                # print(f"charge by method 4: {charge4}")
+                # print("-" * 80)
+
+                # we choose Method 1, which is used in aLISA and other ISA variants.
+                charges[iatom] = charge1
+            # print(f"The total charge of molecule is (old): {tot_charge1}")
+            # print(f"The total charge of molecule is (new1): {tot_charge2}")
+            # print(f"The total charge of molecule is (new2): {tot_charge3}")
+            # print(f"The total charge of molecule is (new3): {tot_charge4}")
 
             t1 = time.time()
             self.history_time_update_at_weights.append(t1 - t0)

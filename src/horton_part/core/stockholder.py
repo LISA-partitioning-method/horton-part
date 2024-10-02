@@ -189,6 +189,7 @@ class AbstractStockholderWPart(WPart):
 
         """
         if hasattr(self, "local_grids"):
+            # TODO: maybe remove the local grids, it is too difficult to debug.
             local_grid = self.local_grids[index]
             work = np.zeros((local_grid.size,))
             self.eval_proatom(index, work, local_grid)
@@ -202,6 +203,7 @@ class AbstractStockholderWPart(WPart):
             work = np.zeros((self.grid.size,))
             self.eval_proatom(index, work, self.grid)
             promoldens += work
+            promoldens += 1e-100
             proatdens[:] = self.to_atomic_grid(index, work)
 
     def get_rgrid(self, index):
@@ -390,12 +392,14 @@ class AbstractStockholderWPart(WPart):
         for index in range(self.natom):
             atmgrid = self.get_grid(index)
             at_weights = self.cache.load("at_weights", index, alloc=atmgrid.size)[0]
+            # Here the proatom density is stored in at_weights.
             self.update_pro(index, at_weights, promoldens)
         t1 = time.time()
 
         # Compute the atomic weights by taking the ratios between proatoms and
         # promolecules.
         for index in range(self.natom):
+            # Here, at_weights is proatom density.
             at_weights = self.cache.load("at_weights", index)
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
