@@ -295,8 +295,31 @@ class PartDensProg(PartProg):
             "history_changes": part.cache["history_changes"],
         }
 
+        # part_data["atcoords"] = part.coordinates
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
+
+        # coords = part.grid.points
+        # x = coords[:, 0]
+        # y = coords[:, 1]
+        # z = coords[:, 2]
+        # r2 = x**2 + y**2 + z**2
+        # # Note: numerical issue is problematic for quadrupole moment.
+        # Qxx = part.grid.integrate(-1 / 2 * part._moldens, 3 * x**2 - r2)
+        # Qyy = part.grid.integrate(-1 / 2 * part._moldens, 3 * y**2 - r2)
+        # Qzz = part.grid.integrate(-1 / 2 * part._moldens, 3 * z**2 - r2)
+
+        # Qxy = part.grid.integrate(-1 / 2 * part._moldens, 3 * x * y)
+        # Qxz = part.grid.integrate(-1 / 2 * part._moldens, 3 * x * z)
+        # Qyz = part.grid.integrate(-1 / 2 * part._moldens, 3 * y * z)
+        # Q = np.array([[Qxx, Qxy, Qxz], [Qxy, Qyy, Qyz], [Qxz, Qyz, Qzz]])
+        # part_data["quadrupole_moment"] = Q
+
+        # Dx = part.grid.integrate(-1 * part._moldens, x)
+        # Dy = part.grid.integrate(-1 * part._moldens, y)
+        # Dz = part.grid.integrate(-1 * part._moldens, z)
+        # D = np.array([Dx, Dy, Dz])
+        # part_data["dipole_moment"] = D
 
         if args.part_job_type == "do_density_decomposition":
             bs_info = self.load_basis_info(part)
