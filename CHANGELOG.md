@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5]  - 2024-10-02
+
+### Fixed
+- The correct `eval_proatom` function is added in `gLISA` method.
+- Docs issue of GISA method is fixed.
+- Docs are updated and citations are added.
+
 ## [1.1.4]  - 2024-05-16
 
 ### Added
