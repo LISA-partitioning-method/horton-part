@@ -203,11 +203,15 @@ class BasisFuncHelper:
 
     def get_initial(self, number, ishell=None):
         """Get initial value for an atom for its `ishell` basis function."""
-        return self.initials[number] if ishell is None else self.initials[number][ishell]
+        return (
+            np.asarray(self.initials[number]) if ishell is None else self.initials[number][ishell]
+        )
 
     def get_exponent(self, number, ishell=None):
         """Get exponent coefficient for an atom for its `ishell` basis function."""
-        return self.exponents[number] if ishell is None else self.exponents[number][ishell]
+        return (
+            np.asarray(self.exponents[number]) if ishell is None else self.exponents[number][ishell]
+        )
 
     def compute_proshell_dens(self, number, ishell, population, points, nderiv=0):
         """Compute pro-shell density on points for an atom."""
