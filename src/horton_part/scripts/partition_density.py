@@ -37,7 +37,21 @@ np.random.seed(44)
 __all__ = ["construct_molgrid_from_dict"]
 
 
+def get_nested_attr(obj, attr_path):
+    """
+    Recursively get an attribute from an object using dot notation.
+    """
+    attrs = attr_path.split(".")
+    for attr in attrs:
+        obj = getattr(obj, attr, None)
+        if obj is None:
+            return None
+    return obj
+
+
 def int_dict(string):
+    if string is None:
+        return {}
     try:
         # Convert the input string to a dictionary
         # Assuming format "key1_key2:value"
@@ -55,6 +69,8 @@ def int_dict(string):
 
 def float_dict(string):
     # TODO: the 1_0:1.0 could be converted to 601.0, so one has to use quote "1_0:1.0".
+    if string is None:
+        return {}
     try:
         # Convert the input string to a dictionary
         # Assuming format "key1_key2:value"
@@ -189,6 +205,7 @@ class PartDensProg(PartProg):
             exclude_keys = ["solver", "basis_func", "nshell_dict"]
         if type in ["nlis"]:
             exclude_keys = ["solver", "basis_func"]
+        exclude_keys.append("save")
 
         self.print_settings(settings, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
 
@@ -235,18 +252,10 @@ class PartDensProg(PartProg):
                     part_kwargs.pop("inner_threshold")
 
         elif type in ["gmbis", "nlis"]:
-            if settings.get("exp_n_dict") is None:
-                exp_n_dict = {}
-            else:
-                exp_n_dict = float_dict(settings["exp_n_dict"])
-            part_kwargs["exp_n_dict"] = exp_n_dict
+            part_kwargs["exp_n_dict"] = float_dict(settings.get("exp_n_dict", None))
 
         if type in ["nlis"]:
-            if settings.get("nshell_dict") is None:
-                nshell_dict = {}
-            else:
-                nshell_dict = int_dict(settings["nshell_dict"])
-            part_kwargs["nshell_dict"] = nshell_dict
+            part_kwargs["nshell_dict"] = int_dict(settings.get("nshell_dict", None))
 
         # Create part object
         part = wpart_schemes(type)(**part_kwargs)
@@ -324,6 +333,7 @@ class PartDensProg(PartProg):
         # part_data["dipole_moment"] = D
 
         if settings["part_job_type"] == "do_density_decomposition":
+            # For each part job, we can store different properties.
             bs_info = self.load_basis_info(part)
             propars = part.cache["history_propars"][-1, :]
             for iatom in range(part.natom):
@@ -351,6 +361,25 @@ class PartDensProg(PartProg):
                 else:
                     raise NotImplementedError
                 part_data[f"bs_info_{iatom}"] = info
+
+        if settings.get("save"):
+            self.print_header("Cache")
+            for _k in settings["save"]:
+                # Check for dot notation (nested attributes)
+                if isinstance(_k, list):
+                    _k = tuple(_k)
+                    value = None
+                else:
+                    value = get_nested_attr(part, _k)
+                if isinstance(value, np.ndarray):
+                    self.logger.info(f"Save '{_k}' in '{fn_out}' with key of 'save/part.{_k}'")
+                    part_data[f"save/{_k}"] = value
+                if value is None and _k in part.cache:
+                    self.logger.info(
+                        f"Save '{_k}' in '{fn_out}' with key of 'save/part.cache/{_k}'"
+                    )
+                    part_data[f"save/cache/{_k}"] = part.cache[_k]
+            self.print_line()
 
         # NOTE: do not restore molecular density and grids
         # part_data.update(data)
