@@ -107,7 +107,6 @@ class PartProg:
 
         settings = load_settings_from_yaml_file(args, self.program_name)
         self._set_default(settings)
-        print(settings)
 
         if not self.check_settings(settings):
             raise RuntimeError(f"The settings for {self.program_name} is not fully correct.")
