@@ -24,7 +24,6 @@ from importlib import resources
 
 import numpy as np
 import pytest
-from iodata.utils import FileFormatWarning
 from numpy.testing import assert_allclose
 
 from horton_part.scripts.generate_density import main
@@ -121,10 +120,24 @@ FILENAMES = [
 def test_from_horton3_density(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
+        fn_log = os.path.join(tmpdir, "density.log")
+
+        yaml_file = tmpdir.join("input.yaml")
+        yaml_content = f"""
+            part-gen:
+              inputs:
+              - {fn_full}
+              outputs:
+              - {fn_density}
+              log_files:
+              - {fn_log}
+            """
+        yaml_file.write(yaml_content)
+
+        # Run the main function using the YAML file as input
         with pytest.warns(None) as record:
-            main(["--inputs", str(fn_full), "--output", fn_density])
-        if len(record) == 1:
-            assert issubclass(record[0].category, FileFormatWarning)
+            main([str(yaml_file)])
+        assert len(record) <= 1
         assert os.path.isfile(fn_density)
         data = dict(np.load(fn_density))
 

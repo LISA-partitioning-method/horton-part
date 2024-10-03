@@ -27,7 +27,7 @@ import pytest
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 
-from horton_part.lisa import solver_cvxopt, solver_diis, solver_sc, solver_trust_region
+from horton_part.alisa import solver_cvxopt, solver_diis, solver_sc, solver_trust_region
 
 logger = logging.getLogger(__name__)
 

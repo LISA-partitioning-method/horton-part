@@ -61,8 +61,8 @@ def main(args=None) -> int:
 
     # Execute commands safely
     try:
-        subprocess.run(["part-gen", "--config_file", parsed_args.filename], check=True)
-        subprocess.run(["part-dens", "--config_file", parsed_args.filename], check=True)
+        subprocess.run(["part-gen", parsed_args.filename], check=True)
+        subprocess.run(["part-dens", parsed_args.filename], check=True)
     except subprocess.CalledProcessError as e:
         print(f"An error occurred while executing a command: {e}")
         return e.returncode

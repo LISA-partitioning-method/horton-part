@@ -115,6 +115,7 @@ class PartDensProg(PartProg):
         # logger.info(f"Do Moments                                   : {part.time_usage['do_moments']:>10.2f} s")
         self.print_line()
 
+    # TODO: put the print_propars to each method.
     def print_propars(self, part, niter=-1, header=None):
         """Print optimized pro-atom parameters.
 
@@ -145,6 +146,7 @@ class PartDensProg(PartProg):
                 self.logger.info(" ")
             self.print_line()
 
+    # TODO: also put this function to each part method
     def load_basis_info(self, part):
         if part.name not in ["gisa", "lisa", "glisa"]:
             return {}
@@ -175,20 +177,20 @@ class PartDensProg(PartProg):
                     self.logger.info(f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}")
             self.print_line()
 
-    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log, **kwargs):
-        # Convert the log level string to a logging level
-        self.setup_logger(args, fn_log, overwrite=False)
+    def single_launch(self, settings, fn_in, fn_out, fn_log):
+        self.setup_logger(settings, fn_log, overwrite=False)
         exclude_keys = []
-        if args.type in ["glisa"]:
+        type = settings.get("type")
+        if type in ["glisa"]:
             exclude_keys = ["inner_threshold", "exp_n_dict", "nshell_dict"]
-        if args.type in ["gisa", "mbis", "isa"]:
+        if type in ["gisa", "mbis", "isa"]:
             exclude_keys = ["solver", "basis_func", "exp_n_dict", "nshell_dict"]
-        if args.type in ["gmbis"]:
+        if type in ["gmbis"]:
             exclude_keys = ["solver", "basis_func", "nshell_dict"]
-        if args.type in ["nlis"]:
+        if type in ["nlis"]:
             exclude_keys = ["solver", "basis_func"]
 
-        self.print_settings(args, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
+        self.print_settings(settings, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
 
         self.logger.info(f"Load grid and density data from {fn_in} ...")
         t0 = time.time()
@@ -213,44 +215,43 @@ class PartDensProg(PartProg):
             "pseudo_numbers": data["atcorenums"],
             "grid": grid,
             "moldens": data["density"],
-            "lmax": args.lmax,
-            "maxiter": args.maxiter,
-            "threshold": args.threshold,
-            "inner_threshold": args.inner_threshold,
-            "radius_cutoff": args.radius_cutoff,
+            "lmax": settings["lmax"],
+            "maxiter": settings["maxiter"],
+            "threshold": settings["threshold"],
+            "inner_threshold": settings["inner_threshold"],
+            "radius_cutoff": settings["radius_cutoff"],
             "logger": self.logger,
         }
 
         # Arguments for specific methods.
-        if args.type in ["gisa", "lisa", "glisa"]:
-            if hasattr(args, "solver"):
-                part_kwargs["solver"] = args.solver
-            if hasattr(args, "solver_options"):
-                part_kwargs["solver_options"] = args.solver_options
+        if type in ["gisa", "lisa", "glisa"]:
+            for _k in ["solver", "solver_options"]:
+                if _k in settings:
+                    part_kwargs[_k] = settings[_k]
 
-            if args.type in ["lisa", "glisa"]:
-                part_kwargs["basis_func"] = args.func_file or args.basis_func
-                if args.type in ["glisa"]:
+            if type in ["lisa", "glisa"]:
+                part_kwargs["basis_func"] = settings.get("func_file") or settings.get("basis_func")
+                if type in ["glisa"]:
                     part_kwargs.pop("inner_threshold")
 
-        elif args.type in ["gmbis", "nlis"]:
-            if args.exp_n_dict is None:
+        elif type in ["gmbis", "nlis"]:
+            if settings.get("exp_n_dict") is None:
                 exp_n_dict = {}
             else:
-                exp_n_dict = float_dict(args.exp_n_dict)
+                exp_n_dict = float_dict(settings["exp_n_dict"])
             part_kwargs["exp_n_dict"] = exp_n_dict
 
-        if args.type in ["nlis"]:
-            if args.nshell_dict is None:
+        if type in ["nlis"]:
+            if settings.get("nshell_dict") is None:
                 nshell_dict = {}
             else:
-                nshell_dict = int_dict(args.nshell_dict)
+                nshell_dict = int_dict(settings["nshell_dict"])
             part_kwargs["nshell_dict"] = nshell_dict
 
         # Create part object
-        part = wpart_schemes(args.type)(**part_kwargs)
+        part = wpart_schemes(type)(**part_kwargs)
         try:
-            getattr(part, args.part_job_type)()
+            getattr(part, settings["part_job_type"])()
             # part.do_partitioning()
         except RuntimeError as e:
             self.logger.info(e)
@@ -260,7 +261,7 @@ class PartDensProg(PartProg):
 
         # Print results
         self.print_basis(part)
-        if args.type in ["gisa", "lisa", "glisa"]:
+        if type in ["gisa", "lisa", "glisa"]:
             self.print_propars(part, -np.inf, "The modified initial propars")
         self.print_header("Results")
         self.print_charges(data["atnums"], part.cache["charges"])
@@ -277,12 +278,12 @@ class PartDensProg(PartProg):
             "natom": len(data["atnums"]),
             "atnums": data["atnums"],
             "atcorenums": data["atcorenums"],
-            "type": args.type,
-            "lmax": args.lmax,
-            "maxiter": args.maxiter,
-            "threshold": args.threshold,
-            "inner_threshold": args.inner_threshold if args.type not in ["glisa"] else np.nan,
-            "solver": args.solver,
+            "type": type,
+            "lmax": settings["lmax"],
+            "maxiter": settings["maxiter"],
+            "threshold": settings["threshold"],
+            "inner_threshold": settings["inner_threshold"] if type not in ["glisa"] else np.nan,
+            "solver": settings["solver"],
             # results
             "charges": part.cache["charges"],
             "time": part.time_usage["do_partitioning"],
@@ -295,6 +296,7 @@ class PartDensProg(PartProg):
             "history_changes": part.cache["history_changes"],
         }
 
+        # TODO: compute molecular quadrupole moment from molecular density.
         # part_data["atcoords"] = part.coordinates
         # part_data["part/cartesian_multipoles"] = part.cache["cartesian_multipoles"]
         # part_data["part/radial_moments"] = part.cache["radial_moments"]
@@ -321,7 +323,7 @@ class PartDensProg(PartProg):
         # D = np.array([Dx, Dy, Dz])
         # part_data["dipole_moment"] = D
 
-        if args.part_job_type == "do_density_decomposition":
+        if settings["part_job_type"] == "do_density_decomposition":
             bs_info = self.load_basis_info(part)
             propars = part.cache["history_propars"][-1, :]
             for iatom in range(part.natom):
@@ -331,17 +333,16 @@ class PartDensProg(PartProg):
                     f"radial_weights_{iatom}",
                 ]:
                     part_data[k] = part.cache[k]
-                # TODO: use optimized results
                 propars_a = propars[part._ranges[iatom] : part._ranges[iatom + 1]]
-                if args.type in ["gisa", "lisa", "glisa"]:
+                if type in ["gisa", "lisa", "glisa"]:
                     info = np.asarray(bs_info[part.numbers[iatom]]).T
                     info[:, -1] = propars_a
-                elif args.type in ["mbis"]:
+                elif type in ["mbis"]:
                     propars_a = propars_a.reshape((-1, 2))
                     info = np.ones((propars_a.shape[0], 3))
                     info[:, 1] = propars_a[:, 1]
                     info[:, 2] = propars_a[:, 0]
-                elif args.type in ["gmbis", "nlis"]:
+                elif type in ["gmbis", "nlis"]:
                     propars_a = propars_a.reshape((-1, 3))
                     info = np.zeros((propars_a.shape[0], 3))
                     info[:, 0] = propars_a[:, 2]
@@ -363,118 +364,7 @@ class PartDensProg(PartProg):
         """Parse command-line arguments."""
         description = f"Molecular density partitioning with HORTON3 {__version__}."
         parser = argparse.ArgumentParser(prog="part-dens", description=description)
-
-        # for part
-        parser.add_argument(
-            "--inputs",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The output file of part-gen command.",
-        )
-        parser.add_argument(
-            "-t",
-            "--type",
-            type=str,
-            default="lisa",
-            choices=["gisa", "lisa", "mbis", "is", "glisa", "gmbis", "nlis"],
-            help="Number of angular grid points. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--basis_func",
-            type=str,
-            default="gauss",
-            choices=["gauss", "slater"],
-            help="The type of basis functions. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--func_file",
-            type=str,
-            default=None,
-            help="The json inputs of basis functions.",
-        )
-        parser.add_argument(
-            "--maxiter",
-            type=int,
-            default=1000,
-            help="The maximum outer iterations. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--threshold",
-            type=float,
-            default=1e-6,
-            help="The threshold of convergence for outer iterations. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--inner_threshold",
-            type=float,
-            default=1e-8,
-            help="The inner threshold of convergence for local version methods. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--lmax",
-            type=int,
-            default=3,
-            help="The maximum angular momentum in multipole expansions. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--radius_cutoff",
-            type=float,
-            default=np.inf,
-            help="The radius cutoff of local atomic grid [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--outputs",
-            help="The NPZ file in which the partitioning results will be stored.",
-            type=str,
-            nargs="+",
-            default="partitioning.npz",
-        )
-        parser.add_argument(
-            "--log_level",
-            default="INFO",
-            choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            help="Set the logging level (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--log_files",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The log file.",
-        )
-        parser.add_argument(
-            "--solver",
-            type=str,
-            default=None,
-            help="The objective function type for GISA and LISA methods. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--exp_n_dict",
-            type=float_dict,
-            default=None,
-            help="The exponent of radial distance used in the Generalize MBIS method. "
-            "[default=%(default)s]",
-        )
-        parser.add_argument(
-            "--nshell_dict",
-            type=int_dict,
-            default=None,
-            help="The dict of number of basis function used in theNLIS method. "
-            "[default=%(default)s]",
-        )
-        parser.add_argument(
-            "--part_job_type",
-            type=str,
-            default="do_partitioning",
-            help="The type of partitioning job. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--config_file",
-            type=str,
-            default=None,
-            help="Use configure file.",
-        )
+        parser.add_argument("config_file", type=str, help="The input file.")
         return parser
 
 

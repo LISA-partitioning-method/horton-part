@@ -87,11 +87,11 @@ def wpart_schemes(scheme):
 
         wpart = BeckeWPart
     elif scheme == "lisa":
-        from .lisa import LinearISAWPart
+        from .alisa import LinearISAWPart
 
         wpart = LinearISAWPart
     elif scheme == "glisa":
-        from .lisa_g import GlobalLinearISAWPart
+        from .glisa import GlobalLinearISAWPart
 
         wpart = GlobalLinearISAWPart
     elif scheme == "gisa":

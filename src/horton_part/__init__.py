@@ -21,15 +21,15 @@
 
 
 from .algo import *
+from .alisa import *
 from .becke import *
 from .core import *
 from .gisa import *
+from .glisa import *
 from .gmbis import *
 from .hirshfeld import *
 from .hirshfeld_i import *
 from .isa import *
-from .lisa import *
-from .lisa_g import *
 from .mbis import *
 from .mulliken import *
 from .nlis import *

@@ -24,7 +24,6 @@ from importlib import resources
 
 import numpy as np
 import pytest
-from iodata.utils import FileFormatWarning
 
 from horton_part.scripts.generate_density import main
 from horton_part.scripts.partition_density import construct_molgrid_from_dict
@@ -34,13 +33,25 @@ from horton_part.scripts.partition_density import construct_molgrid_from_dict
 def test_construct_molgrid_from_dict(fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
+        fn_log = os.path.join(tmpdir, "density.log")
+
+        yaml_file = tmpdir.join("input.yaml")
+        yaml_content = f"""
+            part-gen:
+              inputs:
+              - {fn_full}
+              outputs:
+              - {fn_density}
+              log_files:
+              - {fn_log}
+            """
+        yaml_file.write(yaml_content)
+
         with pytest.warns(None) as record:
-            main(["--inputs", str(fn_full), "--outputs", fn_density])
-        if len(record) == 1:
-            assert issubclass(record[0].category, FileFormatWarning)
+            main([str(yaml_file)])
+        assert len(record) <= 1
         assert os.path.isfile(fn_density)
         data = dict(np.load(fn_density))
-        print(data.keys())
         molgrid = construct_molgrid_from_dict(data)
 
     natom = len(data["atnums"])

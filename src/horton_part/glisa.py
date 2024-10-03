@@ -40,12 +40,12 @@ from horton_part import gisa
 from horton_part.core import iterstock
 
 from .algo import bfgs, cdiis, diis
+from .alisa import setup_bs_helper
 from .core.cache import just_once
 from .core.iterstock import compute_change
 from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .gisa import get_proatom_rho
-from .lisa import setup_bs_helper
 from .utils import (
     NEGATIVE_CUTOFF,
     PERIODIC_TABLE,

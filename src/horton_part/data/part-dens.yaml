@@ -1,0 +1,13 @@
+type: "lisa"
+basis_func: "gauss"
+func_file: null
+maxiter: 1000
+threshold: 1.0e-6
+inner_threshold: 1.0e-8
+lmax: 3
+radius_cutoff: !!float "inf"
+log_level: "INFO"
+solver: sc
+exp_n_dict: null
+nshell_dict: null
+part_job_type: "do_partitioning"

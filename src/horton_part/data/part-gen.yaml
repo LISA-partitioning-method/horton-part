@@ -1,0 +1,6 @@
+log_level: "WARNING"
+nrad: 150
+nang: 194
+chunk_size: 10000
+gradient: false
+orbitals: false
