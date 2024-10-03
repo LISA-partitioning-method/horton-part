@@ -280,7 +280,7 @@ class NLISWPart(AbstractISAWPart):
         atgrid = self.get_grid(iatom)
         rgrid = atgrid.rgrid
         dens = self.get_moldens(iatom)
-        at_weights = self.cache.load("at_weights", iatom)
+        at_weights = self.cache.load(f"at_weights_{iatom}")
         spline = atgrid.spherical_average(at_weights * dens)
         points = rgrid.points
         spherical_average = spline(points)

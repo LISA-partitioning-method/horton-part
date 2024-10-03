@@ -391,7 +391,8 @@ class AbstractStockholderWPart(WPart):
         t0 = time.time()
         for index in range(self.natom):
             atmgrid = self.get_grid(index)
-            at_weights = self.cache.load("at_weights", index, alloc=atmgrid.size)[0]
+            # at_weights = self.cache.load("at_weights", index, alloc=atmgrid.size)[0]
+            at_weights = self.cache.load(f"at_weights_{index}", alloc=atmgrid.size)[0]
             # Here the proatom density is stored in at_weights.
             self.update_pro(index, at_weights, promoldens)
         t1 = time.time()
@@ -400,7 +401,8 @@ class AbstractStockholderWPart(WPart):
         # promolecules.
         for index in range(self.natom):
             # Here, at_weights is proatom density.
-            at_weights = self.cache.load("at_weights", index)
+            # at_weights = self.cache.load("at_weights", index)
+            at_weights = self.cache.load(f"at_weights_{index}")
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
             # self.logger.debug("weights:")

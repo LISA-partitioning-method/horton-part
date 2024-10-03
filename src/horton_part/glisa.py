@@ -256,7 +256,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # tot_charge4 = 0.0
 
             for iatom in range(self.natom):
-                at_weights = self.cache.load("at_weights", iatom)
+                # at_weights = self.cache.load("at_weights", iatom)
+                at_weights = self.cache.load(f"at_weights_{iatom}")
                 dens = self.get_moldens(iatom)
                 atgrid = self.get_grid(iatom)
 

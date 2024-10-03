@@ -96,7 +96,7 @@ def evaluate_basis_functions(part):
         rgrid = part.get_rgrid(iatom)
         r = rgrid.points
         nshell = part._ranges[iatom + 1] - part._ranges[iatom]
-        bs_funcs = part.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
+        bs_funcs = part.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, r.size))[0]
         bs_funcs[:, :] = np.array(
             [
                 part.bs_helper.compute_proshell_dens(part.numbers[iatom], ishell, 1.0, r)
@@ -242,7 +242,8 @@ class GaussianISAWPart(AbstractISAWPart):
         atgrid = self.get_grid(iatom)
         rgrid = atgrid.rgrid
         dens = self.get_moldens(iatom)
-        at_weights = self.cache.load("at_weights", iatom)
+        # at_weights = self.cache.load("at_weights", iatom)
+        at_weights = self.cache.load(f"at_weights_{iatom}")
         spline = atgrid.spherical_average(at_weights * dens)
         points = atgrid.rgrid.points
         spherical_average = spline(points)
@@ -253,7 +254,7 @@ class GaussianISAWPart(AbstractISAWPart):
 
         # assign as new propars
         propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
-        bs_funcs = self.cache.load("bs_funcs", iatom)
+        bs_funcs = self.cache.load(f"bs_funcs_{iatom}")
 
         # use truncated grids if local_grid_radius != np.inf
         r_mask = points <= self.radius_cutoff
@@ -309,7 +310,7 @@ class GaussianISAWPart(AbstractISAWPart):
             rgrid = self.get_rgrid(iatom)
             r = rgrid.points
             nshell = self._ranges[iatom + 1] - self._ranges[iatom]
-            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
+            bs_funcs = self.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, r.size))[0]
             bs_funcs[:, :] = np.array(
                 [
                     self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)

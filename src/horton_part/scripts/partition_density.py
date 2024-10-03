@@ -364,6 +364,7 @@ class PartDensProg(PartProg):
 
         if settings.get("save"):
             self.print_header("Cache")
+            self.logger.info(f"The following extra infos are stored in {fn_out}:")
             for _k in settings["save"]:
                 # Check for dot notation (nested attributes)
                 if isinstance(_k, list):
@@ -372,12 +373,10 @@ class PartDensProg(PartProg):
                 else:
                     value = get_nested_attr(part, _k)
                 if isinstance(value, np.ndarray):
-                    self.logger.info(f"Save '{_k}' in '{fn_out}' with key of 'save/part.{_k}'")
+                    self.logger.info(f"{str(_k):>40} => save/part.{_k}")
                     part_data[f"save/{_k}"] = value
                 if value is None and _k in part.cache:
-                    self.logger.info(
-                        f"Save '{_k}' in '{fn_out}' with key of 'save/part.cache/{_k}'"
-                    )
+                    self.logger.info(f"{str(_k):>40} => save/part.cache/{_k}")
                     part_data[f"save/cache/{_k}"] = part.cache[_k]
             self.print_line()
 
