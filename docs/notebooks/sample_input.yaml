@@ -1,0 +1,10 @@
+part-gen:
+  inputs:
+  - ./data/h2o.fchk
+  outputs:
+  - h2o_dens.npz
+part-dens:
+  inputs:
+  - h2o_dens.npz
+  outputs:
+  - h2o_part.npz

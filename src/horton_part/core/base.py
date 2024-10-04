@@ -235,7 +235,7 @@ class Part(JustOnceClass):
         """Compute pseudo population"""
         grid = self.get_grid(index)
         dens = self.get_moldens(index)
-        at_weights = self.cache.load("at_weights", index)
+        at_weights = self.cache.load(f"at_weights_{index}")
         return grid.integrate(at_weights, dens)
 
     @just_once
@@ -284,7 +284,7 @@ class Part(JustOnceClass):
             for index in range(self.natom):
                 grid = self.get_grid(index)
                 spindens = self.get_spindens(index)
-                at_weights = self.cache.load("at_weights", index)
+                at_weights = self.cache.load(f"at_weights_{index}")
                 # weights correction
                 # wcor = self.get_wcor(index)
                 # spin_charges[index] = grid.integrate(at_weights, spindens, wcor)
@@ -323,7 +323,7 @@ class Part(JustOnceClass):
                 grid = self.get_grid(i)
 
                 # 2) Compute the AIM
-                aim = self.get_moldens(i) * self.cache.load("at_weights", i)
+                aim = self.get_moldens(i) * self.cache.load(f"at_weights_{i}")
 
                 # 3) Compute weight corrections
                 # wcor = self.get_wcor(i)
@@ -458,7 +458,7 @@ class WPart(Part):
                 moldens = self.get_moldens(index)
                 self.do_partitioning()
                 print("Computing density decomposition for atom %i" % index)
-                at_weights = self.cache.load("at_weights", index)
+                at_weights = self.cache.load(f"at_weights_{index}")
                 assert atgrid.l_max >= self.lmax
                 splines = atgrid.radial_component_splines(moldens * at_weights)
                 density_decomp = {"spline_%05i" % j: spl for j, spl in enumerate(splines)}

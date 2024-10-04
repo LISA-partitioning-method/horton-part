@@ -24,7 +24,7 @@ import os
 import yaml
 
 from horton_part import PERIODIC_TABLE, __version__, setup_logger
-from horton_part.utils import JSON_DATA_PATH
+from horton_part.utils import DATA_PATH
 
 __all__ = ["PartProg", "load_settings_from_yaml_file"]
 
@@ -80,17 +80,21 @@ class PartProg:
         self.width = width
         self.program_name = program_name
         self.logger = logging.getLogger(program_name)
+        self.default_settings = {}
 
     def _set_default(self, settings, yaml_file=None):
-        yaml_file = yaml_file or JSON_DATA_PATH / f"{self.program_name}.yaml"
+        yaml_file = yaml_file or DATA_PATH / f"{self.program_name}.yaml"
         with open(yaml_file) as file:
-            default_values = yaml.safe_load(file)
-        for key, value in default_values.items():
+            self.default_settings = yaml.safe_load(file)
+        for key, value in self.default_settings.items():
             settings.setdefault(key, value)
 
     def check_settings(self, settings):
+        assert "inputs" in settings and isinstance(settings["inputs"], list)
         inputs = settings["inputs"]
+        settings.setdefault("outputs", [f"output_{i+1}.npz" for i in range(len(inputs))])
         outputs = settings["outputs"]
+        settings.setdefault("log_files", [None] * len(inputs))
         logs = settings["log_files"]
         if len(inputs) == len(outputs) == len(logs):
             return True

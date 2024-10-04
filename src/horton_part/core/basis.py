@@ -22,39 +22,54 @@
 import json
 
 import numpy as np
+import yaml
 from scipy.special import gamma
 
-from horton_part.utils import JSON_DATA_PATH
+from horton_part.utils import DATA_PATH
 
 __all__ = ["BasisFuncHelper", "evaluate_function", "load_params"]
 
 
-def load_params(filename):
+def load_params(filename, extension="json"):
     """
-    Loads parameters from a JSON file.
+    Loads parameters from a JSON or YAML file.
 
-    The function reads a JSON file specified by the filename, and extracts
-    orders, exponents, and initial values for different elements.
+    The function reads a file specified by the filename, which can be in JSON or YAML format,
+    and extracts orders, exponents, and initial values for different elements based on their atomic numbers.
 
     Parameters
     ----------
     filename : str
-        The path to the JSON file containing the parameters.
+        The path to the file containing the parameters in JSON or YAML format.
+    extension : str, optional
+        The format of the file, either 'json' or 'yaml'. Default is 'json'.
 
     Returns
     -------
     tuple of dict
         A tuple containing three dictionaries: orders, exponents, and initials.
-        Each dictionary maps an atomic number to its corresponding values.
+        Each dictionary maps an atomic number (int) to its corresponding numpy array values (orders, exponents, and initials).
     """
-    with open(filename) as file:
-        data = json.load(file)
+    assert extension.lower() in ["json", "yaml"], "Format must be 'json' or 'yaml'."
+
+    # Load the data based on the format
+    if extension.lower() == "json":
+        with open(filename) as file:
+            data = json.load(file)
+    else:
+        with open(filename) as file:
+            data = yaml.safe_load(file)
+
+    # Initialize the dictionaries to store orders, exponents, and initial values
     orders, exps, inits = {}, {}, {}
-    for number, data in data.items():
-        number = int(number)
-        orders[number] = np.asarray(data[0])
-        exps[number] = np.asarray(data[1])
-        inits[number] = np.asarray(data[2])
+
+    # Process the data and fill the dictionaries
+    for number, values in data.items():
+        number = int(number)  # Convert the atomic number to an integer
+        orders[number] = np.asarray(values[0])
+        exps[number] = np.asarray(values[1])
+        inits[number] = np.asarray(values[2])
+
     return orders, exps, inits
 
 
@@ -249,14 +264,24 @@ class BasisFuncHelper:
     def from_function_type(cls, func_type="gauss"):
         """Construct class from basis type."""
         assert func_type in ["gauss", "slater"]
-        return cls.from_json(JSON_DATA_PATH.joinpath(f"{func_type}.json"))
+        return cls.from_yaml(DATA_PATH.joinpath(f"{func_type}.json"))
 
     @classmethod
-    def from_json(cls, filename):
+    def from_file(cls, filename, extension):
         """Construct class from a file."""
-        orders, exponents, initials = load_params(filename)
+        orders, exponents, initials = load_params(filename, extension=extension)
         # check if initials values are valid.
         for number, exps in exponents.items():
             if number not in initials:
                 initials[number] = np.ones_like(exps) / len(exps)
         return cls(orders, exponents, initials)
+
+    @classmethod
+    def from_yaml(cls, filename):
+        """Construct from a yaml file."""
+        return cls.from_file(filename, extension="json")
+
+    @classmethod
+    def from_json(cls, filename):
+        """Construct from a yaml file."""
+        return cls.from_file(filename, extension="yaml")

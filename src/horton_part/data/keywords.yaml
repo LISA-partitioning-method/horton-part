@@ -1,0 +1,109 @@
+is:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - radius_cutoff
+
+gisa:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - radius_cutoff
+    - solver
+    - solver_options
+
+mbis:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - radius_cutoff
+
+lisa:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+    - func_file
+  class_args:
+    - basis_func
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - radius_cutoff
+    - solver
+    - solver_options
+
+nlis:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - radius_cutoff
+    - exp_n_dict
+    - nshell_dict
+
+gmbis:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - radius_cutoff
+    - exp_n_dict
+
+glisa:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+    - func_file
+  class_args:
+    - basis_func
+    - maxiter
+    - threshold
+    - lmax
+    - radius_cutoff
+    - solver
+    - solver_options

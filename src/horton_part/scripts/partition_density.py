@@ -23,11 +23,13 @@ import sys
 import time
 
 import numpy as np
+import yaml
 from grid.atomgrid import AtomGrid
 from grid.basegrid import OneDGrid
 from grid.molgrid import MolGrid
 
 from horton_part import PERIODIC_TABLE, __version__, wpart_schemes
+from horton_part.utils import DATA_PATH
 
 from .program import PartProg
 
@@ -195,18 +197,14 @@ class PartDensProg(PartProg):
 
     def single_launch(self, settings, fn_in, fn_out, fn_log):
         self.setup_logger(settings, fn_log, overwrite=False)
-        exclude_keys = []
         type = settings.get("type")
-        if type in ["glisa"]:
-            exclude_keys = ["inner_threshold", "exp_n_dict", "nshell_dict"]
-        if type in ["gisa", "mbis", "isa"]:
-            exclude_keys = ["solver", "basis_func", "exp_n_dict", "nshell_dict"]
-        if type in ["gmbis"]:
-            exclude_keys = ["solver", "basis_func", "nshell_dict"]
-        if type in ["nlis"]:
-            exclude_keys = ["solver", "basis_func"]
-        exclude_keys.append("save")
-
+        with open(DATA_PATH / "keywords.yaml") as f:
+            keywords = yaml.safe_load(f)
+        exclude_keys = [
+            k
+            for k in settings.keys()
+            if k not in keywords[type]["io_infos"] + keywords[type]["class_args"]
+        ]
         self.print_settings(settings, fn_in, fn_out, fn_log, exclude_keys=exclude_keys)
 
         self.logger.info(f"Load grid and density data from {fn_in} ...")
@@ -232,41 +230,30 @@ class PartDensProg(PartProg):
             "pseudo_numbers": data["atcorenums"],
             "grid": grid,
             "moldens": data["density"],
-            "lmax": settings["lmax"],
-            "maxiter": settings["maxiter"],
-            "threshold": settings["threshold"],
-            "inner_threshold": settings["inner_threshold"],
-            "radius_cutoff": settings["radius_cutoff"],
             "logger": self.logger,
         }
 
         # Arguments for specific methods.
-        if type in ["gisa", "lisa", "glisa"]:
-            for _k in ["solver", "solver_options"]:
-                if _k in settings:
-                    part_kwargs[_k] = settings[_k]
+        for k in keywords[type]["class_args"]:
+            if k in settings:
+                part_kwargs[k] = settings[k]
 
-            if type in ["lisa", "glisa"]:
-                part_kwargs["basis_func"] = settings.get("func_file") or settings.get("basis_func")
-                if type in ["glisa"]:
-                    part_kwargs.pop("inner_threshold")
+        if "basis_func" in keywords[type]["class_args"]:
+            part_kwargs["basis_func"] = settings.get("func_file") or settings.get("basis_func")
 
-        elif type in ["gmbis", "nlis"]:
+        if "exp_n_dict" in keywords[type]["class_args"]:
             part_kwargs["exp_n_dict"] = float_dict(settings.get("exp_n_dict", None))
 
-        if type in ["nlis"]:
+        if "nshell_dict" in keywords[type]["class_args"]:
             part_kwargs["nshell_dict"] = int_dict(settings.get("nshell_dict", None))
 
         # Create part object
         part = wpart_schemes(type)(**part_kwargs)
         try:
             getattr(part, settings["part_job_type"])()
-            # part.do_partitioning()
         except RuntimeError as e:
             self.logger.info(e)
             return 1
-
-        # part.do_moments()
 
         # Print results
         self.print_basis(part)
@@ -274,10 +261,6 @@ class PartDensProg(PartProg):
             self.print_propars(part, -np.inf, "The modified initial propars")
         self.print_header("Results")
         self.print_charges(data["atnums"], part.cache["charges"])
-        # logger.info("cartesian multipoles:")
-        # logger.info(part.cache["cartesian_multipoles"])
-        # logger.info("radial moments:")
-        # logger.info(part.cache["radial_moments"])
         self.print_propars(part)
         self.print_part_time(part)
 
