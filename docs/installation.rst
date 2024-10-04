@@ -3,125 +3,65 @@
 Installation
 ############
 
-Downloading Code
-================
+Downloading the Code
+====================
 
-The latest code can be obtained through Github (https://github.com/yingxingcheng/horton-part),
+The latest code can be obtained from GitHub:
 
 .. code-block:: bash
 
-   git clone git@github.com:yingxingcheng/horton-part.git
+   git clone https://github.com/LISA-partitioning-method/horton-part.git
 
-.. _usr_py_depend:
+Installing
+==========
 
-Dependencies
-============
+To install `HORTON-PART` version `0.0.X`:
 
-The following dependencies will be necessary for Procrustes to build properly,
+.. code-block:: bash
 
-* Python >= 3.0: http://www.python.org/
-* NumPy >= 1.16.0: http://www.numpy.org/
-* SciPy >= 1.4.0: http://www.scipy.org/
-* Sphinx >= 2.3.0: https://www.sphinx-doc.org/
-* SymPy >= 1.4.0: https://www.sympy.org/en/index.html
-* PyTest >= 5.4.3: `https://docs.pytest.org/ <https://docs.pytest.org/>`_
-* QA requirement: Tox >= 4.0.0: https://tox.wiki/en/latest/
-* Sphinx >= 2.3.0, if one wishes to build the documentation locally:
-  `https://www.sphinx-doc.org/ <https://www.sphinx-doc.org/>`_
+   pip install horton-part
 
-
-
-Installation
-============
-
-Grid can be cloned via git,
+To install the latest version from the repository:
 
 .. code-block:: bash
 
    git clone https://github.com/yingxingcheng/horton-part.git
+   cd horton-part
+   pip install .
 
+Running Tests
+=============
 
-Then installation via pip can be done by going into the directory where Grid is downloaded to and running,
-
-.. code-block:: bash
-
-    pip install .
-
-Successful installation can be checked by running the tests,
+If you want to run the tests, install the test dependencies:
 
 .. code-block:: bash
 
-    pytest --pyargs horton-part
+   pip install .[tests]
 
+For developers who require all dependencies, install them with:
 
+.. code-block:: bash
 
+   pip install -e .[dev,tests]
 
+Building the Documentation
+==========================
 
+To build the documentation using Sphinx into the `_build` directory:
 
+.. code-block:: bash
 
+    cd ./doc
+    ./gen_api.sh
+    sphinx-build -b html . _build
 
+Dependencies
+============
 
-..
-    The stable release of the package can be easily installed through the *pip* and
-    *conda* package management systems, which install the dependencies automatically, if not
-    available. To use *pip*, simply run the following command:
+The following dependencies are required for `HORTON-PART` to build properly:
 
-    .. code-block:: bash
-
-        pip install qc-procrustes
-
-    To use *conda*, one can either install the package through Anaconda Navigator or run the following
-    command in a desired *conda* environment:
-
-    .. code-block:: bash
-
-        conda install -c yingxingcheng qc-procrustes
-
-
-    Alternatively, the *Procrustes* source code can be download from GitHub (either the stable version
-    or the development version) and then installed from source. For example, one can download the latest
-    source code using *git* by:
-
-    .. code-block:: bash
-
-        # download source code
-        git clone git@github.com:yingxingcheng/procrustes.git
-        cd procrustes
-
-    From the parent directory, the dependencies can either be installed using *pip* by:
-
-    .. code-block:: bash
-
-        # install dependencies using pip
-        pip install -r requirements.txt
-
-
-    or, through *conda* by:
-
-    .. code-block:: bash
-
-        # create and activate myenv environment
-        # Procruste works with Python 3.6, 3.7, and 3.8
-        conda create -n myenv python=3.6
-        conda activate myenv
-        # install dependencies using conda
-        conda install --yes --file requirements.txt
-
-
-    Finally, the *Procrustes* package can be installed (from source) by:
-
-    .. code-block:: bash
-
-        # install Procrustes from source
-        pip install .
-
-Building Documentation
-======================
-
-The following shows how to build the documentation using sphinx to the folder `_build`.
-
-    .. code-block:: bash
-
-        cd ./doc
-        ./gen_api.sh
-        sphinx-build -b html . _build
+- `quadprog>=0.1.11` : https://github.com/quadprog/quadprog
+- `cvxopt>=1.3.1` : https://github.com/cvxopt/cvxopt
+- `qc-grid` : https://github.com/theochem/grid
+- `qc-iodata` : https://github.com/theochem/iodata
+- `gbasis` : https://github.com/theochem/gbasis

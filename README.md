@@ -59,6 +59,8 @@ This package implements partitioning schemes described in two papers: [a mathema
 - Minimal Basis Iterative Stockholder (MBIS)
 - Alternating Linear approximation of the ISA (aLISA) method
 - Global version of Linear approximation of the ISA (gLISA) method
+- Generalized Minimal Basis Iterative Stockholder (GMBIS)
+- Non-linear approximation of the ISA (NLIS) method
 
 ## License
 
