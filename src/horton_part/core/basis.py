@@ -267,8 +267,12 @@ class BasisFuncHelper:
         return cls.from_yaml(DATA_PATH.joinpath(f"{func_type}.json"))
 
     @classmethod
-    def from_file(cls, filename, extension):
+    def from_file(cls, filename):
         """Construct class from a file."""
+        if str(filename).endswith(".yaml"):
+            extension = "yaml"
+        else:
+            extension = "json"
         orders, exponents, initials = load_params(filename, extension=extension)
         # check if initials values are valid.
         for number, exps in exponents.items():
@@ -279,9 +283,9 @@ class BasisFuncHelper:
     @classmethod
     def from_yaml(cls, filename):
         """Construct from a yaml file."""
-        return cls.from_file(filename, extension="json")
+        return cls.from_file(filename)
 
     @classmethod
     def from_json(cls, filename):
         """Construct from a yaml file."""
-        return cls.from_file(filename, extension="yaml")
+        return cls.from_file(filename)

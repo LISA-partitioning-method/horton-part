@@ -17,7 +17,6 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-import argparse
 import os
 import sys
 
@@ -208,7 +207,8 @@ class PartGenProg(PartProg):
     """Part-Gen Program"""
 
     def __init__(self, width=100):
-        super().__init__("part-gen", width)
+        description = """Generate molecular density with HORTON3."""
+        super().__init__("part-gen", width, description=description)
 
     def single_launch(self, settings, fn_in, fn_out, fn_log, **kwargs):
         self.setup_logger(settings, fn_log)
@@ -255,12 +255,6 @@ class PartGenProg(PartProg):
             os.makedirs(path)
         np.savez_compressed(fn_out, **data)
         return 0
-
-    def build_parser(self):
-        description = """Generate molecular density with HORTON3."""
-        parser = argparse.ArgumentParser(prog=self.program_name, description=description)
-        parser.add_argument("config_file", type=str, default=None, help="The input file")
-        return parser
 
 
 def main(args=None) -> int:

@@ -18,6 +18,7 @@
 #
 # --
 
+import argparse
 import logging
 import os
 
@@ -76,11 +77,12 @@ def load_settings_from_yaml_file(args, sub_cmd="part-gen", fn_key="config_file")
 
 
 class PartProg:
-    def __init__(self, program_name, width):
+    def __init__(self, program_name, width, description=None):
         self.width = width
         self.program_name = program_name
         self.logger = logging.getLogger(program_name)
         self.default_settings = {}
+        self.description = description or f"The description of program {program_name}"
 
     def _set_default(self, settings, yaml_file=None):
         yaml_file = yaml_file or DATA_PATH / f"{self.program_name}.yaml"
@@ -115,10 +117,18 @@ class PartProg:
         if not self.check_settings(settings):
             raise RuntimeError(f"The settings for {self.program_name} is not fully correct.")
 
-        for fn_in, fn_out, fn_log in zip(
-            settings["inputs"], settings["outputs"], settings["log_files"]
+        for ifile, (fn_in, fn_out, fn_log) in enumerate(
+            zip(settings["inputs"], settings["outputs"], settings["log_files"])
         ):
-            self.single_launch(settings, fn_in, fn_out, fn_log)
+            if (
+                hasattr(args, "skip_exist_files")
+                and args.skip_exist_files
+                and os.path.exists(fn_out)
+            ):
+                if fn_log is not None or os.path.exists(fn_out):
+                    print(f"Skip the calculations with input: {fn_in}")
+                    continue
+            self.single_launch(settings, fn_in, fn_out, fn_log, ifile=ifile)
         return 0
 
     def setup_logger(self, settings: dict, fn_log, **kwargs):
@@ -135,7 +145,20 @@ class PartProg:
 
     def build_parser(self, *args, **kwargs):
         """Parse command-line arguments."""
-        raise NotImplementedError
+        # description = """Generate molecular density with HORTON3."""
+        description = self.description
+        parser = argparse.ArgumentParser(prog=self.program_name, description=description)
+        parser.add_argument(
+            "config_file",
+            type=str,
+            help="Use configure file.",
+        )
+        parser.add_argument(
+            "--skip_exist_files",
+            action="store_true",
+            help="Skip the calculation if the output files and log files exist",
+        )
+        return parser
 
     def print_settings(self, settings: dict, fn_in, fn_out, fn_log, exclude_keys=None):
         """Print setting for this program."""

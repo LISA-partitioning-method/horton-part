@@ -17,7 +17,6 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-import argparse
 import os
 import sys
 
@@ -161,11 +160,13 @@ class PartCubeProg(PartProg):
     """Part-Cube Program"""
 
     def __init__(self, width=100):
-        super().__init__("part-cube", width)
+        description = """Generate cube file for a molecular density."""
+        super().__init__("part-cube", width, description=description)
 
-    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log, index):
-        self.setup_logger(args, fn_log)
-        self.print_settings(args, fn_in, fn_out, fn_log)
+    def single_launch(self, settings, fn_in, fn_out, fn_log, **kwargs):
+        ifile = kwargs["ifile"]
+        self.setup_logger(settings, fn_log)
+        self.print_settings(settings, fn_in, fn_out, fn_log)
         iodata = load_one(fn_in)
         self.print_header("Molecular information")
         self.print_coordinates(iodata.atnums, iodata.atcoords)
@@ -173,9 +174,9 @@ class PartCubeProg(PartProg):
 
         grid, data = prepare_input_cube(
             iodata,
-            args.chunk_size,
-            args.gradient,
-            args.orbitals,
+            settings["chunk_size"],
+            settings["gradient"],
+            settings["orbitals"],
             self.logger,
         )
         data.update(
@@ -192,9 +193,9 @@ class PartCubeProg(PartProg):
             }
         )
 
-        if args.with_partdens:
+        if settings["with_partdens"]:
             # The filename of output obtained by part-dens program
-            fn_partden = args.partdens[index]
+            fn_partden = settings["partdens"][ifile]
             partden_data = np.load(fn_partden)
             # Load the optimized propars obtained by LISA/gLISA methods
             propars = partden_data["history_propars"][-1, :]
@@ -203,7 +204,7 @@ class PartCubeProg(PartProg):
                 grid.points[None, :, :] - iodata.atcoords[:, None, :], axis=2
             )
             # Compute pro-atom density and store it in an array, 2d array and shape = N_atoms * N_points
-            rho0 = _compute_rho0(iodata.atnums, dis_array, propars, args.basis_func)
+            rho0 = _compute_rho0(iodata.atnums, dis_array, propars, settings["basis_func"])
             # Compute pro-molecule density, 1d array and shape = N_points
             promol = np.sum(rho0, axis=0)
             promol += 1e-100
@@ -218,7 +219,7 @@ class PartCubeProg(PartProg):
                 f"The number of electrons in the molecule: {np.sum(iodata.atcorenums)}"
             )
 
-        if args.with_partdens and args.with_aim_cache:
+        if settings["with_partdens"] and settings["with_aim_cache"]:
             data.update(
                 {
                     "rho0": rho0,
@@ -232,7 +233,7 @@ class PartCubeProg(PartProg):
             os.makedirs(path)
         np.savez_compressed(fn_out, **data)
 
-        if args.with_cube_files:
+        if settings["with_cube_files"]:
             fn_name = ".".join(fn_out.split(".")[:-1])
             to_cube(
                 f"{fn_name}_rho_mol.cube",
@@ -242,7 +243,7 @@ class PartCubeProg(PartProg):
                 grid,
                 data["density"],
             )
-            if args.with_partdens:
+            if settings["with_partdens"]:
                 for i in range(len(iodata.atnums)):
                     to_cube(
                         f"{fn_name}_rho_{i}.cube",
@@ -269,115 +270,6 @@ class PartCubeProg(PartProg):
                     promol,
                 )
         return 0
-
-    def build_parser(self):
-        description = """Generate molecular density with HORTON3."""
-        parser = argparse.ArgumentParser(prog=self.program_name, description=description)
-
-        parser.add_argument(
-            "--inputs",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The outputs file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
-        )
-        parser.add_argument(
-            "--with_partdens",
-            default=False,
-            action="store_true",
-            help="Whether include info from partdens",
-        )
-        parser.add_argument(
-            "--partdens",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The outputs file from part-dens.",
-        )
-        parser.add_argument(
-            "--outputs",
-            help="The NPZ file in which the grid and the density will be stored.",
-            nargs="+",
-            type=str,
-            default="mol_density.npz",
-        )
-        parser.add_argument(
-            "--log_level",
-            default="WARNING",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            help="Set the logging level (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--log_files",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The log file.",
-        )
-        # for grid
-        parser.add_argument(
-            "--spacing",
-            type=float,
-            default=0.2,
-            help="Increment between grid points along :math:`x`, :math:`y`, and :math:`z` direction. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--extension",
-            type=float,
-            default=5.0,
-            help="The extension of the length of the cube on each side of the molecule. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "-c",
-            "--chunk-size",
-            type=int,
-            default=10000,
-            help="Number points on which the density is computed in one pass. "
-            "[default=%(default)s]",
-        )
-        # for gbasis
-        parser.add_argument(
-            "-g",
-            "--gradient",
-            default=False,
-            action="store_true",
-            help="Also compute the gradient of the density (and the orbitals). ",
-        )
-        parser.add_argument(
-            "-o",
-            "--orbitals",
-            default=False,
-            action="store_true",
-            help="Also store the occupied and virtual orbtials. "
-            "For this to work, orbitals must be defined in the WFN file.",
-        )
-        # for part-cube
-        parser.add_argument(
-            "--with_cube_files",
-            default=True,
-            action="store_true",
-            help="Whether write cube files for the AIM quantities.",
-        )
-        parser.add_argument(
-            "--with_aim_cache",
-            default=False,
-            action="store_true",
-            help="Whether store the AIM quantities in the output file.",
-        )
-        parser.add_argument(
-            "--basis_func",
-            type=str,
-            default="gauss",
-            choices=["gauss", "slater"],
-            help="The type of basis functions. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "--config_file",
-            type=str,
-            default=None,
-            help="Use configure file.",
-        )
-        return parser
 
 
 def main(args=None) -> int:

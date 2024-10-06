@@ -899,7 +899,7 @@ def setup_bs_helper(part):
                 part._bs_helper = BasisFuncHelper.from_function_type(bs_name)
             else:
                 part.logger.info(f"Load basis functions from custom json file: {part.basis_func}")
-                part._bs_helper = BasisFuncHelper.from_json(part.basis_func)
+                part._bs_helper = BasisFuncHelper.from_file(part.basis_func)
         elif isinstance(part.basis_func, BasisFuncHelper):
             part._bs_helper = part.basis_func
         else:

@@ -1,0 +1,22 @@
+with_partdens: null
+# The outputs file from part-dens.
+partdens: null
+log_level: "WARNING"
+# Increment between grid points along `x`, `y`, and `z` direction.
+spacing: 0.2
+# The extension of the length of the cube on each side of the molecule.
+extension: 5.0
+# Number points on which the density is computed in one pass.
+chunk_size: 10000
+# For gbasis
+# Also compute the gradient of the density (and the orbitals).
+gradient: false
+# Also store the occupied and virtual orbtials.
+orbitals: false
+# for part-cube
+# Whether write cube files for the AIM quantities.
+with_cube_files: true
+# Whether store the AIM quantities in the output file.
+with_aim_cache: false
+# The type of basis functions.
+basis_func: gauss

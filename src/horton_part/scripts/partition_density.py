@@ -118,7 +118,8 @@ class PartDensProg(PartProg):
     """Part-Dens Program"""
 
     def __init__(self, width=100):
-        super().__init__("part-dens", width)
+        description = f"Molecular density partitioning with HORTON3 {__version__}."
+        super().__init__("part-dens", width, description=description)
 
     def print_part_time(self, part):
         """Print partitioning time usage info."""
@@ -195,7 +196,7 @@ class PartDensProg(PartProg):
                     self.logger.info(f"{str(n):>8}          {cak:>15.6f}         {pop:>15.6f}")
             self.print_line()
 
-    def single_launch(self, settings, fn_in, fn_out, fn_log):
+    def single_launch(self, settings, fn_in, fn_out, fn_log, **kwargs):
         self.setup_logger(settings, fn_log, overwrite=False)
         type = settings.get("type")
         with open(DATA_PATH / "keywords.yaml") as f:
@@ -370,13 +371,6 @@ class PartDensProg(PartProg):
             os.makedirs(path)
         np.savez_compressed(fn_out, **part_data)
         return 0
-
-    def build_parser(self):
-        """Parse command-line arguments."""
-        description = f"Molecular density partitioning with HORTON3 {__version__}."
-        parser = argparse.ArgumentParser(prog="part-dens", description=description)
-        parser.add_argument("config_file", type=str, help="The input file.")
-        return parser
 
 
 def main(args=None) -> int:
