@@ -125,7 +125,7 @@ class PartProg:
                 and args.skip_exist_files
                 and os.path.exists(fn_out)
             ):
-                if fn_log is not None or os.path.exists(fn_out):
+                if fn_log is None or os.path.exists(fn_log):
                     print(f"Skip the calculations with input: {fn_in}")
                     continue
             self.single_launch(settings, fn_in, fn_out, fn_log, ifile=ifile)

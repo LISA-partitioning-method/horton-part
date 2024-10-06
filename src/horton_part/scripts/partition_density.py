@@ -17,7 +17,6 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-import argparse
 import os
 import sys
 import time
@@ -51,44 +50,12 @@ def get_nested_attr(obj, attr_path):
     return obj
 
 
-def int_dict(string):
-    if string is None:
-        return {}
-    try:
-        # Convert the input string to a dictionary
-        # Assuming format "key1_key2:value"
-        items = [item.split(":") for item in string.split(",")]
-        result = {}
-        for item in items:
-            key, value = int(item[0]), int(item[1])
-            result[key] = value
-        return result
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            "Each item must be in key:value format with keys as integers and value as int"
-        )
-
-
-def float_dict(string):
-    # TODO: the 1_0:1.0 could be converted to 601.0, so one has to use quote "1_0:1.0".
-    if string is None:
-        return {}
-    try:
-        # Convert the input string to a dictionary
-        # Assuming format "key1_key2:value"
-        items = [item.split(":") for item in string.split(",")]
-        result = {}
-        for item in items:
-            key_part = item[0].split("_")
-            # Convert key parts to integers
-            key = (int(key_part[0]), int(key_part[1]))
-            value = float(item[1])
-            result[key] = value
-        return result
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            "Each item must be in key1_key2:value format with keys as integers and value as float"
-        )
+def prepare_exp_n_dict(dict):
+    res = {}
+    for Z, exp_list in dict.items():
+        for ishell, value in enumerate(exp_list):
+            res[(int(Z), ishell)] = float(value)
+    return res
 
 
 def construct_molgrid_from_dict(data):
@@ -243,10 +210,10 @@ class PartDensProg(PartProg):
             part_kwargs["basis_func"] = settings.get("func_file") or settings.get("basis_func")
 
         if "exp_n_dict" in keywords[type]["class_args"]:
-            part_kwargs["exp_n_dict"] = float_dict(settings.get("exp_n_dict", None))
+            part_kwargs["exp_n_dict"] = prepare_exp_n_dict(settings.get("exp_n_dict", None))
 
         if "nshell_dict" in keywords[type]["class_args"]:
-            part_kwargs["nshell_dict"] = int_dict(settings.get("nshell_dict", None))
+            part_kwargs["nshell_dict"] = settings.get("nshell_dict", None)
 
         # Create part object
         part = wpart_schemes(type)(**part_kwargs)
