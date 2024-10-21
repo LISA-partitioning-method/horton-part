@@ -309,6 +309,8 @@ class PartDensProg(PartProg):
                     info[:, 0] = propars_a[:, 2]
                     info[:, 1] = propars_a[:, 1]
                     info[:, 2] = propars_a[:, 0]
+                elif type in ["is"]:
+                    info = propars_a
                 else:
                     raise NotImplementedError
                 part_data[f"bs_info_{iatom}"] = info
@@ -325,10 +327,10 @@ class PartDensProg(PartProg):
                     value = get_nested_attr(part, _k)
                 if isinstance(value, np.ndarray):
                     self.logger.info(f"{str(_k):>40} => save/part.{_k}")
-                    part_data[f"save/{_k}"] = value
+                    part_data[f"save/part.{_k}"] = value
                 if value is None and _k in part.cache:
                     self.logger.info(f"{str(_k):>40} => save/part.cache/{_k}")
-                    part_data[f"save/cache/{_k}"] = part.cache[_k]
+                    part_data[f"save/part.cache/{_k}"] = part.cache[_k]
             self.print_line()
 
         # NOTE: do not restore molecular density and grids
