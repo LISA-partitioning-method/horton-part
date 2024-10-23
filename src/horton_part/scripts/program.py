@@ -133,10 +133,7 @@ class PartProg:
 
     def setup_logger(self, settings: dict, fn_log, **kwargs):
         # Convert the log level string to a logging level
-        if not hasattr(settings, "log_level"):
-            log_level = logging.INFO
-        else:
-            log_level = getattr(logging, settings["log_level"], logging.INFO)
+        log_level = getattr(logging, settings.get("log_level", "INFO"))
         setup_logger(self.logger, log_level, fn_log, **kwargs)
 
     def single_launch(self, *args, **kwargs):

@@ -165,7 +165,17 @@ def solver_cvxopt(
         raise RuntimeError("CVXOPT not converged!")
 
 
-def solver_sc(bs_funcs, rho, propars, points, weights, threshold, logger, density_cutoff=1e-15):
+def solver_sc(
+    bs_funcs,
+    rho,
+    propars,
+    points,
+    weights,
+    threshold,
+    logger,
+    density_cutoff=1e-15,
+    max_niter_inner=1e5,
+):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
 
@@ -193,6 +203,8 @@ def solver_sc(bs_funcs, rho, propars, points, weights, threshold, logger, densit
         Convergence threshold for the iterative process.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    max_niter_inner : int
+        The maximum number of inner iterations.
 
     Returns
     -------
@@ -213,7 +225,7 @@ def solver_sc(bs_funcs, rho, propars, points, weights, threshold, logger, densit
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     oldpro = None
-    for irep in range(int(1e10)):
+    for irep in range(int(float(max_niter_inner))):
         pro_shells, pro, sick, ratio, _ = compute_quantities(
             rho, propars, bs_funcs, density_cutoff, do_ln_ratio=False
         )
@@ -233,7 +245,9 @@ def solver_sc(bs_funcs, rho, propars, points, weights, threshold, logger, densit
             check_pro_atom_parameters(propars)
             return propars
         oldpro = pro
-    raise RuntimeError("Error: Inner iteration is not converge!")
+    logger.warn("Warning: Inner iteration is not converge!")
+    return propars
+    # raise RuntimeError("Error: Inner iteration is not converge!")
 
 
 def solver_sc_1_iter(
