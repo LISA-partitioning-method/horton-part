@@ -159,7 +159,7 @@ def solver_cvxopt(
     if opt_CVX["status"] == "optimal":
         optimized_res = opt_CVX["x"]
         new_propars = np.asarray(optimized_res).flatten()
-        check_pro_atom_parameters(new_propars, bs_funcs)
+        check_pro_atom_parameters(new_propars, bs_funcs, logger=logger)
         return new_propars
     else:
         raise RuntimeError("CVXOPT not converged!")
@@ -242,7 +242,7 @@ def solver_sc(
 
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            check_pro_atom_parameters(propars)
+            check_pro_atom_parameters(propars, logger=logger)
             return propars
         oldpro = pro
     logger.warn("Warning: Inner iteration is not converge!")
@@ -359,7 +359,7 @@ def solver_sc_plus_cvxopt(
 
         # the partitions and the updated parameters
         propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
-        check_pro_atom_parameters(propars)
+        check_pro_atom_parameters(propars, logger=logger)
 
         # check for convergence
         if oldpro is None:
@@ -431,7 +431,7 @@ def solver_diis(
     new_propars, niter, history_x = diis(
         propars, function_g, threshold, logger=logger, verbose=False, **diis_options
     )
-    check_pro_atom_parameters(new_propars, bs_funcs)
+    check_pro_atom_parameters(new_propars, bs_funcs, logger=logger)
     return new_propars
 
 
@@ -717,6 +717,7 @@ def _solver_general_newton(
                 total_population=pop,
                 pro_atom_density=pro,
                 check_propars_negativity=False,
+                logger=logger,
             )
             return propars
 
@@ -837,7 +838,7 @@ def solver_trust_region(
         raise RuntimeError("Convergence failure.")
 
     result = np.asarray(opt_res["x"]).flatten()
-    check_pro_atom_parameters(result, bs_funcs, total_population=float(pop))
+    check_pro_atom_parameters(result, bs_funcs, total_population=float(pop), logger=logger)
     return result
 
 
@@ -899,7 +900,7 @@ def solver_cdiis(
     if not conv:
         raise RuntimeError("Not converged!")
     pop = np.einsum("i,i", weights, rho)
-    check_pro_atom_parameters(xlast, basis_functions=bs_funcs, total_population=pop)
+    check_pro_atom_parameters(xlast, basis_functions=bs_funcs, total_population=pop, logger=logger)
     return xlast
 
 

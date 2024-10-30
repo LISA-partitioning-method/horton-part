@@ -247,8 +247,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # compute the new charge
             charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
 
-            # promol = self.calc_promol_dens(propars)
-            # promol += 1e-100 * self.natom
+            promol = self.calc_promol_dens(propars)
+            promol += 1e-100 * self.natom
 
             # tot_charge1 = 0.0
             # tot_charge2 = 0.0
@@ -257,25 +257,25 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
             for iatom in range(self.natom):
                 # at_weights = self.cache.load("at_weights", iatom)
-                at_weights = self.cache.load(f"at_weights_{iatom}")
-                dens = self.get_moldens(iatom)
-                atgrid = self.get_grid(iatom)
+                # at_weights = self.cache.load(f"at_weights_{iatom}")
+                # dens = self.get_moldens(iatom)
+                # atgrid = self.get_grid(iatom)
 
-                # Method 1
-                nelec1 = atgrid.integrate(dens * at_weights)
-                charge1 = self.pseudo_numbers[iatom] - nelec1
-                self.check_pro(iatom, propars)
-                # tot_charge1 += charge1
+                # # Method 1
+                # nelec1 = atgrid.integrate(dens * at_weights)
+                # charge1 = self.pseudo_numbers[iatom] - nelec1
+                # self.check_pro(iatom, propars)
+                # # tot_charge1 += charge1
 
-                # # Method 2
-                # mask = np.zeros_like(propars)
-                # mask[self._ranges[iatom] : self._ranges[iatom + 1]] = 1.0
-                # propars_iatom = propars * mask
-                # rhoa0 = self.calc_promol_dens(propars_iatom)
-                # assert (rhoa0 <= promol).all()
-                # at_weights2 = rhoa0 / promol
-                # nelec2 = self.grid.integrate(at_weights2 * self._moldens)
-                # charge2 = self.pseudo_numbers[iatom] - nelec2
+                # Method 2
+                mask = np.zeros_like(propars)
+                mask[self._ranges[iatom] : self._ranges[iatom + 1]] = 1.0
+                propars_iatom = propars * mask
+                rhoa0 = self.calc_promol_dens(propars_iatom)
+                assert (rhoa0 <= promol).all()
+                at_weights2 = rhoa0 / promol
+                nelec2 = self.grid.integrate(at_weights2 * self._moldens)
+                charge2 = self.pseudo_numbers[iatom] - nelec2
                 # tot_charge2 += charge2
 
                 # # Method 3
@@ -299,7 +299,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 # print("-" * 80)
 
                 # we choose Method 1, which is used in aLISA and other ISA variants.
-                charges[iatom] = charge1
+                # charges[iatom] = charge1
+                charges[iatom] = charge2
             # print(f"The total charge of molecule is (old): {tot_charge1}")
             # print(f"The total charge of molecule is (new1): {tot_charge2}")
             # print(f"The total charge of molecule is (new2): {tot_charge3}")
@@ -602,6 +603,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             pro_atom_density=self.calc_promol_dens(propars),
             total_population=mol_pop,
             check_monotonicity=False,
+            logger=self.logger,
         )
 
         # TODO: collect info
@@ -839,6 +841,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                     pro_atom_density=pro,
                     check_monotonicity=False,
                     check_propars_negativity=False,
+                    logger=self.logger,
                 )
                 self.cache.dump("niter", irep + 1, tags="o")
                 return propars
@@ -962,6 +965,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             pro_atom_density=self.calc_promol_dens(propars),
             total_population=self.mol_pop,
             check_monotonicity=False,
+            logger=self.logger,
         )
 
         # Collect info
@@ -1056,6 +1060,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             pro_atom_density=self.calc_promol_dens(propars),
             total_population=self.mol_pop,
             check_monotonicity=False,
+            logger=self.logger,
         )
 
         self.cache.dump("niter", nbiter, tags="o")

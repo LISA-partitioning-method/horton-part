@@ -255,6 +255,7 @@ def check_pro_atom_parameters(
     check_monotonicity=True,
     check_dens_negativity=True,
     check_propars_negativity=True,
+    logger=None,
 ):
     """
     Check the validity of pro-atom parameters.
@@ -281,6 +282,8 @@ def check_pro_atom_parameters(
         Check if the density is non-negativity.
     check_propars_negativity: bool, optional
         Check if the propars is negative.
+    logger:
+        Logger
 
     Raises
     ------
@@ -314,7 +317,11 @@ def check_pro_atom_parameters(
 
     # Check if pro-atom parameters are positive
     if check_propars_negativity and (pro_atom_params < NEGATIVE_CUTOFF).any():
-        warnings.warn("Not all pro-atom parameters are positive!")
+        warn_info = "WARNING: Not all pro-atom parameters are positive!"
+        if logger is not None:
+            logger.warn(warn_info)
+        else:
+            warnings.warn(warn_info)
 
     # Calculate pro-atom density if not provided
     if basis_functions is not None and pro_atom_density is None:
@@ -336,26 +343,39 @@ def check_pro_atom_parameters(
     if total_population is not None and not np.allclose(
         np.sum(pro_atom_params), total_population, atol=POPULATION_CUTOFF
     ):
-        warnings.warn(
-            r"The sum of pro-atom parameters is not equal to atomic population."
-            rf"The difference is {np.sum(pro_atom_params) - total_population}"
+        warn_info = (
+            "WARNING: The sum of pro-atom parameters is not equal to atomic population.\n"
+            rf"WARNING: The difference is {np.sum(pro_atom_params) - total_population}"
         )
+        if logger is not None:
+            logger.warn(warn_info)
+        else:
+            warnings.warn(warn_info)
 
     if check_monotonicity and pro_atom_density is not None:
         if (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any():
             raise RuntimeError("Pro-atom density should be monotonically decreasing.")
 
 
-def check_for_pro_error(pro, as_warn=True):
+def check_for_pro_error(pro, as_warn=True, logger=None):
     """Check for non-monotonic and non-negative density"""
     if (pro < NEGATIVE_CUTOFF).any():
         if as_warn:
-            warnings.warn("Negative pro-atom density found during optimization!")
+            warn_info = "WARNING: Negative pro-atom density found during optimization!"
+            if logger is not None:
+                logger.info(warn_info)
+            else:
+                warnings.warn(warn_info)
         else:
             raise RuntimeError("Negative pro-atom density found!")
     if (pro[:-1] - pro[1:] < NEGATIVE_CUTOFF).any():
         if as_warn:
-            warnings.warn("Pro-atom density should be monotonically decreasing.")
+            warn_info = "WARNING: Pro-atom density should be monotonically decreasing."
+            if logger is not None:
+                logger.info(warn_info)
+            else:
+                warnings.warn(warn_info)
+            warnings.warn(warn_info)
         else:
             raise RuntimeError("Pro-atom density should be monotonically decreasing.")
 
@@ -366,11 +386,16 @@ def check_for_grad_error(grad):
         raise RuntimeError("Negative gradient detected.")
 
 
-def check_for_hessian_error(hess):
+def check_for_hessian_error(hess, logger=None):
     """Check for negative-eigenvalue hessian errors."""
     if (np.linalg.eigvals(hess) <= NEGATIVE_CUTOFF).any():
         # raise RuntimeError("All eigenvalues of Hessian matrix are not all")
-        warnings.warn("All eigenvalues of Hessian matrix are not all")
+        warn_info = "WARNING: All eigenvalues of Hessian matrix are not all"
+        if logger is not None:
+            logger.info(warn_info)
+        else:
+            warnings.warn(warn_info)
+        warnings.warn(warn_info)
 
 
 class NegativeDensityError(RuntimeError):

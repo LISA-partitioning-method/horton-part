@@ -55,7 +55,7 @@ def _get_initial_mbis_propars(number):
     return propars
 
 
-def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
+def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15, logger=logger):
     assert len(propars) % 2 == 0
     nshell = len(propars) // 2
     r = rgrid.points
@@ -109,10 +109,11 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
                 check_monotonicity=True,
                 check_dens_negativity=True,
                 check_propars_negativity=True,
+                logger=logger,
             )
             return propars
         oldpro = pro
-    logger.warn("MBIS not converged!")
+    logger.warn("MBIS not converged, but still go ahead!")
     return propars
     # assert False
 
@@ -230,7 +231,11 @@ class MBISWPart(AbstractISAWPart):
         # assign as new propars
         my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
         my_propars[:] = _opt_mbis_propars(
-            spherical_average, my_propars.copy(), rgrid, self._inner_threshold
+            spherical_average,
+            my_propars.copy(),
+            rgrid,
+            self._inner_threshold,
+            logger=self.logger,
         )
 
         # avoid too large r

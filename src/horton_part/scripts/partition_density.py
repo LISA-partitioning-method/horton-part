@@ -51,7 +51,11 @@ def get_nested_attr(obj, attr_path):
 
 
 def prepare_exp_n_dict(dict):
+    """Prepare a dict including exponent and order."""
     res = {}
+    if dict is None:
+        return res
+
     for Z, exp_list in dict.items():
         for ishell, value in enumerate(exp_list):
             res[(int(Z), ishell)] = float(value)
