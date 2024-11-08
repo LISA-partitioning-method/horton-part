@@ -982,6 +982,7 @@ class LinearISAWPart(GaussianISAWPart):
         grid,
         moldens,
         spindens=None,
+        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
@@ -1010,14 +1011,14 @@ class LinearISAWPart(GaussianISAWPart):
         else:
             self._func_type = "Customized"
 
-        GaussianISAWPart.__init__(
-            self,
+        super().__init__(
             coordinates,
             numbers,
             pseudo_numbers,
             grid,
             moldens,
             spindens,
+            local,
             lmax,
             logger,
             threshold,

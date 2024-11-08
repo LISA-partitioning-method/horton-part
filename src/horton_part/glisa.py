@@ -221,7 +221,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     @just_once
     def _evaluate_basis_functions(self):
-        gisa.evaluate_basis_functions(self)
+        # gisa.evaluate_basis_functions(self)
+        pass
 
     @just_once
     def do_partitioning(self):
@@ -313,6 +314,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self._finalize_propars()
 
     def is_promol_valid(self, propars):
+        """Check if the promol density is valid."""
         valid = True
         for iatom in range(self.natom):
             valid_i = self.is_proatom_valid(iatom, propars)
@@ -322,6 +324,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         return valid
 
     def is_proatom_valid(self, iatom, propars):
+        """Check if the proatom density is valid."""
         rho0_iatom, _ = self.get_proatom_rho(iatom, propars)
         valid = 0
         if (rho0_iatom < NEGATIVE_CUTOFF).any() or (
@@ -334,6 +337,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         return valid
 
     def check_pro(self, iatom, propars):
+        """Check if the proatom paramters are valid."""
         valid = self.is_proatom_valid(iatom, propars)
         if valid != 0:
             self.logger.debug(f"{PERIODIC_TABLE[self.numbers[iatom]]} with index = {iatom}")

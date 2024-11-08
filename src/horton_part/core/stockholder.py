@@ -380,6 +380,12 @@ class AbstractStockholderWPart(WPart):
         assert np.isfinite(output).all()
 
     def update_at_weights(self):
+        return self._update_at_weights_using_atgrids()
+
+    def _update_at_weights_using_molgrids(self):
+        pass
+
+    def _update_at_weights_using_atgrids(self):
         """See ``Part.update_at_weights``."""
         # This will reconstruct the promolecular density and atomic weights
         # based on the current proatomic splines.
