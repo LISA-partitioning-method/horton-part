@@ -75,6 +75,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
+        **kwargs,
     ):
         """
         Construct LISA for given arguments.
@@ -130,7 +131,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         """Compute the difference between an old and a new proatoms"""
         return compute_change(self, propars1, propars2)
 
-    def get_proatom_rho(self, iatom, propars=None):
+    def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.

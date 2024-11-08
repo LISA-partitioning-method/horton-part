@@ -36,7 +36,18 @@ class Part(JustOnceClass):
     name = None
 
     def __init__(
-        self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax, logger
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        spindens,
+        local,
+        lmax,
+        logger,
+        *args,
+        **kwargs,
     ):
         """
         Parameters
@@ -386,6 +397,7 @@ class WPart(Part):
         local=True,
         lmax=3,
         logger=None,
+        **kwargs,
     ):
         """
         Parameters

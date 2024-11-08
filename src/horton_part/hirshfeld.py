@@ -141,6 +141,7 @@ class HirshfeldWPart(AbstractStockholderWPart):
         local=True,
         lmax=3,
         logger=None,
+        **kwargs,
     ):
         """
         **Arguments:** (that are not defined in ``WPart``)
@@ -184,8 +185,8 @@ class HirshfeldWPart(AbstractStockholderWPart):
         number = self.numbers[index]
         return self.proatomdb.get_rgrid(number)
 
-    def get_proatom_rho(self, index):
-        return self.proatomdb.get_rho(self.numbers[index], do_deriv=True)
+    def get_proatom_rho(self, iatom, *args, **kwargs):
+        return self.proatomdb.get_rho(self.numbers[iatom], do_deriv=True)
 
     @just_once
     def do_dispersion(self):

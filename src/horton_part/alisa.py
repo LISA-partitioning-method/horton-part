@@ -991,6 +991,7 @@ class LinearISAWPart(GaussianISAWPart):
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
+        **kwargs,
     ):
         """
         LISA initial function.
@@ -1044,14 +1045,6 @@ class LinearISAWPart(GaussianISAWPart):
             ("Using global ISA", False),
         ]
 
-        # if not callable(self._solver):
-        #     if self._solver in ["cvxopt-ng", "diis", "newton"]:
-        #         allow_negative_params = True
-        #     else:
-        #         allow_negative_params = False
-        # else:
-        #     allow_negative_params = "Unknown"
-
         info_list.extend(
             [
                 ("Maximum outer iterations", self._maxiter),
@@ -1069,9 +1062,6 @@ class LinearISAWPart(GaussianISAWPart):
             info_list.append((k, str(v)))
         deflist(self.logger, info_list)
         self.logger.info(" ")
-        # biblio.cite(
-        #     "Benda2022", "the use of Linear Iterative Stockholder partitioning"
-        # )
 
     def _opt_propars(
         self,

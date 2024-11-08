@@ -18,7 +18,7 @@
 #
 # --
 """Utility Functions"""
-
+import logging
 import warnings
 
 import numpy as np
@@ -32,15 +32,12 @@ __all__ = [
     "wpart_schemes",
     "compute_quantities",
     "check_pro_atom_parameters",
-    "check_for_pro_error",
-    "check_for_grad_error",
-    "check_for_hessian_error",
+    "check_dens_negativity",
+    "check_pars_negativity",
     "NEGATIVE_CUTOFF",
     "POPULATION_CUTOFF",
     "ANGSTROM",
     "PERIODIC_TABLE",
-    "NegativeDensityError",
-    "NotMonotonicDecayError",
     "fix_propars",
 ]
 
@@ -57,6 +54,7 @@ PERIODIC_TABLE = [docu["PERIODIC_TABLE"][i] for i in range(len(docu["PERIODIC_TA
 
 
 def wpart_schemes(scheme):
+    """Return a part scheme by given its name."""
     if scheme == "h":
         from .hirshfeld import HirshfeldWPart
 
@@ -110,32 +108,27 @@ def typecheck_geo(
 ):
     """Type check a molecular geometry specification
 
-    **Arguments:**
-
-    coordinates
+    Parameters
+    ----------
+    coordinates: 2D np.ndarray
          A (N, 3) float array with Cartesian coordinates of the atoms.
-
-    numbers
+    numbers: 1D np.ndarray
          A (N,) int vector with the atomic numbers.
-
-    **Optional arguments:**
-
-    pseudo_numbers
+    pseudo_numbers: 1D np.ndarray
          A (N,) float array with pseudo-potential core charges.
-
-    need_coordinates
+    need_coordinates: bool
          When set to False, the coordinates can be None, are not type checked
          and not returned.
-
-    need_numbers
+    need_numbers: bool
          When set to False, the numbers can be None, are not type checked
          and not returned.
-
-    need_pseudo_numbers
+    need_pseudo_numbers: bool
          When set to False, the pseudo_numbers can be None, are not type
          checked and not returned.
 
-    **Returns:** ``[natom]`` + all arguments that were type checked. The
+    Returns
+    -------
+    ``[natom]`` + all arguments that were type checked. The
     pseudo_numbers argument is converted to a floating point array.
     """
     # Determine natom
@@ -218,18 +211,24 @@ def compute_quantities(
         Array of basis functions.
     density_cutoff : float, optional
         The cutoff value for density and pro-atom density, below which values are considered negligible.
+    do_sick: bool
+        Mask sick values.
+    do_ratio: bool
+        Whether return the ratio :math:`\rho_a/\rho_a^0`.
+    do_ln_ratio: bool
+        Whether return the ratio :math:`\\ln (\rho_a/\rho_a^0)`.
 
     Returns
     -------
-    pro_shells : ndarray
+    pro_shells : 2D ndarray
         Calculated pro-atom shell values.
-    pro_density : ndarray
+    pro_density : 1D ndarray
         Calculated pro-atom density.
-    sick : ndarray
+    sick : 1D ndarray
         Boolean array indicating where density or pro-density is below the cutoff.
-    ratio : ndarray
+    ratio : 1D ndarray
         Ratio of density to pro-atom density, with adjustments for sick values.
-    ln_ratio : ndarray
+    ln_ratio : 1D ndarray
         Natural logarithm of the ratio, with adjustments for sick values.
     """
     pro_atom_params = np.asarray(pro_atom_params).flatten()
@@ -253,7 +252,7 @@ def check_pro_atom_parameters(
     total_population=None,
     pro_atom_density=None,
     check_monotonicity=True,
-    check_dens_negativity=True,
+    check_negativity=True,
     check_propars_negativity=True,
     logger=None,
 ):
@@ -278,12 +277,12 @@ def check_pro_atom_parameters(
         from pro_atom_params and basis_functions.
     check_monotonicity: bool, optional
         Check if the density is monotonically decreased w.r.t. radial radius.
-    check_dens_negativity: bool, optional
+    check_negativity: bool, optional
         Check if the density is non-negativity.
     check_propars_negativity: bool, optional
         Check if the propars is negative.
-    logger:
-        Logger
+    logger: logging.Logger or None
+        Logger object.
 
     Raises
     ------
@@ -301,6 +300,34 @@ def check_pro_atom_parameters(
     None
     """
     # Validate inputs
+    check_inputs(pro_atom_params, basis_functions, pro_atom_density)
+
+    # Check if pro-atom parameters are positive
+    if check_propars_negativity:
+        check_pars_negativity(pro_atom_params)
+
+    # Calculate pro-atom density if not provided
+    if basis_functions is not None and pro_atom_density is None:
+        if pro_atom_params.size != basis_functions.shape[0]:
+            raise ValueError(
+                "Length of pro_atom_params does not match the number of basis functions"
+            )
+        pro_atom_density = (basis_functions * pro_atom_params[:, None]).sum(axis=0)
+
+    # Check for negative pro-atom density
+    if check_negativity and pro_atom_density is not None:
+        check_dens_negativity(pro_atom_density, logger=logger)
+
+    # Check if the sum of pro-atom parameters matches total population
+    if total_population is not None:
+        check_pars_population(pro_atom_params, total_population, logger=logger)
+
+    if check_monotonicity and pro_atom_density is not None:
+        check_dens_monotonicity(pro_atom_density, as_warn=False, logger=logger)
+
+
+def check_inputs(pro_atom_params, basis_functions, pro_atom_density):
+    """Validate inputs"""
     pro_atom_params = np.asarray(pro_atom_params)
     if pro_atom_params.ndim != 1:
         raise ValueError("pro_atom_params must be a 1D array")
@@ -315,60 +342,133 @@ def check_pro_atom_parameters(
         if pro_atom_density.ndim != 1:
             raise ValueError("pro_atom_density must be a 1D array")
 
-    # Check if pro-atom parameters are positive
-    if check_propars_negativity and (pro_atom_params < NEGATIVE_CUTOFF).any():
-        warn_info = "WARNING: Not all pro-atom parameters are positive!"
-        if logger is not None:
-            logger.warn(warn_info)
-        else:
-            warnings.warn(warn_info)
 
-    # Calculate pro-atom density if not provided
-    if basis_functions is not None and pro_atom_density is None:
-        if pro_atom_params.size != basis_functions.shape[0]:
-            raise ValueError(
-                "Length of pro_atom_params does not match the number of basis functions"
-            )
-        pro_atom_density = (basis_functions * pro_atom_params[:, None]).sum(axis=0)
+def check_pars_population(
+    propars: np.ndarray,
+    ref_pop: float,
+    as_warn: bool = True,
+    logger: logging.Logger = None,
+    atol: float = POPULATION_CUTOFF,
+):
+    """Check the proatom parameters if the sum of them is equal to the reference population.
 
-    # Check for negative pro-atom density
-    if (
-        check_dens_negativity
-        and pro_atom_density is not None
-        and (pro_atom_density < NEGATIVE_CUTOFF).any()
-    ):
-        raise RuntimeError("Negative pro-atom density found!")
+    Parameters
+    ----------
+    propars: 1D or 3D np.ndarray
+        The density needs to be checked. It could be a proatom density or AIM density.
+        It could be 1D on a radial grid or 3D on a molecular grid.
+    ref_pop:
+        The reference population.
+    as_warn:
+        Whether treat the error as a warning or not. The default is `True`.
+    logger: logging.Logger or None
+        The logger object. The default is `None`.
+    atol:
+        The absolute tolerance.
 
-    # Check if the sum of pro-atom parameters matches total population
-    if total_population is not None and not np.allclose(
-        np.sum(pro_atom_params), total_population, atol=POPULATION_CUTOFF
-    ):
-        warn_info = (
-            "WARNING: The sum of pro-atom parameters is not equal to atomic population.\n"
-            rf"WARNING: The difference is {np.sum(pro_atom_params) - total_population}"
+    """
+    test_pop = np.sum(propars)
+    if not np.isclose(test_pop, ref_pop, atol=atol):
+        info_level = "WARNING" if as_warn else "ERROR"
+        info = (
+            rf"{info_level}: The sum of pro-atom parameters is not equal to atomic population.\n"
+            rf"{info_level}: The difference is {test_pop - ref_pop}"
         )
-        if logger is not None:
-            logger.warn(warn_info)
-        else:
-            warnings.warn(warn_info)
-
-    if check_monotonicity and pro_atom_density is not None:
-        if (pro_atom_density[:-1] - pro_atom_density[1:] < NEGATIVE_CUTOFF).any():
-            raise RuntimeError("Pro-atom density should be monotonically decreasing.")
-
-
-def check_for_pro_error(pro, as_warn=True, logger=None):
-    """Check for non-monotonic and non-negative density"""
-    if (pro < NEGATIVE_CUTOFF).any():
         if as_warn:
-            warn_info = "WARNING: Negative pro-atom density found during optimization!"
             if logger is not None:
-                logger.info(warn_info)
+                logger.warning(info)
+            else:
+                warnings.warn(info)
+        else:
+            raise RuntimeError(info)
+
+
+def check_pars_negativity(
+    pars: np.ndarray,
+    as_warn: bool = True,
+    logger: logging.Logger = None,
+    threshold: float = NEGATIVE_CUTOFF,
+):
+    """Check if a density is non-negative.
+
+    Parameters
+    ----------
+    pars: 1D np.ndarray
+        Pro-atom parameters
+        It could be 1D on a radial grid or 3D on a molecular grid.
+    as_warn: bool
+        Whether treat the error as a warning or not. The default is `False`.
+    logger: logging.Logger or None
+        The logger object. The default is `None`.
+    threshold:
+        The value less than `threshold` is treated as negative. The default is `NEGATIVE_CUTOFF`
+    """
+    assert np.ndim(pars) == 1
+    if (pars < threshold).any():
+        if as_warn:
+            warn_info = "WARNING: Not all pro-atom parameters are positive!"
+            if logger is not None:
+                logger.warning(warn_info)
+            else:
+                warnings.warn(warn_info)
+        else:
+            raise RuntimeError("Negative pro-atom parameters found!")
+
+
+def check_dens_negativity(
+    dens: np.ndarray,
+    as_warn: bool = False,
+    logger: logging.Logger = None,
+    threshold: float = NEGATIVE_CUTOFF,
+):
+    """Check if a density is non-negative.
+
+    Parameters
+    ----------
+    dens: 1D or 3D np.ndarray
+        The density needs to be checked. It could be a proatom density or AIM density.
+        It could be 1D on a radial grid or 3D on a molecular grid.
+    as_warn: bool
+        Whether treat the error as a warning or not. The default is `False`.
+    logger: logging.Logger or None
+        The logger object. The default is `None`.
+    threshold:
+        The value less than `threshold` is treated as negative. The default is `NEGATIVE_CUTOFF`
+    """
+    assert np.ndim(dens) in [1, 3]
+    if (dens < threshold).any():
+        if as_warn:
+            warn_info = "WARNING: Not all pro-atom density are positive!"
+            if logger is not None:
+                logger.warning(warn_info)
             else:
                 warnings.warn(warn_info)
         else:
             raise RuntimeError("Negative pro-atom density found!")
-    if (pro[:-1] - pro[1:] < NEGATIVE_CUTOFF).any():
+
+
+def check_dens_monotonicity(
+    dens: np.ndarray,
+    as_warn: bool = True,
+    logger: logging.Logger = None,
+    threshold: float = NEGATIVE_CUTOFF,
+):
+    """Check the monotonicity of a density.
+
+    Parameters
+    ----------
+    dens: 1D np.ndarray
+        The density needs to be checked. It could be a proatom density or a spherically average of AIM density.
+    as_warn:
+        Whether treat this as a warning. The default is `True`.
+    logger:
+        The logging object. The default is `None`.
+    threshold:
+        The value less than `threshold` is treated as negative. The default is `NEGATIVE_CUTOFF`
+
+    """
+    assert np.ndim(dens) == 1
+    if (dens[:-1] - dens[1:] < threshold).any():
         if as_warn:
             warn_info = "WARNING: Pro-atom density should be monotonically decreasing."
             if logger is not None:
@@ -380,38 +480,19 @@ def check_for_pro_error(pro, as_warn=True, logger=None):
             raise RuntimeError("Pro-atom density should be monotonically decreasing.")
 
 
-def check_for_grad_error(grad):
-    """Check for non-monotonic density and negative gradient errors."""
-    if (grad < NEGATIVE_CUTOFF).any():
-        raise RuntimeError("Negative gradient detected.")
-
-
-def check_for_hessian_error(hess, logger=None):
-    """Check for negative-eigenvalue hessian errors."""
-    if (np.linalg.eigvals(hess) <= NEGATIVE_CUTOFF).any():
-        # raise RuntimeError("All eigenvalues of Hessian matrix are not all")
-        warn_info = "WARNING: All eigenvalues of Hessian matrix are not all"
-        if logger is not None:
-            logger.info(warn_info)
-        else:
-            warnings.warn(warn_info)
-        warnings.warn(warn_info)
-
-
-class NegativeDensityError(RuntimeError):
-    """Negative density error."""
-
-    pass
-
-
-class NotMonotonicDecayError(RuntimeError):
-    """The pro-density is not monotonic decay error."""
-
-    pass
-
-
 # Function to update propars
 def fix_propars(exp_array, propars, delta):
+    """Fix the propar of the most diffuse function when it is negative and Newton step `delta` is negative.
+
+    Parameters
+    ----------
+    exp_array: 2D np.ndarray
+        The exponent values.
+    propars: 2D np.ndarray
+        The pro-atom parameters.
+    delta: 1D np.ndarray
+        The step of Newton method.
+    """
     sorted_indices = np.argsort(exp_array)
     check_diffused = True
     fixed_indices = []
@@ -421,6 +502,4 @@ def fix_propars(exp_array, propars, delta):
             fixed_indices.append(index)
         else:
             check_diffused = False
-            # if check_diffused:
-            #     assert propars[index] > 0.0
     return fixed_indices

@@ -52,6 +52,7 @@ class HirshfeldIWPart(AbstractISAWPart):
         logger=None,
         threshold=1e-6,
         maxiter=500,
+        **kwargs,
     ):
         """
         **Arguments:** (that are not defined in ``WPart``)
@@ -120,11 +121,11 @@ class HirshfeldIWPart(AbstractISAWPart):
         x = target_charge - icharge
         return icharge, x
 
-    def get_proatom_rho(self, index, charges=None):
-        icharge, x = self.get_interpolation_info(index, charges)
+    def get_proatom_rho(self, iatom, charges=None, **kwargs):
+        icharge, x = self.get_interpolation_info(iatom, charges)
         # check if icharge record should exist
-        pseudo_pop = self.pseudo_numbers[index] - icharge
-        number = self.numbers[index]
+        pseudo_pop = self.pseudo_numbers[iatom] - icharge
+        number = self.numbers[iatom]
         if pseudo_pop == 1 or x == 0.0:
             return self.proatomdb.get_rho(number, {icharge: 1 - x}, do_deriv=True)
         elif pseudo_pop > 1:

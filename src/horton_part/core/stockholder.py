@@ -216,12 +216,12 @@ class AbstractStockholderWPart(WPart):
         """
         raise NotImplementedError
 
-    def get_proatom_rho(self, index, *args, **kwargs):
+    def get_proatom_rho(self, iatom, *args, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         Parameters
         ----------
-        index : int
+        iatom : int
             The atom index
         *args :
             Variable length argument list, used for passing non-keyworded arguments.

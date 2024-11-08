@@ -84,6 +84,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         maxiter=500,
         inner_threshold=1e-8,
         radius_cutoff=np.inf,
+        **kwargs,
     ):
         """
         Initial function.

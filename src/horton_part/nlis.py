@@ -124,7 +124,7 @@ def _opt_nlis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
                 propars,
                 pro_atom_density=pro,
                 check_monotonicity=True,
-                check_dens_negativity=True,
+                check_negativity=True,
                 check_propars_negativity=True,
             )
             return propars
@@ -155,6 +155,7 @@ class NLISWPart(AbstractISAWPart):
         radius_cutoff=np.inf,
         exp_n_dict=1.0,
         nshell_dict=None,
+        **kwargs,
     ):
         r"""
         Initial function.
@@ -205,7 +206,7 @@ class NLISWPart(AbstractISAWPart):
         """Get radial grid for `iatom` atom."""
         return self.get_grid(iatom).rgrid
 
-    def get_proatom_rho(self, iatom, propars=None):
+    def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.

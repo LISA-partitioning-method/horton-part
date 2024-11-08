@@ -72,12 +72,6 @@ def init_propars(part):
     ntotal = part._ranges[-1]
     propars = part.cache.load("propars", alloc=ntotal, tags="o")[0]
     propars[:] = 1.0
-    # print("Set initial value")
-    # print("-" * 80)
-    # print(part.pseudo_numbers)
-    # print(np.sum(part.pseudo_numbers))
-    # print(part.nelec)
-    # print("-" * 80)
     for iatom in range(part.natom):
         inits = part.bs_helper.get_initial(part.numbers[iatom])
         # Note: the zero initials are not activated in self-consistent method.
@@ -92,6 +86,7 @@ def init_propars(part):
 
 
 def evaluate_basis_functions(part):
+    """Evaluate basis function on a 1D grid."""
     for iatom in range(part.natom):
         rgrid = part.get_rgrid(iatom)
         r = rgrid.points
@@ -126,6 +121,7 @@ class GaussianISAWPart(AbstractISAWPart):
         radius_cutoff=np.inf,
         solver="quadprog",
         solver_options=None,
+        **kwargs,
     ):
         """
         Initial function.
@@ -183,16 +179,12 @@ class GaussianISAWPart(AbstractISAWPart):
         )
         if callable(self._solver):
             warnings.warn("Customized solver is used, the argument `inner_threshold` is not used.")
-        # biblio.cite(
-        #     "verstraelen2012a",
-        #     "the use of Gaussian Iterative Stockholder partitioning",
-        # )
 
     def get_rgrid(self, index):
         """Load radial grid."""
         return self.get_grid(index).rgrid
 
-    def get_proatom_rho(self, iatom, propars=None):
+    def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
