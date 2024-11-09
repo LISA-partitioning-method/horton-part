@@ -248,13 +248,7 @@ class Part(JustOnceClass):
 
     def get_wcor(self, index):
         """Load correction of weights."""
-        grid_type = 2
-        wcor_i = 1.0
-        if grid_type == 3:
-            # TODO: we can use becke weights here.
-            # If use Horton 2 grid.
-            wcor_i = self.to_atomic_grid(index, self.grid._aim_weights)
-        return wcor_i
+        return 1.0
 
     def compute_pseudo_population(self, index):
         """Compute pseudo population"""

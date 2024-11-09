@@ -31,15 +31,13 @@ __all__ = ["AbstractISAWPart", "compute_change"]
 
 def compute_change(part, propars1, propars2):
     """Compute the difference between an old and a new proatoms"""
-    if not hasattr(part, "grid_type"):
-        part.grid_type = 1
     # Compute mean-square deviation
     msd = 0.0
     for index in range(part.natom):
         rho1, deriv1 = part.get_proatom_rho(index, propars1)
         rho2, deriv2 = part.get_proatom_rho(index, propars2)
         delta = rho1 - rho2
-        if part.grid_type == 1:
+        if part.grid_type in [1, 3]:
             rgrid = part.get_rgrid(index)
             msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
         elif part.grid_type == 2:

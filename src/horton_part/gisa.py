@@ -249,7 +249,7 @@ class GaussianISAWPart(AbstractISAWPart):
         propars = self.cache.load("propars")
         populations = propars[self._ranges[index] : self._ranges[index + 1]]
 
-        if self.grid_type == 1:
+        if self.grid_type in [1, 3]:
             output[:] = self.bs_helper.compute_proatom_dens(
                 self.numbers[index], populations, self.radial_distances[index], 0
             )
@@ -259,12 +259,14 @@ class GaussianISAWPart(AbstractISAWPart):
             output[:] = self.bs_helper.compute_proatom_dens(
                 self.numbers[index], populations, self.radial_distances[index], 0
             )
+        else:
+            raise RuntimeError(f"Unknown grid_type: {self.grid_type} in eval_proatom")
 
     def _init_propars(self):
         return init_propars(self)
 
     def _update_propars_atom(self, iatom):
-        if self._grid_type == 1:
+        if self._grid_type in [1, 3]:
             return self._update_propars_atom_atgrids(iatom)
         elif self._grid_type == 2:
             return self._update_propars_atom_molgrids(iatom)
@@ -306,12 +308,14 @@ class GaussianISAWPart(AbstractISAWPart):
         dens = self.get_moldens(iatom)
         # at_weights = self.cache.load("at_weights", iatom)
         at_weights = self.cache.load(f"at_weights_{iatom}")
+        # Here, we also use grid_type implicitly in get_wcor.
+        # spline = atgrid.spherical_average(at_weights * dens * self.get_wcor(iatom))
         spline = atgrid.spherical_average(at_weights * dens)
         points = atgrid.rgrid.points
-        spherical_average = spline(points)
+        rho_sph = spline(points)
 
         self.cache.dump(f"radial_points_{iatom}", points, tags="o")
-        self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
+        self.cache.dump(f"spherical_average_{iatom}", rho_sph, tags="o")
         self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
 
         # assign as new propars
@@ -324,24 +328,23 @@ class GaussianISAWPart(AbstractISAWPart):
         # rho = spherical_average[r_mask]
         # weights = rgrid.weights[r_mask]
         # bs_funcs = bs_funcs[:, r_mask]
-        rho = spherical_average
-        weights = rgrid.weights
-        weights = 4 * np.pi * points**2 * weights
+        r_weights = 4 * np.pi * points**2 * rgrid.weights
 
         alphas = self.bs_helper.get_exponent(self.numbers[iatom])
         # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
             bs_funcs,
-            rho,
+            rho_sph,
             propars.copy(),
             points,
-            weights,
+            r_weights,
             alphas,
             self._inner_threshold,
         )
 
         # compute the new charge
-        pseudo_population = np.einsum("i,i", weights, rho)
+        pseudo_population = np.einsum("i,i", r_weights, rho_sph)
+        self.logger.info(f"pseudo_population: {pseudo_population} of atom {iatom+1}")
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
@@ -370,7 +373,7 @@ class GaussianISAWPart(AbstractISAWPart):
 
     @just_once
     def _evaluate_basis_functions(self):
-        if self.grid_type == 1:
+        if self.grid_type in [1]:
             for iatom in range(self.natom):
                 rgrid = self.get_rgrid(iatom)
                 r = rgrid.points
@@ -382,7 +385,7 @@ class GaussianISAWPart(AbstractISAWPart):
                         for ishell in range(nshell)
                     ]
                 )
-        else:
+        elif self.grid_type in [2]:
             for iatom in range(self.natom):
                 nshell = self._ranges[iatom + 1] - self._ranges[iatom]
                 bs_funcs = self.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, self.grid.size))[0]
@@ -393,6 +396,8 @@ class GaussianISAWPart(AbstractISAWPart):
                         for ishell in range(nshell)
                     ]
                 )
+        else:
+            raise RuntimeError(f"Unknown grid_type: {self.grid_type}")
 
 
 def opt_propars_qp_interface(

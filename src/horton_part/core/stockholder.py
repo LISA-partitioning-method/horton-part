@@ -34,10 +34,15 @@ __all__ = ["AbstractStockholderWPart"]
 class AbstractStockholderWPart(WPart):
     """Abstract Stockholder partitioning class."""
 
-    # def _init_subgrids(self):
-    #     WPart._init_subgrids(self)
-    #     # TODO: remove this, only use this when grid_type == 4
-    #     # self.initial_local_grids()
+    def _init_subgrids(self):
+        WPart._init_subgrids(self)
+        # TODO: remove this, only use this when grid_type == 4
+        # self.initial_local_grids()
+        self._log_grid_info()
+
+    def get_wcor(self, index):
+        """Load correction of weights."""
+        return 1.0
 
     # @property
     # def radius_cutoff(self):
@@ -114,9 +119,8 @@ class AbstractStockholderWPart(WPart):
         self.logger.info("=" * 80)
         self.logger.info("Information of integral grids.")
         self.logger.info("-" * 80)
-        self.logger.info("Compute local grids ...")
+        # self.logger.info("Compute local grids ...")
         self.logger.info(f"Grid size of molecular grid: {self.grid.size}")
-        reduced_mol_grid_size = 0
         for iatom in range(self.natom):
             self.logger.info(f" Atom {iatom} ".center(80, "*"))
             atom_grid = self.get_grid(iatom)
@@ -131,7 +135,6 @@ class AbstractStockholderWPart(WPart):
                 self.logger.info(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
 
         self.logger.info("-" * 80)
-        self.logger.info(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
         self.logger.info("=" * 80)
         self.logger.info(" ")
 
@@ -162,11 +165,12 @@ class AbstractStockholderWPart(WPart):
         promoldens += work
         promoldens += 1e-100
         # TODO: this is related to the grids used.
-        if self.grid_type == 1:
+        if self.grid_type in [1]:
             proatdens[:] = self.to_atomic_grid(index, work)
         elif self.grid_type == 2:
             proatdens[:] = work[:]
         else:
+            self.logger.info(f"Unsupported grid_type: {self.grid_type} in update_pro")
             raise NotImplementedError
 
     # def update_pro_old(self, index, proatdens, promoldens):
@@ -403,19 +407,16 @@ class AbstractStockholderWPart(WPart):
 
     def update_at_weights(self):
         """See ``Part.update_at_weights``."""
-        if not hasattr(self, "grid_type"):
+        self.logger.debug(f"The part obj has grid_type and it is {self.grid_type}.")
+        if self.grid_type in [1]:
             return self._update_at_weights_using_atgrids()
+        elif self.grid_type == 2:
+            self.logger.debug("The full molecular grids are used.")
+            return self._update_at_weights_using_molgrids()
         else:
-            self.logger.debug(f"The part obj has grid_type and it is {self.grid_type}.")
-            if self.grid_type == 1:
-                return self._update_at_weights_using_atgrids()
-            elif self.grid_type == 2:
-                self.logger.debug("The full molecular grids are used.")
-                return self._update_at_weights_using_molgrids()
-            else:
-                raise RuntimeError(
-                    f"Unknown grid type : {self.grid_type}. The supported type is 1 or 2."
-                )
+            raise RuntimeError(
+                f"Unknown grid type : {self.grid_type}. The supported type is 1 and 2."
+            )
 
     def _update_at_weights_using_molgrids(self):
         """See ``Part.update_at_weights``."""
@@ -446,7 +447,6 @@ class AbstractStockholderWPart(WPart):
             self.time_usage["history_time_compute_at_weights"] = []
         self.time_usage["history_time_update_promolecule"].append(t1 - t0)
         self.time_usage["history_time_compute_at_weights"].append(t2 - t1)
-        pass
 
     def _update_at_weights_using_atgrids(self):
         """See ``Part.update_at_weights``."""
@@ -460,7 +460,6 @@ class AbstractStockholderWPart(WPart):
         t0 = time.time()
         for index in range(self.natom):
             atmgrid = self.get_grid(index)
-            # at_weights = self.cache.load("at_weights", index, alloc=atmgrid.size)[0]
             at_weights = self.cache.load(f"at_weights_{index}", alloc=atmgrid.size)[0]
             # Here the proatom density is stored in at_weights.
             self.update_pro(index, at_weights, promoldens)
@@ -470,16 +469,9 @@ class AbstractStockholderWPart(WPart):
         # promolecules.
         for index in range(self.natom):
             # Here, at_weights is proatom density.
-            # at_weights = self.cache.load("at_weights", index)
             at_weights = self.cache.load(f"at_weights_{index}")
             at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
-            # self.logger.debug("weights:")
-            # self.logger.debug(at_weights)
-            # self.logger.debug("Negative weights:")
-            # self.logger.debug(at_weights[at_weights<-1e-5])
-            # self.logger.debug("Weights > 1:")
-            # self.logger.debug(at_weights[at_weights>1+1e-5])
         t2 = time.time()
 
         if "history_time_update_promolecule" not in self.time_usage:
