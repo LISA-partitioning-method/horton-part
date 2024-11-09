@@ -11,3 +11,4 @@ solver: sc
 exp_n_dict: null
 nshell_dict: null
 part_job_type: "do_partitioning"
+grid_type: 1

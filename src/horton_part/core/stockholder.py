@@ -38,7 +38,8 @@ class AbstractStockholderWPart(WPart):
 
     def _init_subgrids(self):
         WPart._init_subgrids(self)
-        self.initial_local_grids()
+        # TODO: remove this, only use this when grid_type == 4
+        # self.initial_local_grids()
 
     @property
     def radius_cutoff(self):
@@ -71,13 +72,13 @@ class AbstractStockholderWPart(WPart):
     def _initialize_grid_properties(self):
         """Initialize grid-related properties."""
         # Stores local grids for each atom
-        self.local_grids = []
+        # self.local_grids = []
         # Stores overlap of atom and local grid points
         self.atom_points_overlap = []
         # Stores point indices relative to atom grid
         self.pt_indices_relative_to_atom = []
         # Stores radial distances for points in the local grid
-        self.radial_distances = []
+        # self.radial_distances = []
 
     def _compute_atom_grid(self, index):
         """Compute grid properties for a specific atom."""
@@ -156,6 +157,14 @@ class AbstractStockholderWPart(WPart):
         return entropy
 
     def update_pro(self, index, proatdens, promoldens):
+        # work = self.grid.zeros()
+        work = np.zeros((self.grid.size,))
+        self.eval_proatom(index, work, self.grid)
+        promoldens += work
+        promoldens += 1e-100
+        proatdens[:] = self.to_atomic_grid(index, work)
+
+    def update_pro_old(self, index, proatdens, promoldens):
         """
         Update the pro-molecule density arrays based on the pro-atom density for a specified atom index.
 
@@ -205,6 +214,14 @@ class AbstractStockholderWPart(WPart):
             promoldens += work
             promoldens += 1e-100
             proatdens[:] = self.to_atomic_grid(index, work)
+
+    def update_pro_molgrids(self, index, proatdens, promoldens):
+        """See ``update_pro``."""
+        work = np.zeros((self.grid.size,))
+        self.eval_proatom(index, work, self.grid)
+        promoldens += work
+        promoldens += 1e-100
+        proatdens[:] = work[:]
 
     def get_rgrid(self, index):
         """Load radial grid.
@@ -380,9 +397,50 @@ class AbstractStockholderWPart(WPart):
         assert np.isfinite(output).all()
 
     def update_at_weights(self):
-        return self._update_at_weights_using_atgrids()
+        """See ``Part.update_at_weights``."""
+        if not hasattr(self, "grid_type"):
+            return self._update_at_weights_using_atgrids()
+        else:
+            self.logger.debug(f"The part obj has grid_type and it is {self.grid_type}.")
+            if self.grid_type == 1:
+                return self._update_at_weights_using_atgrids()
+            elif self.grid_type == 2:
+                self.logger.debug("The full molecular grids are used.")
+                return self._update_at_weights_using_molgrids()
+            else:
+                raise RuntimeError(
+                    f"Unknown grid type : {self.grid_type}. The supported type is 1 or 2."
+                )
 
     def _update_at_weights_using_molgrids(self):
+        """See ``Part.update_at_weights``."""
+        # This will reconstruct the promolecular density and atomic weights
+        # based on the current proatomic splines.
+        promoldens = self.cache.load("promoldens", alloc=self.grid.size)[0]
+        promoldens[:] = 0
+
+        # update the promolecule density and store the proatoms in the at_weights
+        # arrays for later.
+        t0 = time.time()
+        for index in range(self.natom):
+            at_weights = self.cache.load(f"at_weights_{index}", alloc=self.grid.size)[0]
+            # Here the proatom density is stored in at_weights.
+            self.update_pro_molgrids(index, at_weights, promoldens)
+        t1 = time.time()
+
+        # Compute the atomic weights by taking the ratios between proatoms and
+        # promolecules.
+        for index in range(self.natom):
+            at_weights = self.cache.load(f"at_weights_{index}")
+            at_weights /= promoldens
+            np.clip(at_weights, 0, 1, out=at_weights)
+        t2 = time.time()
+
+        if "history_time_update_promolecule" not in self.time_usage:
+            self.time_usage["history_time_update_promolecule"] = []
+            self.time_usage["history_time_compute_at_weights"] = []
+        self.time_usage["history_time_update_promolecule"].append(t1 - t0)
+        self.time_usage["history_time_compute_at_weights"].append(t2 - t1)
         pass
 
     def _update_at_weights_using_atgrids(self):

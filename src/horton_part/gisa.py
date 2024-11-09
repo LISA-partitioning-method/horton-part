@@ -25,8 +25,6 @@ import warnings
 import numpy as np
 import qpsolvers
 
-from horton_part.core import iterstock
-
 from .core.basis import BasisFuncHelper
 from .core.cache import just_once
 from .core.iterstock import AbstractISAWPart
@@ -61,8 +59,32 @@ def get_proatom_rho(part, iatom, propars=None):
     return part.bs_helper.compute_proatom_dens(part.numbers[iatom], propars, rgrid.points, 1)
 
 
+def get_proatom_rho_molgrids(part, iatom, propars=None):
+    """Get pro-atom density for atom `iatom`.
+
+    If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
+
+    Parameters
+    ----------
+    iatom: int
+        The index of atom `iatom`.
+    propars: np.array
+        The pro-atom parameters.
+
+    """
+    if propars is None:
+        propars = part.cache.load("propars")
+    propars = propars[part._ranges[iatom] : part._ranges[iatom + 1]]
+    # radial_distances = np.linalg.norm(
+    #     part.grid.points - part.coordinates[iatom], axis=1
+    # )
+    return part.bs_helper.compute_proatom_dens(
+        part.numbers[iatom], propars, part.radial_distances[iatom], 1
+    )
+
+
 def init_propars(part):
-    iterstock.init_propars(part)
+    """Initial propars."""
     part._ranges = [0]
     part._nshells = []
     for iatom in range(part.natom):
@@ -81,6 +103,7 @@ def init_propars(part):
         )
     propars[:] = propars / np.sum(propars) * part.nelec
     part.initial_propars_modified = propars.copy()
+    # Pre-calculating basis function on grids.
     part._evaluate_basis_functions()
     return propars
 
@@ -122,6 +145,7 @@ class GaussianISAWPart(AbstractISAWPart):
         radius_cutoff=np.inf,
         solver="quadprog",
         solver_options=None,
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -140,6 +164,7 @@ class GaussianISAWPart(AbstractISAWPart):
         self._solver = solver
         self._solver_options = solver_options or {}
         self._bs_helper = None
+        self._grid_type = grid_type
 
         super().__init__(
             coordinates,
@@ -182,6 +207,11 @@ class GaussianISAWPart(AbstractISAWPart):
         if callable(self._solver):
             warnings.warn("Customized solver is used, the argument `inner_threshold` is not used.")
 
+    @property
+    def grid_type(self):
+        """The type of grids used in partitioning density."""
+        return self._grid_type
+
     def get_rgrid(self, index):
         """Load radial grid."""
         return self.get_grid(index).rgrid
@@ -199,12 +229,12 @@ class GaussianISAWPart(AbstractISAWPart):
             The pro-atom parameters.
 
         """
-        return get_proatom_rho(self, iatom, propars)
-        # if propars is None:
-        #     propars = self.cache.load("propars")
-        # rgrid = self.get_rgrid(iatom)
-        # propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        # return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
+        if self.grid_type == 1:
+            return get_proatom_rho(self, iatom, propars)
+        elif self.grid_type == 2:
+            return get_proatom_rho_molgrids(self, iatom, propars)
+        else:
+            raise RuntimeError(f"Unknown grid_type: {self.grid_type}")
 
     def eval_proatom(self, index, output, grid):
         """Evaluate function on a local grid.
@@ -224,14 +254,58 @@ class GaussianISAWPart(AbstractISAWPart):
         """
         propars = self.cache.load("propars")
         populations = propars[self._ranges[index] : self._ranges[index + 1]]
-        output[:] = self.bs_helper.compute_proatom_dens(
-            self.numbers[index], populations, self.radial_distances[index], 0
-        )
+
+        if self.grid_type == 1:
+            output[:] = self.bs_helper.compute_proatom_dens(
+                self.numbers[index], populations, self.radial_distances[index], 0
+            )
+        elif self.grid_type == 2:
+            # TODO: here the radius should be inf.
+            assert len(self.radial_distances[index]) == len(self.grid.points)
+            output[:] = self.bs_helper.compute_proatom_dens(
+                self.numbers[index], populations, self.radial_distances[index], 0
+            )
 
     def _init_propars(self):
         return init_propars(self)
 
     def _update_propars_atom(self, iatom):
+        if self._grid_type == 1:
+            return self._update_propars_atom_atgrids(iatom)
+        elif self._grid_type == 2:
+            return self._update_propars_atom_molgrids(iatom)
+        else:
+            raise RuntimeError(
+                f"Unknown grid type : {self.grid_type}. The supported type is 1 or 2."
+            )
+
+    def _update_propars_atom_molgrids(self, iatom):
+        at_weights = self.cache.load(f"at_weights_{iatom}")
+        dens = self._moldens
+        rhoa = at_weights * dens
+        # assign as new propars
+        propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
+        bs_funcs = self.cache.load(f"bs_funcs_{iatom}")
+
+        alphas = self.bs_helper.get_exponent(self.numbers[iatom])
+        # weights of radial grid, without 4 * pi * r**2
+        propars[:] = self._opt_propars(
+            bs_funcs,
+            rhoa,
+            propars.copy(),
+            self.grid.points,
+            self.grid.weights,
+            alphas,
+            self._inner_threshold,
+        )
+
+        # compute the new charge
+        # pseudo_population = np.einsum("i,i", self.grid.weights, rhoa)
+        pseudo_population = self.grid.integrate(rhoa)
+        charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+        charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+    def _update_propars_atom_atgrids(self, iatom):
         # compute spherical average
         atgrid = self.get_grid(iatom)
         rgrid = atgrid.rgrid
@@ -300,17 +374,29 @@ class GaussianISAWPart(AbstractISAWPart):
 
     @just_once
     def _evaluate_basis_functions(self):
-        for iatom in range(self.natom):
-            rgrid = self.get_rgrid(iatom)
-            r = rgrid.points
-            nshell = self._ranges[iatom + 1] - self._ranges[iatom]
-            bs_funcs = self.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, r.size))[0]
-            bs_funcs[:, :] = np.array(
-                [
-                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
-                    for ishell in range(nshell)
-                ]
-            )
+        if self.grid_type == 1:
+            for iatom in range(self.natom):
+                rgrid = self.get_rgrid(iatom)
+                r = rgrid.points
+                nshell = self._ranges[iatom + 1] - self._ranges[iatom]
+                bs_funcs = self.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, r.size))[0]
+                bs_funcs[:, :] = np.array(
+                    [
+                        self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
+                        for ishell in range(nshell)
+                    ]
+                )
+        else:
+            for iatom in range(self.natom):
+                nshell = self._ranges[iatom + 1] - self._ranges[iatom]
+                bs_funcs = self.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, self.grid.size))[0]
+                r = np.linalg.norm(self.grid.points - self.coordinates[iatom], axis=1)
+                bs_funcs[:, :] = np.array(
+                    [
+                        self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
+                        for ishell in range(nshell)
+                    ]
+                )
 
 
 def opt_propars_qp_interface(

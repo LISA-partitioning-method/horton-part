@@ -109,6 +109,10 @@ class Part(JustOnceClass):
     def __getitem__(self, key):
         return self.cache.load(key)
 
+    def variables_stored_in_cache(self):
+        """The properties stored in cache obj."""
+        return list(self.cache.iterkeys())
+
     @property
     def natom(self):
         """The number of atoms in the molecule."""
@@ -116,7 +120,7 @@ class Part(JustOnceClass):
 
     @property
     def coordinates(self):
-        """Atomic coordinates."""
+        r"""ndarray(M, 3) : Center/Atomic coordinates."""
         return self._coordinates
 
     @property
@@ -242,8 +246,19 @@ class Part(JustOnceClass):
         """Load atomic contribution of molecular properties."""
         raise NotImplementedError
 
+    def get_wcor(self, index):
+        """Load correction of weights."""
+        grid_type = 2
+        wcor_i = 1.0
+        if grid_type == 3:
+            # TODO: we can use becke weights here.
+            # If use Horton 2 grid.
+            wcor_i = self.to_atomic_grid(index, self.grid._aim_weights)
+        return wcor_i
+
     def compute_pseudo_population(self, index):
         """Compute pseudo population"""
+        # TODO: fix me, the grid here is also needed to be fixed.
         grid = self.get_grid(index)
         dens = self.get_moldens(index)
         at_weights = self.cache.load(f"at_weights_{index}")
@@ -270,14 +285,22 @@ class Part(JustOnceClass):
                 0
             ]
             print("Computing atomic populations.")
-            for i in range(self.natom):
-                pseudo_populations[i] = self.compute_pseudo_population(i)
+            for index in range(self.natom):
+                # pseudo_populations[i] = self.compute_pseudo_population(index)
+                # Be consistent with do_spin_dens
+                grid = self.get_grid(index)
+                dens = self.get_moldens(index)
+                at_weights = self.cache.load(f"at_weights_{index}")
+                # weights correction
+                wcor = self.get_wcor(index)
+                pseudo_populations[index] = grid.integrate(at_weights, dens * wcor)
             populations[:] = pseudo_populations
             populations += self.numbers - self.pseudo_numbers
 
     @just_once
     def do_charges(self):
         """Compute atomic charges."""
+        # The charges are calculated in methods.
         charges, new = self._cache.load("charges", alloc=self.natom, tags="o")
         if new:
             self.do_populations()
@@ -297,9 +320,9 @@ class Part(JustOnceClass):
                 spindens = self.get_spindens(index)
                 at_weights = self.cache.load(f"at_weights_{index}")
                 # weights correction
-                # wcor = self.get_wcor(index)
-                # spin_charges[index] = grid.integrate(at_weights, spindens, wcor)
-                spin_charges[index] = grid.integrate(at_weights, spindens)
+                wcor = self.get_wcor(index)
+                spin_charges[index] = grid.integrate(at_weights, spindens * wcor)
+                # spin_charges[index] = grid.integrate(at_weights, spindens)
 
     @just_once
     def do_moments(self):
@@ -337,9 +360,9 @@ class Part(JustOnceClass):
                 aim = self.get_moldens(i) * self.cache.load(f"at_weights_{i}")
 
                 # 3) Compute weight corrections
-                # wcor = self.get_wcor(i)
+                wcor = self.get_wcor(i)
                 # wcor = 1 if wcor is None else wcor
-                wcor = 1
+                # wcor = 1
 
                 # 4) Compute Cartesian multipole moments
                 # The minus sign is present to account for the negative electron
@@ -435,6 +458,17 @@ class WPart(Part):
             coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax, logger
         )
 
+        # Attributes for iterative density partitioning methods.
+        self.history_propars = []
+        self.history_charges = []
+        self.history_entropies = []
+        self.history_changes = []
+        self.history_time_update_at_weights = []
+        self.history_time_update_propars = []
+
+        # attributes related to grids.
+        self._radial_distances = []
+
     def _init_log_base(self):
         self.logger.info("Performing a density-based AIM analysis with a wavefunction as input.")
         deflist(
@@ -446,6 +480,7 @@ class WPart(Part):
         )
 
     def _init_subgrids(self):
+        # TODO: fix me, the subgrids are not necessary to be the atom grids.
         self._subgrids = self._grid.atgrids
 
     def to_atomic_grid(self, index, data):
@@ -454,6 +489,19 @@ class WPart(Part):
         else:
             begin, end = self.grid.indices[index], self.grid.indices[index + 1]
             return data[begin:end]
+
+    @just_once
+    def calc_radial_distances(self):
+        """Calculate radial distance w.r.t coordinates."""
+        for iatom in range(self.natom):
+            r = np.linalg.norm(self.grid.points - self.coordinates[iatom], axis=1)
+            self._radial_distances.append(r)
+
+    @property
+    def radial_distances(self):
+        """A list of radial distance."""
+        self.calc_radial_distances()
+        return self._radial_distances
 
     @just_once
     def do_density_decomposition(self):

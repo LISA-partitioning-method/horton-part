@@ -36,7 +36,12 @@ from .algo.quasi_newton import bfgs
 from .core.basis import BasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
-from .utils import NEGATIVE_CUTOFF, check_pro_atom_parameters, compute_quantities
+from .utils import (
+    NEGATIVE_CUTOFF,
+    check_pro_atom_parameters_neg_pars,
+    check_pro_atom_parameters_non_neg_pars,
+    compute_quantities,
+)
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=LinAlgWarning)
@@ -86,6 +91,8 @@ def solver_cvxopt(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
     allow_neg_params : bool (optional)
@@ -159,7 +166,11 @@ def solver_cvxopt(
     if opt_CVX["status"] == "optimal":
         optimized_res = opt_CVX["x"]
         new_propars = np.asarray(optimized_res).flatten()
-        check_pro_atom_parameters(new_propars, bs_funcs, logger=logger)
+        check_pro_atom_parameters_non_neg_pars(
+            new_propars,
+            basis_functions=bs_funcs,
+            logger=logger,
+        )
         return new_propars
     else:
         raise RuntimeError("CVXOPT not converged!")
@@ -201,6 +212,8 @@ def solver_sc(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
     max_niter_inner : int
@@ -226,6 +239,7 @@ def solver_sc(
     logger.debug("            -----    ------    ")
     oldpro = None
     for irep in range(int(float(max_niter_inner))):
+        # print(rho.shape, propars.shape, bs_funcs.shape)
         pro_shells, pro, sick, ratio, _ = compute_quantities(
             rho, propars, bs_funcs, density_cutoff, do_ln_ratio=False
         )
@@ -242,7 +256,7 @@ def solver_sc(
 
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            check_pro_atom_parameters(propars, logger=logger)
+            check_pro_atom_parameters_non_neg_pars(propars, basis_functions=bs_funcs, logger=logger)
             return propars
         oldpro = pro
     logger.warn("Warning: Inner iteration is not converge!")
@@ -282,6 +296,8 @@ def solver_sc_1_iter(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -333,6 +349,8 @@ def solver_sc_plus_cvxopt(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
     sc_iter_limit: int
@@ -359,7 +377,7 @@ def solver_sc_plus_cvxopt(
 
         # the partitions and the updated parameters
         propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
-        check_pro_atom_parameters(propars, logger=logger)
+        check_pro_atom_parameters_non_neg_pars(propars, logger=logger)
 
         # check for convergence
         if oldpro is None:
@@ -405,6 +423,8 @@ def solver_diis(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -429,9 +449,9 @@ def solver_diis(
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
     new_propars, niter, history_x = diis(
-        propars, function_g, threshold, logger=logger, verbose=False, **diis_options
+        propars, function_g, threshold, logger=logger, **diis_options
     )
-    check_pro_atom_parameters(new_propars, bs_funcs, logger=logger)
+    check_pro_atom_parameters_neg_pars(new_propars, bs_funcs, logger=logger)
     return new_propars
 
 
@@ -464,6 +484,8 @@ def solver_newton(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -521,6 +543,8 @@ def solver_m_newton(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -578,6 +602,8 @@ def solver_quasi_newton(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -637,6 +663,8 @@ def _solver_general_newton(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -667,7 +695,19 @@ def _solver_general_newton(
         else:
             logger.debug("Pass.")
 
-    def linesearch(delta, propars):
+    def linesearch(delta: np.ndarray, propars: np.ndarray):
+        """Line search used in Newton-method.
+
+        The 1D density should be monotonically decaying.
+
+        Parameters
+        ----------
+        delta :
+            The Newton step for each propar.
+        propars :
+            The pro-atom parameters.
+
+        """
         if mode == "exact":
             return propars + delta, delta
 
@@ -682,14 +722,10 @@ def _solver_general_newton(
                 do_ratio=False,
                 do_ln_ratio=False,
             )
-            # if ~sick.any():
-            #     return new_propars, _s
 
             if (new_pro > NEGATIVE_CUTOFF).all() and (
                 new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
             ).all():
-                # if (new_pro > NEGATIVE_CUTOFF).all():
-                #     logger.debug(f"x: {x}")
                 return new_propars, _s
         else:
             logger.debug(f"propars: {propars}")
@@ -712,12 +748,8 @@ def _solver_general_newton(
             change = np.sqrt(np.einsum("i,i,i", weights, error, error))
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            check_pro_atom_parameters(
-                propars,
-                total_population=pop,
-                pro_atom_density=pro,
-                check_propars_negativity=False,
-                logger=logger,
+            check_pro_atom_parameters_neg_pars(
+                propars, total_population=pop, pro_atom_density=pro, logger=logger
             )
             return propars
 
@@ -785,6 +817,8 @@ def solver_trust_region(
         Weights for integration, including the angular part (4πr²), with shape (N,).
     threshold : float
         Convergence threshold for the iterative process.
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
     explicit_constr : bool (optional)
@@ -838,7 +872,9 @@ def solver_trust_region(
         raise RuntimeError("Convergence failure.")
 
     result = np.asarray(opt_res["x"]).flatten()
-    check_pro_atom_parameters(result, bs_funcs, total_population=float(pop), logger=logger)
+    check_pro_atom_parameters_non_neg_pars(
+        result, bs_funcs, total_population=float(pop), logger=logger
+    )
     return result
 
 
@@ -873,6 +909,8 @@ def solver_cdiis(
     threshold : float, optional
        default value : 1e-08
        tolerence parameter for convergence test on residual (commutator)
+    logger : logging.Logger or None
+        The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
 
@@ -900,7 +938,9 @@ def solver_cdiis(
     if not conv:
         raise RuntimeError("Not converged!")
     pop = np.einsum("i,i", weights, rho)
-    check_pro_atom_parameters(xlast, basis_functions=bs_funcs, total_population=pop, logger=logger)
+    check_pro_atom_parameters_neg_pars(
+        xlast, basis_functions=bs_funcs, total_population=pop, logger=logger
+    )
     return xlast
 
 
@@ -992,6 +1032,7 @@ class LinearISAWPart(GaussianISAWPart):
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -1027,6 +1068,7 @@ class LinearISAWPart(GaussianISAWPart):
             radius_cutoff,
             solver,
             solver_options,
+            grid_type,
         )
 
     @property

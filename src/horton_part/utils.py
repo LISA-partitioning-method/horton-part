@@ -32,13 +32,17 @@ __all__ = [
     "wpart_schemes",
     "compute_quantities",
     "check_pro_atom_parameters",
+    "check_pro_atom_parameters_neg_pars",
+    "check_pro_atom_parameters_non_neg_pars",
     "check_dens_negativity",
     "check_pars_negativity",
+    "check_dens_monotonicity",
+    "check_pars_population",
+    "fix_propars",
     "NEGATIVE_CUTOFF",
     "POPULATION_CUTOFF",
     "ANGSTROM",
     "PERIODIC_TABLE",
-    "fix_propars",
 ]
 
 
@@ -246,15 +250,57 @@ def compute_quantities(
     return pro_shells, pro_density, sick, ratio, ln_ratio
 
 
+def check_pro_atom_parameters_non_neg_pars(
+    pro_atom_params: np.ndarray,
+    basis_functions: np.ndarray = None,
+    total_population: float = None,
+    pro_atom_density: np.ndarray = None,
+    logger: logging.Logger = None,
+):
+    """Validation for method with non-negative propars. See``check_pro_atom_parameters``."""
+    return check_pro_atom_parameters(
+        pro_atom_params,
+        basis_functions=basis_functions,
+        total_population=total_population,
+        pro_atom_density=pro_atom_density,
+        check_monotonicity=False,
+        check_negativity=False,
+        check_propars_negativity=False,
+        logger=logger,
+    )
+
+
+def check_pro_atom_parameters_neg_pars(
+    pro_atom_params: np.ndarray,
+    basis_functions: np.ndarray = None,
+    total_population: float = None,
+    pro_atom_density: np.ndarray = None,
+    check_monotonicity: bool = True,
+    check_negativity: bool = True,
+    logger: logging.Logger = None,
+):
+    """Validation for method with negative propars. See``check_pro_atom_parameters``."""
+    return check_pro_atom_parameters(
+        pro_atom_params,
+        basis_functions=basis_functions,
+        total_population=total_population,
+        pro_atom_density=pro_atom_density,
+        check_propars_negativity=False,
+        check_monotonicity=check_monotonicity,
+        check_negativity=check_negativity,
+        logger=logger,
+    )
+
+
 def check_pro_atom_parameters(
-    pro_atom_params,
-    basis_functions=None,
-    total_population=None,
-    pro_atom_density=None,
-    check_monotonicity=True,
-    check_negativity=True,
-    check_propars_negativity=True,
-    logger=None,
+    pro_atom_params: np.ndarray,
+    basis_functions: np.ndarray = None,
+    total_population: float = None,
+    pro_atom_density: np.ndarray = None,
+    check_monotonicity: bool = True,
+    check_negativity: bool = True,
+    check_propars_negativity: bool = True,
+    logger: logging.Logger = None,
 ):
     """
     Check the validity of pro-atom parameters.

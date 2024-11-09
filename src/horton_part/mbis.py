@@ -199,7 +199,7 @@ class MBISWPart(AbstractISAWPart):
         output[:] = y
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):

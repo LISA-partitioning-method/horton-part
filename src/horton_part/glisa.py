@@ -67,6 +67,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         grid,
         moldens,
         spindens=None,
+        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
@@ -113,7 +114,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             grid,
             moldens,
             spindens,
-            True,
+            local,
             lmax,
             logger,
         )
@@ -228,7 +229,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
     def do_partitioning(self):
         """Do global partitioning scheme."""
         # Initialize local grids to save resources
-        self.initial_local_grids()
+        # self.initial_local_grids()
 
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache
@@ -371,7 +372,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 g_ai[:] = self.bs_helper.compute_proshell_dens(
                     number, ishell, 1.0, self.radial_distances[iatom], 0
                 )
-                pro_shells[index, self.local_grids[iatom].indices] = g_ai
+                pro_shells[index, :] = g_ai
                 if np.isclose(self.grid.integrate(pro_shells[index, :]), 1e-4):
                     raise RuntimeError(
                         rf"The \int_R^3 g_({iatom},{ishell}(r) dr on the (local) grid of atom {iatom} is "
@@ -510,16 +511,10 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             if nderiv > 1:
                 for j in range(i, nb_par):
                     # Only compute Hessian matrix on a local grid not on full molecular grid.
-                    if (
-                        np.linalg.norm(self.pro_shell_centers[i] - self.pro_shell_centers[j])
-                        > self.radius_cutoff
-                    ):
-                        hessian[i, j] = 0
-                    else:
-                        with np.errstate(all="ignore"):
-                            hess_integrand = df_integrand * self.pro_shells[j, :] / rho0
-                        hess_integrand[sick] = 0.0
-                        hessian[i, j] = self.grid.integrate(hess_integrand)
+                    with np.errstate(all="ignore"):
+                        hess_integrand = df_integrand * self.pro_shells[j, :] / rho0
+                    hess_integrand[sick] = 0.0
+                    hessian[i, j] = self.grid.integrate(hess_integrand)
                     hessian[j, i] = hessian[i, j]
 
         if nderiv == 1:
@@ -917,23 +912,14 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
             # 3. compute basis functions on molecule grid
             fun_val = []
-            local_grid = self.local_grids[iatom]
-            indices = local_grid.indices
             for k, c_ak in enumerate(x_iatom.copy()):
                 g_ak = self.load_pro_shell(iatom, k)
                 rho0_ak = g_ak * c_ak
-                # n_ak = self.grid.integrate(g_ak)
-                # assert np.isclose(n_ak, 1.0, atol=1e-4)
-                # if not np.isclose(n_ak, 1.0):
-                #     print(n_ak)
-                # print(f"n_ak({iatom}, {k}) = {n_ak}")
-
                 with np.errstate(all="ignore"):
-                    # integrand = rho[indices] * rho0_ak / old_rho0[indices] / n_ak
-                    integrand = rho[indices] * rho0_ak / old_rho0[indices]
-                integrand[sick[indices]] = 0.0
+                    integrand = rho * rho0_ak / old_rho0
+                integrand[sick] = 0.0
 
-                fun_val.append(local_grid.integrate(integrand))
+                fun_val.append(self.grid.integrate(integrand))
                 ishell += 1
 
             # 4. set new x values
@@ -1049,6 +1035,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         return self.function_g(x) - x
 
     def solver_cdiis(self, **cdiis_options):
+        """CDIIS solver."""
         conv, nbiter, rnormlist, mklist, cnormlist, propars, history_propars = cdiis(
             self.propars,
             self.function_g,

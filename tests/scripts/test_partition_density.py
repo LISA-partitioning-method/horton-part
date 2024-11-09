@@ -25,8 +25,9 @@ from importlib import resources
 import numpy as np
 import pytest
 
-from horton_part.scripts.generate_density import main
+from horton_part.scripts.generate_density import main as main_gen
 from horton_part.scripts.partition_density import construct_molgrid_from_dict
+from horton_part.scripts.partition_density import main as main_part
 
 
 @pytest.mark.parametrize("fn_wfn", ["hf_sto3g.fchk", "water_sto3g_hf_g03.fchk"])
@@ -48,7 +49,7 @@ def test_construct_molgrid_from_dict(fn_wfn, tmpdir):
         yaml_file.write(yaml_content)
 
         with pytest.warns(None):
-            main([str(yaml_file)])
+            main_gen([str(yaml_file)])
         assert os.path.isfile(fn_density)
         data = dict(np.load(fn_density))
         molgrid = construct_molgrid_from_dict(data)
@@ -65,3 +66,91 @@ def test_construct_molgrid_from_dict(fn_wfn, tmpdir):
     assert molgrid.weights.shape == data["weights"].shape
     assert molgrid.points == pytest.approx(data["points"], abs=1e-8)
     assert molgrid.weights == pytest.approx(data["weights"], abs=1e-8)
+
+
+@pytest.mark.parametrize("part_type", ["lisa", "glisa", "mbis", "gisa", "is", "nlis", "gmbis"])
+@pytest.mark.parametrize("fn_wfn", ["water_sto3g_hf_g03.fchk"])
+def test_part_dens(part_type, fn_wfn, tmpdir):
+    with resources.path("iodata.test.data", fn_wfn) as fn_full:
+        fn_density = os.path.join(tmpdir, "density.npz")
+        fn_log = os.path.join(tmpdir, "density.log")
+
+        yaml_file_gen = tmpdir.join("input_gen.yaml")
+        yaml_content_gen = f"""
+            part-gen:
+              inputs:
+              - {fn_full}
+              outputs:
+              - {fn_density}
+              log_files:
+              - {fn_log}
+            """
+        yaml_file_gen.write(yaml_content_gen)
+
+        with pytest.warns(None):
+            main_gen([str(yaml_file_gen)])
+        assert os.path.isfile(fn_density)
+
+        fn_part = os.path.join(tmpdir, "part.npz")
+        yaml_file_part = tmpdir.join("input_part.yaml")
+        yaml_content_part = f"""
+            part-dens:
+              inputs:
+              - {fn_density}
+              outputs:
+              - {fn_part}
+              log_files:
+              - {fn_log}
+              type : {part_type}
+              solver: {"sc" if part_type != 'gisa' else 'quadprog'}
+        """
+        yaml_file_part.write(yaml_content_part)
+
+        with pytest.warns(None):
+            main_part([str(yaml_file_part)])
+        assert os.path.isfile(fn_part)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("solver", ["sc", "cvxopt", "sc-1-iter", "sc-plus-convex"])
+@pytest.mark.parametrize("fn_wfn", ["water_sto3g_hf_g03.fchk"])
+def test_lisa_with_mol_grids(solver, fn_wfn, tmpdir):
+    with resources.path("iodata.test.data", fn_wfn) as fn_full:
+        fn_density = os.path.join(tmpdir, "density.npz")
+        fn_log = os.path.join(tmpdir, "density.log")
+
+        yaml_file_gen = tmpdir.join("input_gen.yaml")
+        yaml_content_gen = f"""
+            part-gen:
+              inputs:
+              - {fn_full}
+              outputs:
+              - {fn_density}
+              log_files:
+              - {fn_log}
+            """
+        yaml_file_gen.write(yaml_content_gen)
+
+        with pytest.warns(None):
+            main_gen([str(yaml_file_gen)])
+        assert os.path.isfile(fn_density)
+
+        fn_part = os.path.join(tmpdir, "part.npz")
+        yaml_file_part = tmpdir.join("input_part.yaml")
+        yaml_content_part = f"""
+            part-dens:
+              inputs:
+              - {fn_density}
+              outputs:
+              - {fn_part}
+              log_files:
+              - {fn_log}
+              type : lisa
+              solver : {solver}
+              grid_type : 2
+        """
+        yaml_file_part.write(yaml_content_part)
+
+        with pytest.warns(None):
+            main_part([str(yaml_file_part)])
+        assert os.path.isfile(fn_part)

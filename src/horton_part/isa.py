@@ -85,7 +85,7 @@ class ISAWPart(AbstractISAWPart):
         return propars[self._ranges[iatom] : self._ranges[iatom + 1]], None
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         for index in range(self.natom):
             npoint = self.get_rgrid(index).size

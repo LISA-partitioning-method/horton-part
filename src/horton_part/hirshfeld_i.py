@@ -158,7 +158,7 @@ class HirshfeldIWPart(AbstractISAWPart):
         output += 1e-100
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         self.cache.dump("propars", charges, tags="o")
         return charges

@@ -26,30 +26,28 @@ import numpy as np
 from .cache import just_once
 from .stockholder import AbstractStockholderWPart
 
-__all__ = ["AbstractISAWPart", "compute_change", "init_propars"]
+__all__ = ["AbstractISAWPart", "compute_change"]
 
 
 def compute_change(part, propars1, propars2):
     """Compute the difference between an old and a new proatoms"""
+    if not hasattr(part, "grid_type"):
+        part.grid_type = 1
     # Compute mean-square deviation
     msd = 0.0
     for index in range(part.natom):
-        rgrid = part.get_rgrid(index)
         rho1, deriv1 = part.get_proatom_rho(index, propars1)
         rho2, deriv2 = part.get_proatom_rho(index, propars2)
         delta = rho1 - rho2
-        msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
+        if part.grid_type == 1:
+            rgrid = part.get_rgrid(index)
+            msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
+        elif part.grid_type == 2:
+            grid = part.grid
+            msd += grid.integrate(delta, delta)
+        else:
+            raise NotImplementedError
     return np.sqrt(msd)
-
-
-def init_propars(part):
-    """Initial pro-atom parameters and cache lists."""
-    part.history_propars = []
-    part.history_charges = []
-    part.history_entropies = []
-    part.history_changes = []
-    part.history_time_update_at_weights = []
-    part.history_time_update_propars = []
 
 
 def finalize_propars(part):
@@ -153,7 +151,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
 
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
-        init_propars(self)
+        raise NotImplementedError
 
     def _update_entropy(self):
         if "promoldens" in self.cache:

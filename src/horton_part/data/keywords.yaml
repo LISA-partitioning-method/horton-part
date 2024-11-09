@@ -27,6 +27,7 @@ gisa:
     - radius_cutoff
     - solver
     - solver_options
+    - grid_type
 
 mbis:
   io_infos:
@@ -59,6 +60,7 @@ lisa:
     - radius_cutoff
     - solver
     - solver_options
+    - grid_type
 
 nlis:
   io_infos:
