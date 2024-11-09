@@ -71,7 +71,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         logger=None,
         threshold=1e-6,
         maxiter=500,
-        radius_cutoff=np.inf,
+        # radius_cutoff=np.inf,
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
@@ -93,7 +93,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
              in the end, no warning is given.
              Reduce the CPU cost at the expense of more memory consumption.
         """
-        self._radius_cutoff = radius_cutoff
+        # self._radius_cutoff = radius_cutoff
         self._maxiter = maxiter
         self._threshold = threshold
         self.basis_func = basis_func
@@ -155,10 +155,10 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         """The convergence threshold."""
         return self._threshold
 
-    @property
-    def radius_cutoff(self):
-        """The cutoff radius for local grid."""
-        return self._radius_cutoff
+    # @property
+    # def radius_cutoff(self):
+    #     """The cutoff radius for local grid."""
+    #     return self._radius_cutoff
 
     @property
     def mol_pop(self):
@@ -181,7 +181,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                     self._solver.__name__ if callable(self._solver) else self._solver.upper(),
                 ),
                 ("Basis function type", self._func_type),
-                ("Local grid radius", self.radius_cutoff),
+                # ("Local grid radius", self.radius_cutoff),
             ]
         )
         for k, v in self._solver_options.items():

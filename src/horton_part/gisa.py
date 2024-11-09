@@ -163,7 +163,7 @@ class GaussianISAWPart(AbstractISAWPart):
         self._solver = solver
         self._solver_options = solver_options or {}
         self._bs_helper = None
-        self._grid_type = grid_type
+        self._ranges = None
 
         super().__init__(
             coordinates,
@@ -178,6 +178,7 @@ class GaussianISAWPart(AbstractISAWPart):
             maxiter=maxiter,
             inner_threshold=inner_threshold,
             radius_cutoff=radius_cutoff,
+            grid_type=grid_type,
         )
 
     @property
@@ -222,7 +223,7 @@ class GaussianISAWPart(AbstractISAWPart):
             The pro-atom parameters.
 
         """
-        if self.grid_type == 1:
+        if self.grid_type in [1, 3]:
             return get_proatom_rho(self, iatom, propars)
         elif self.grid_type == 2:
             return get_proatom_rho_molgrids(self, iatom, propars)
@@ -318,11 +319,13 @@ class GaussianISAWPart(AbstractISAWPart):
         bs_funcs = self.cache.load(f"bs_funcs_{iatom}")
 
         # use truncated grids if local_grid_radius != np.inf
-        r_mask = points <= self.radius_cutoff
-        points = points[r_mask]
-        rho = spherical_average[r_mask]
-        weights = rgrid.weights[r_mask]
-        bs_funcs = bs_funcs[:, r_mask]
+        # r_mask = points <= self.radius_cutoff
+        # points = points[r_mask]
+        # rho = spherical_average[r_mask]
+        # weights = rgrid.weights[r_mask]
+        # bs_funcs = bs_funcs[:, r_mask]
+        rho = spherical_average
+        weights = rgrid.weights
         weights = 4 * np.pi * points**2 * weights
 
         alphas = self.bs_helper.get_exponent(self.numbers[iatom])

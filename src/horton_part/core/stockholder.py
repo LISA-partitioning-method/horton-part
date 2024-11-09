@@ -34,26 +34,26 @@ __all__ = ["AbstractStockholderWPart"]
 class AbstractStockholderWPart(WPart):
     """Abstract Stockholder partitioning class."""
 
-    def _init_subgrids(self):
-        WPart._init_subgrids(self)
-        # TODO: remove this, only use this when grid_type == 4
-        # self.initial_local_grids()
+    # def _init_subgrids(self):
+    #     WPart._init_subgrids(self)
+    #     # TODO: remove this, only use this when grid_type == 4
+    #     # self.initial_local_grids()
 
-    @property
-    def radius_cutoff(self):
-        """
-        Get the radius of the local grid sphere.
+    # @property
+    # def radius_cutoff(self):
+    #     """
+    #     Get the radius of the local grid sphere.
 
-        This property returns the radius of the sphere within which local grids are considered.
-        The local grid radius is used in [global methods]. It's a key parameter in [some process].
+    #     This property returns the radius of the sphere within which local grids are considered.
+    #     The local grid radius is used in [global methods]. It's a key parameter in [some process].
 
-        Returns
-        -------
-        float
-            The radius of the local grid sphere.
+    #     Returns
+    #     -------
+    #     float
+    #         The radius of the local grid sphere.
 
-        """
-        return np.inf
+    #     """
+    #     return np.inf
 
     # @just_once
     # def initial_local_grids(self):

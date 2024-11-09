@@ -1096,7 +1096,7 @@ class LinearISAWPart(GaussianISAWPart):
                     self._solver.__name__ if callable(self._solver) else self._solver.upper(),
                 ),
                 ("Basis function type", self._func_type),
-                ("Local grid radius", self._radius_cutoff),
+                # ("Local grid radius", self._radius_cutoff),
                 # ("Allow negative parameters", allow_negative_params),
             ]
         )

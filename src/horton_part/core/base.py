@@ -361,8 +361,6 @@ class Part(JustOnceClass):
 
                 # 3) Compute weight corrections
                 wcor = self.get_wcor(i)
-                # wcor = 1 if wcor is None else wcor
-                # wcor = 1
 
                 # 4) Compute Cartesian multipole moments
                 # The minus sign is present to account for the negative electron
