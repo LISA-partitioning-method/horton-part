@@ -138,9 +138,9 @@ class HirshfeldWPart(AbstractStockholderWPart):
         moldens,
         proatomdb,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -160,9 +160,9 @@ class HirshfeldWPart(AbstractStockholderWPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
+            grid_type=grid_type,
         )
 
     def _init_log_scheme(self):

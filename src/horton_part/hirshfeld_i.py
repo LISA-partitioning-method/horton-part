@@ -47,11 +47,11 @@ class HirshfeldIWPart(AbstractISAWPart):
         moldens,
         proatomdb,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
         maxiter=500,
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -84,11 +84,11 @@ class HirshfeldIWPart(AbstractISAWPart):
             moldens,
             # proatomdb,
             spindens,
-            local,
             lmax,
             logger,
             threshold,
             maxiter,
+            grid_type=grid_type,
         )
 
     def _init_log_scheme(self):

@@ -136,7 +136,6 @@ class GaussianISAWPart(AbstractISAWPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
@@ -173,7 +172,6 @@ class GaussianISAWPart(AbstractISAWPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax=lmax,
             logger=logger,
             threshold=threshold,
@@ -206,11 +204,6 @@ class GaussianISAWPart(AbstractISAWPart):
         )
         if callable(self._solver):
             warnings.warn("Customized solver is used, the argument `inner_threshold` is not used.")
-
-    @property
-    def grid_type(self):
-        """The type of grids used in partitioning density."""
-        return self._grid_type
 
     def get_rgrid(self, index):
         """Load radial grid."""

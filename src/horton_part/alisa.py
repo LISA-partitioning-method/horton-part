@@ -1059,7 +1059,6 @@ class LinearISAWPart(GaussianISAWPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
             threshold,

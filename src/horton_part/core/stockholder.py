@@ -21,14 +21,12 @@
 
 
 import time
-import warnings
 
 import numpy as np
 from grid import LEBEDEV_DEGREES
 from scipy.interpolate import CubicHermiteSpline, CubicSpline
 
 from .base import WPart
-from .cache import just_once
 
 __all__ = ["AbstractStockholderWPart"]
 
@@ -57,60 +55,60 @@ class AbstractStockholderWPart(WPart):
         """
         return np.inf
 
-    @just_once
-    def initial_local_grids(self):
-        """Compute local grids for each atom.
+    # @just_once
+    # def initial_local_grids(self):
+    #     """Compute local grids for each atom.
 
-        This method initializes local grid properties and calculates grids for each atom based on their coordinates and a specified radius.
-        """
-        self._initialize_grid_properties()
-        # TODO: the radius should be basis function dependent.
-        for index in range(self.natom):
-            self._compute_atom_grid(index)
-        self._log_grid_info()
+    #     This method initializes local grid properties and calculates grids for each atom based on their coordinates and a specified radius.
+    #     """
+    #     self._initialize_grid_properties()
+    #     # TODO: the radius should be basis function dependent.
+    #     for index in range(self.natom):
+    #         self._compute_atom_grid(index)
+    #     self._log_grid_info()
 
-    def _initialize_grid_properties(self):
-        """Initialize grid-related properties."""
-        # Stores local grids for each atom
-        # self.local_grids = []
-        # Stores overlap of atom and local grid points
-        self.atom_points_overlap = []
-        # Stores point indices relative to atom grid
-        self.pt_indices_relative_to_atom = []
-        # Stores radial distances for points in the local grid
-        # self.radial_distances = []
+    # def _initialize_grid_properties(self):
+    #     """Initialize grid-related properties."""
+    #     # Stores local grids for each atom
+    #     # self.local_grids = []
+    #     # Stores overlap of atom and local grid points
+    #     self.atom_points_overlap = []
+    #     # Stores point indices relative to atom grid
+    #     self.pt_indices_relative_to_atom = []
+    #     # Stores radial distances for points in the local grid
+    #     # self.radial_distances = []
 
-    def _compute_atom_grid(self, index):
-        """Compute grid properties for a specific atom."""
-        # Extract local grid around the atom within a user-defined radius
-        local_grid = self.grid.get_localgrid(
-            center=self.coordinates[index], radius=self.radius_cutoff
-        )
-        self.local_grids.append(local_grid)
+    # def _compute_atom_grid(self, index):
+    #     """Compute grid properties for a specific atom."""
+    #     # Extract local grid around the atom within a user-defined radius
+    #     local_grid = self.grid.get_localgrid(
+    #         center=self.coordinates[index], radius=self.radius_cutoff
+    #     )
+    #     self.local_grids.append(local_grid)
 
-        # Determine indices for the start and end of the current atom's grid
-        atom_start_idx, atom_end_idx = (
-            self.grid.indices[index],
-            self.grid.indices[index + 1],
-        )
+    #     # Determine indices for the start and end of the current atom's grid
+    #     atom_start_idx, atom_end_idx = (
+    #         self.grid.indices[index],
+    #         self.grid.indices[index + 1],
+    #     )
 
-        # Identify which points in the local grid belong to the current atom
-        # Result is a boolean array marking points belonging to the atom
-        atom_grid_points = (atom_start_idx <= local_grid.indices) & (
-            local_grid.indices < atom_end_idx
-        )
-        self.atom_points_overlap.append(atom_grid_points)
+    #     # Identify which points in the local grid belong to the current atom
+    #     # Result is a boolean array marking points belonging to the atom
+    #     atom_grid_points = (atom_start_idx <= local_grid.indices) & (
+    #         local_grid.indices < atom_end_idx
+    #     )
+    #     self.atom_points_overlap.append(atom_grid_points)
 
-        # Adjust indices of atom's points to be relative to the atom's grid start index
-        # Useful for mapping local grid points to atom grid points
-        relative_indices = local_grid.indices[atom_grid_points] - atom_start_idx
-        self.pt_indices_relative_to_atom.append(relative_indices)
+    #     # Adjust indices of atom's points to be relative to the atom's grid start index
+    #     # Useful for mapping local grid points to atom grid points
+    #     relative_indices = local_grid.indices[atom_grid_points] - atom_start_idx
+    #     self.pt_indices_relative_to_atom.append(relative_indices)
 
-        # Calculate radial distances from each point in the local grid to the atom's center
-        radial_distances = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
-        self.radial_distances.append(radial_distances)
+    #     # Calculate radial distances from each point in the local grid to the atom's center
+    #     radial_distances = np.linalg.norm(local_grid.points - self.coordinates[index], axis=1)
+    #     self.radial_distances.append(radial_distances)
 
-    def _log_grid_info(self):
+    def _log_grid_info(self, nb=20):
         """Log information about the computed grids."""
         self.logger.info("")
         self.logger.info("=" * 80)
@@ -119,30 +117,19 @@ class AbstractStockholderWPart(WPart):
         self.logger.info("Compute local grids ...")
         self.logger.info(f"Grid size of molecular grid: {self.grid.size}")
         reduced_mol_grid_size = 0
-        for i, local_grid in enumerate(self.local_grids):
-            self.logger.info(f" Atom {i} ".center(80, "*"))
-            atom_grid = self.get_grid(i)
-            dist = np.sqrt(np.einsum("ij->i", (atom_grid.points - self.coordinates[i]) ** 2))
-            self.logger.info(f"|-- Local grid size: {local_grid.size}")
-            reduced_atom_grid_size = len(atom_grid.points[dist <= self.radius_cutoff])
-            self.logger.info(f"|-- Atom grid size: {reduced_atom_grid_size}")
-            reduced_mol_grid_size += reduced_atom_grid_size
-            rgrid = self.get_rgrid(i)
+        for iatom in range(self.natom):
+            self.logger.info(f" Atom {iatom} ".center(80, "*"))
+            atom_grid = self.get_grid(iatom)
+            rgrid = self.get_rgrid(iatom)
             r = rgrid.points
-            if len(r) == len(atom_grid.degrees):
-                r_mask = r <= self.radius_cutoff
-                degrees = np.asarray(atom_grid.degrees)[r_mask]
-                degrees_str = [str(LEBEDEV_DEGREES[d]) for d in degrees]
-                self.logger.info(f"   |-- Radial grid size: {len(r[r_mask])}")
-                self.logger.info("   |-- Angular grid sizes: ")
-                nb = 20
-                prefix = "          "
-                for j in range(len(degrees_str) // nb + 1):
-                    self.logger.info(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
-            else:
-                warnings.warn(
-                    "The size of 'rgrid' in the method is not equal to the size of 'rgrid' of atom grid."
-                )
+            degrees = np.asarray(atom_grid.degrees)
+            degrees_str = [str(LEBEDEV_DEGREES[d]) for d in degrees]
+            self.logger.info(f"   |-- Radial grid size: {len(r)}")
+            self.logger.info("   |-- Angular grid sizes: ")
+            prefix = "          "
+            for j in range(len(degrees_str) // nb + 1):
+                self.logger.info(prefix + " ".join(degrees_str[j * nb : j * nb + nb]))
+
         self.logger.info("-" * 80)
         self.logger.info(f"Grid size of truncated molecular grid: {reduced_mol_grid_size}")
         self.logger.info("=" * 80)
@@ -157,21 +144,7 @@ class AbstractStockholderWPart(WPart):
         return entropy
 
     def update_pro(self, index, proatdens, promoldens):
-        # work = self.grid.zeros()
-        work = np.zeros((self.grid.size,))
-        self.eval_proatom(index, work, self.grid)
-        promoldens += work
-        promoldens += 1e-100
-        proatdens[:] = self.to_atomic_grid(index, work)
-
-    def update_pro_old(self, index, proatdens, promoldens):
-        """
-        Update the pro-molecule density arrays based on the pro-atom density for a specified atom index.
-
-        This method evaluates the pro-atom density for the specified atom index over either a local grid
-        (if defined) or the global grid. The evaluated density is then used to update the pro-molecule
-        density array. This process contributes to constructing the complete pro-molecule density profile
-        by accumulating contributions from individual atoms.
+        """Update propars.
 
         Parameters
         ----------
@@ -183,37 +156,69 @@ class AbstractStockholderWPart(WPart):
         promoldens : 1D np.ndarray
             The array representing the pro-molecule density. This array accumulates the density contributions
             from each atom, including the one specified by `index`.
-
-        Notes
-        -----
-        The method checks if `local_grids` attribute is available. If so, it uses the local grid specific
-        to the atom index for density evaluation. Otherwise, it defaults to using the global grid.
-
-        The `eval_proatom` method is used to evaluate the pro-atom density, which is then used to update
-        the `proatdens` and `promoldens` arrays. A small constant (1e-100) is added to `promoldens` to avoid
-        zero values, especially important for iterative methods requiring non-zero initial values.
-
-        If `local_grids` is not present, the method employs the global grid for density evaluation and updates
-        the `proatdens` array using the `to_atomic_grid` method.
-
         """
-        if hasattr(self, "local_grids"):
-            # TODO: maybe remove the local grids, it is too difficult to debug.
-            local_grid = self.local_grids[index]
-            work = np.zeros((local_grid.size,))
-            self.eval_proatom(index, work, local_grid)
-            promoldens[local_grid.indices] += work
-            promoldens += 1e-100
-            proatdens[self.pt_indices_relative_to_atom[index]] = work[
-                self.atom_points_overlap[index]
-            ]
-        else:
-            # work = self.grid.zeros()
-            work = np.zeros((self.grid.size,))
-            self.eval_proatom(index, work, self.grid)
-            promoldens += work
-            promoldens += 1e-100
+        work = np.zeros((self.grid.size,))
+        self.eval_proatom(index, work, self.grid)
+        promoldens += work
+        promoldens += 1e-100
+        # TODO: this is related to the grids used.
+        if self.grid_type == 1:
             proatdens[:] = self.to_atomic_grid(index, work)
+        elif self.grid_type == 2:
+            proatdens[:] = work[:]
+        else:
+            raise NotImplementedError
+
+    # def update_pro_old(self, index, proatdens, promoldens):
+    #     """
+    #     Update the pro-molecule density arrays based on the pro-atom density for a specified atom index.
+
+    #     This method evaluates the pro-atom density for the specified atom index over either a local grid
+    #     (if defined) or the global grid. The evaluated density is then used to update the pro-molecule
+    #     density array. This process contributes to constructing the complete pro-molecule density profile
+    #     by accumulating contributions from individual atoms.
+
+    #     Parameters
+    #     ----------
+    #     index : int
+    #         The index of the atom for which the pro-atom and pro-molecule densities are to be updated.
+    #     proatdens : 1D np.ndarray
+    #         The array representing the pro-atom density. This array is updated with the new density values
+    #         for the specified atom.
+    #     promoldens : 1D np.ndarray
+    #         The array representing the pro-molecule density. This array accumulates the density contributions
+    #         from each atom, including the one specified by `index`.
+
+    #     Notes
+    #     -----
+    #     The method checks if `local_grids` attribute is available. If so, it uses the local grid specific
+    #     to the atom index for density evaluation. Otherwise, it defaults to using the global grid.
+
+    #     The `eval_proatom` method is used to evaluate the pro-atom density, which is then used to update
+    #     the `proatdens` and `promoldens` arrays. A small constant (1e-100) is added to `promoldens` to avoid
+    #     zero values, especially important for iterative methods requiring non-zero initial values.
+
+    #     If `local_grids` is not present, the method employs the global grid for density evaluation and updates
+    #     the `proatdens` array using the `to_atomic_grid` method.
+
+    #     """
+    #     if hasattr(self, "local_grids"):
+    #         # TODO: maybe remove the local grids, it is too difficult to debug.
+    #         local_grid = self.local_grids[index]
+    #         work = np.zeros((local_grid.size,))
+    #         self.eval_proatom(index, work, local_grid)
+    #         promoldens[local_grid.indices] += work
+    #         promoldens += 1e-100
+    #         proatdens[self.pt_indices_relative_to_atom[index]] = work[
+    #             self.atom_points_overlap[index]
+    #         ]
+    #     else:
+    #         # work = self.grid.zeros()
+    #         work = np.zeros((self.grid.size,))
+    #         self.eval_proatom(index, work, self.grid)
+    #         promoldens += work
+    #         promoldens += 1e-100
+    #         proatdens[:] = self.to_atomic_grid(index, work)
 
     def update_pro_molgrids(self, index, proatdens, promoldens):
         """See ``update_pro``."""

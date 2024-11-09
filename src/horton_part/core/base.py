@@ -417,9 +417,9 @@ class WPart(Part):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -445,6 +445,9 @@ class WPart(Part):
         lmax : int, optional
              The maximum angular momentum in multipole expansions.
         """
+        local = True if grid_type in [1, 3] else False
+        self._grid_type = grid_type
+
         if local and grid.atgrids is None:
             raise ValueError(
                 "Atomic grids are discarded from molecular grid object, "
@@ -468,6 +471,11 @@ class WPart(Part):
 
         # attributes related to grids.
         self._radial_distances = []
+
+    @property
+    def grid_type(self):
+        """The type of grids used in partitioning density."""
+        return self._grid_type
 
     def _init_log_base(self):
         self.logger.info("Performing a density-based AIM analysis with a wavefunction as input.")

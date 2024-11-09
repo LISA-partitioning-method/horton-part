@@ -74,7 +74,6 @@ class AbstractISAWPart(AbstractStockholderWPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         # New parameters added
@@ -82,6 +81,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         maxiter=500,
         inner_threshold=1e-8,
         radius_cutoff=np.inf,
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -117,9 +117,9 @@ class AbstractISAWPart(AbstractStockholderWPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
+            grid_type=grid_type,
         )
 
     @property

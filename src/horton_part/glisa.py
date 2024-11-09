@@ -67,7 +67,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
@@ -114,7 +113,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
         )

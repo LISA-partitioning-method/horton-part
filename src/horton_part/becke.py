@@ -45,10 +45,10 @@ class BeckeWPart(WPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         k=3,
         logger=None,
+        grid_type=1,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -65,9 +65,9 @@ class BeckeWPart(WPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
+            grid_type=grid_type,
         )
 
     def _init_log_scheme(self):
