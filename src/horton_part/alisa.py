@@ -1070,12 +1070,10 @@ class LinearISAWPart(GaussianISAWPart):
             grid_type,
         )
 
-    def setup_grids(self):
         if self.grid_type not in [1]:
             self.logger.info(
                 f"The grid type is {self.grid_type} and only aLISA+ methods are supported."
             )
-        super().setup_grids()
 
     @property
     def bs_helper(self):

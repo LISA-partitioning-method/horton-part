@@ -114,6 +114,11 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             grid_type,
         )
 
+    def setup_grids(self):
+        assert self.grid_type in [1, 2, 3]
+        self._on_molgrid = True if self.grid_type in [2, 3] else False
+        self._only_use_molgrid = True if self.grid_type in [3] else False
+
     # -------------------------
     # Turn off local grids info
     # -------------------------
@@ -145,7 +150,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             The pro-atom parameters.
 
         """
-        return get_proatom_rho(self, iatom, propars=propars, on_molgrid=self.on_molgrid)
+        return get_proatom_rho(self, iatom, propars=propars)
 
     # -------------------------
 
@@ -156,7 +161,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
-        return compute_change(self, propars1, propars2, on_molgrid=self.on_molgrid)
+        return compute_change(self, propars1, propars2)
 
     @property
     def maxiter(self):
@@ -242,7 +247,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # Initialize pro-atom parameters.
             self._init_propars()
             # Evaluate basis functions on molecular grid.
-            gisa.evaluate_basis_functions(self)
+            # Note, here on_molgrid is True always even for grid_type = 1 and 2
+            gisa.evaluate_basis_functions(self, force_on_molgrid=True)
 
             t0 = time.time()
             new_propars = self._opt_propars(**self._solver_options)
@@ -254,7 +260,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             propars[:] = new_propars
 
             t0 = time.time()
-            self.update_at_weights()
+            self.update_at_weights(force_on_molgrid=True)
             # compute the new charge
             charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
             for iatom in range(self.natom):
@@ -279,7 +285,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     def is_proatom_valid(self, iatom, propars):
         """Check if the proatom density is valid."""
-        rho0_iatom, _ = get_proatom_rho(self, iatom, propars, on_molgrid=False)
+        rho0_iatom, _ = get_proatom_rho(self, iatom, propars)
         valid = 0
         if (rho0_iatom < NEGATIVE_CUTOFF).any() or (
             rho0_iatom[:-1] - rho0_iatom[1:] < NEGATIVE_CUTOFF

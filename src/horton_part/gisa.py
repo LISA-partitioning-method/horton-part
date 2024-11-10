@@ -88,10 +88,10 @@ def init_propars(part):
     return propars
 
 
-def evaluate_basis_functions(part):
+def evaluate_basis_functions(part, force_on_molgrid=False):
     """Evaluate basis function on a 1D grid."""
     for iatom in range(part.natom):
-        if part.on_molgrid:
+        if part.on_molgrid or force_on_molgrid:
             r = part.radial_distances[iatom]
         else:
             rgrid = part.get_rgrid(iatom)

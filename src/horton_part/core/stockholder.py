@@ -151,7 +151,7 @@ class AbstractStockholderWPart(WPart):
         entropy = self._grid.integrate(rho, ln_ratio)
         return entropy
 
-    def update_pro(self, index, proatdens, promoldens):
+    def update_pro(self, index, proatdens, promoldens, force_on_molgrid=False):
         """Update propars.
 
         Parameters
@@ -170,7 +170,7 @@ class AbstractStockholderWPart(WPart):
         promoldens += work
         promoldens += 1e-100
         # TODO: this is related to the grids used.
-        if self.on_molgrid:
+        if self.on_molgrid or force_on_molgrid:
             proatdens[:] = work[:]
         else:
             proatdens[:] = self.to_atomic_grid(index, work)
@@ -350,7 +350,7 @@ class AbstractStockholderWPart(WPart):
         output += 1e-100
         assert np.isfinite(output).all()
 
-    def update_at_weights(self):
+    def update_at_weights(self, force_on_molgrid=False):
         """See ``Part.update_at_weights``."""
         promoldens = self.cache.load("promoldens", alloc=self.grid.size)[0]
         promoldens[:] = 0
@@ -358,20 +358,20 @@ class AbstractStockholderWPart(WPart):
         # Update the pro-molecule density and store the pro-atoms in the at_weights.
         t0 = time.time()
         for index in range(self.natom):
-            if self.on_molgrid:
+            if self.on_molgrid or force_on_molgrid:
                 weights_size = self.grid.size
             else:
                 weights_size = self.get_grid(index).size
             at_weights = self.cache.load(f"at_weights_{index}", alloc=weights_size)[0]
             # The pro-atom density is stored in at_weights.
-            self.update_pro(index, at_weights, promoldens)
+            self.update_pro(index, at_weights, promoldens, force_on_molgrid=force_on_molgrid)
         t1 = time.time()
 
         # Compute the atomic weights by taking the ratios: pro-atom-dens/pro-molecule-dens.
         for index in range(self.natom):
             # Here, at_weights is proatom density.
             at_weights = self.cache.load(f"at_weights_{index}")
-            if self.on_molgrid:
+            if self.on_molgrid or force_on_molgrid:
                 at_weights /= promoldens
             else:
                 at_weights /= self.to_atomic_grid(index, promoldens)

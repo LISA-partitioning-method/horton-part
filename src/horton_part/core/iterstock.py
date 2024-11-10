@@ -29,7 +29,7 @@ from .stockholder import AbstractStockholderWPart
 __all__ = ["AbstractISAWPart", "compute_change"]
 
 
-def compute_change(part, propars1, propars2, on_molgrid):
+def compute_change(part, propars1, propars2, force_on_molgrid=False):
     """Compute the difference between an old and a new proatoms"""
     # Compute mean-square deviation
     msd = 0.0
@@ -37,7 +37,7 @@ def compute_change(part, propars1, propars2, on_molgrid):
         rho1, deriv1 = part.get_proatom_rho(index, propars1)
         rho2, deriv2 = part.get_proatom_rho(index, propars2)
         delta = rho1 - rho2
-        if on_molgrid:
+        if part.on_molgrid or force_on_molgrid:
             msd += part.grid.integrate(delta, delta)
         else:
             rgrid = part.get_rgrid(index)
@@ -102,8 +102,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
         self._inner_threshold = inner_threshold if inner_threshold < threshold else threshold
         self._maxiter = maxiter
         # self._radius_cutoff = radius_cutoff
-        AbstractStockholderWPart.__init__(
-            self,
+        super().__init__(
             coordinates,
             numbers,
             pseudo_numbers,
