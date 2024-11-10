@@ -26,7 +26,7 @@ import numpy as np
 
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
-from .utils import check_pro_atom_parameters
+from .utils import check_pro_atom_parameters, check_pro_atom_parameters_non_neg_pars
 
 __all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
 
@@ -52,6 +52,64 @@ def _get_initial_mbis_propars(number):
         propars[2 * ishell] = nel_in_shell[ishell]
         propars[2 * ishell + 1] = S0 * alpha**ishell
     propars[-2] = number - propars[:-2:2].sum()
+    return propars
+
+
+def _opt_mbis_propars_molgrid(
+    rho, propars, grid, radial_dist, threshold, density_cutoff=1e-15, logger=logger
+):
+    assert len(propars) % 2 == 0
+    nshell = len(propars) // 2
+    points = grid.points
+    terms = np.zeros((nshell, len(points)), float)
+    oldpro = None
+    logger.debug("            Iter.    Change    ")
+    logger.debug("            -----    ------    ")
+    pop = grid.integrate(rho)
+
+    for irep in range(2000):
+        # compute the contributions to the pro-atom
+        for ishell in range(nshell):
+            N = propars[2 * ishell]
+            S = propars[2 * ishell + 1]
+            terms[ishell] = N * S**3 * np.exp(-S * radial_dist) / (8 * np.pi)
+
+        pro = terms.sum(axis=0)
+        sick = (rho < density_cutoff) | (pro < density_cutoff)
+        with np.errstate(all="ignore"):
+            lnpro = np.log(pro)
+            ratio = rho / pro
+            lnratio = np.log(rho) - np.log(pro)
+        lnpro[sick] = 0.0
+        ratio[sick] = 0.0
+        lnratio[sick] = 0.0
+
+        # pro = np.clip(pro, 1e-100, np.inf)
+        # transform to partitions
+        # terms *= rho / pro
+        terms *= ratio
+        # the partitions and the updated parameters
+        for ishell in range(nshell):
+            m0 = grid.integrate(terms[ishell])
+            m1 = grid.integrate(terms[ishell], radial_dist)
+            propars[2 * ishell] = m0
+            propars[2 * ishell + 1] = 3 * m0 / m1
+        # check for convergence
+        if oldpro is None:
+            change = 1e100
+        else:
+            error = oldpro - pro
+            change = np.sqrt(grid.integrate(error, error))
+
+        logger.debug(f"            {irep+1:<4}    {change:.3e}")
+
+        if change < threshold:
+            if not np.isclose(pop, np.sum(propars[0::2]), atol=1e-4):
+                raise RuntimeWarning("The sum of propars are not equal to the atomic pop.")
+            check_pro_atom_parameters_non_neg_pars(propars, pro_atom_density=pro, logger=logger)
+            return propars
+        oldpro = pro
+    logger.warning("MBIS not converged, but still go ahead!")
     return propars
 
 
@@ -141,9 +199,12 @@ class MBISWPart(AbstractISAWPart):
 
     def get_rgrid(self, iatom):
         """Get radial grid for `iatom` atom."""
-        return self.get_grid(iatom).rgrid
+        if self.only_use_molgrid:
+            raise NotImplementedError
+        else:
+            return self.get_grid(iatom).rgrid
 
-    def get_proatom_rho(self, iatom, propars=None, **kwargs):
+    def get_proatom_rho(self, iatom: int, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
@@ -158,8 +219,11 @@ class MBISWPart(AbstractISAWPart):
         """
         if propars is None:
             propars = self.cache.load("propars")
-        rgrid = self.get_rgrid(iatom)
-        r = rgrid.points
+        if self.on_molgrid:
+            r = self.radial_distances[iatom]
+        else:
+            rgrid = self.get_rgrid(iatom)
+            r = rgrid.points
         y = np.zeros(len(r), float)
         d = np.zeros(len(r), float)
         my_propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
@@ -215,6 +279,34 @@ class MBISWPart(AbstractISAWPart):
         return propars
 
     def _update_propars_atom(self, iatom):
+        if self.on_molgrid:
+            return self._update_propars_atom_molgrids(iatom)
+        else:
+            return self._update_propars_atom_atgrids(iatom)
+
+    def _update_propars_atom_molgrids(self, iatom):
+        at_weights = self.cache.load(f"at_weights_{iatom}")
+        dens = self._moldens
+        rhoa = at_weights * dens
+        # assign as new propars
+        propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
+
+        # rho, propars, grid, radial_dist, threshold, density_cutoff=1e-15, logger=logger
+        propars[:] = _opt_mbis_propars_molgrid(
+            rhoa,
+            propars.copy(),
+            grid=self.grid,
+            radial_dist=self.radial_distances[iatom],
+            threshold=self._inner_threshold,
+            logger=self.logger,
+        )
+
+        # compute the new charge
+        pseudo_population = self.grid.integrate(rhoa)
+        charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+        charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+    def _update_propars_atom_atgrids(self, iatom):
         # compute spherical average
         atgrid = self.get_grid(iatom)
         rgrid = atgrid.rgrid
@@ -238,11 +330,7 @@ class MBISWPart(AbstractISAWPart):
             logger=self.logger,
         )
 
-        # avoid too large r
-        # r = np.clip(rgrid.points, 1e-100, 1e10)
-
         # compute the new charge
-        # 4 * np.pi * rgrid.points ** 2 * spherical_average
         pseudo_population = rgrid.integrate(4 * np.pi * points**2, spherical_average)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population

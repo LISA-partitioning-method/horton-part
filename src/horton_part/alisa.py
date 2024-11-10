@@ -1070,6 +1070,13 @@ class LinearISAWPart(GaussianISAWPart):
             grid_type,
         )
 
+    def setup_grids(self):
+        if self.grid_type not in [1]:
+            self.logger.info(
+                f"The grid type is {self.grid_type} and only aLISA+ methods are supported."
+            )
+        super().setup_grids()
+
     @property
     def bs_helper(self):
         """A basis function helper."""
@@ -1096,6 +1103,7 @@ class LinearISAWPart(GaussianISAWPart):
                     self._solver.__name__ if callable(self._solver) else self._solver.upper(),
                 ),
                 ("Basis function type", self._func_type),
+                ("Grid type", self.grid_type),
                 # ("Local grid radius", self._radius_cutoff),
                 # ("Allow negative parameters", allow_negative_params),
             ]

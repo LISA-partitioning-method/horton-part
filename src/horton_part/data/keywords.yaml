@@ -10,7 +10,6 @@ is:
     - threshold
     - inner_threshold
     - lmax
-    - radius_cutoff
 
 gisa:
   io_infos:
@@ -24,7 +23,6 @@ gisa:
     - threshold
     - inner_threshold
     - lmax
-    - radius_cutoff
     - solver
     - solver_options
     - grid_type
@@ -41,7 +39,7 @@ mbis:
     - threshold
     - inner_threshold
     - lmax
-    - radius_cutoff
+    - grid_type
 
 lisa:
   io_infos:
@@ -57,7 +55,6 @@ lisa:
     - threshold
     - inner_threshold
     - lmax
-    - radius_cutoff
     - solver
     - solver_options
     - grid_type
@@ -74,9 +71,9 @@ nlis:
     - threshold
     - inner_threshold
     - lmax
-    - radius_cutoff
     - exp_n_dict
     - nshell_dict
+    - grid_type
 
 gmbis:
   io_infos:
@@ -90,8 +87,8 @@ gmbis:
     - threshold
     - inner_threshold
     - lmax
-    - radius_cutoff
     - exp_n_dict
+    - grid_type
 
 glisa:
   io_infos:
@@ -106,6 +103,6 @@ glisa:
     - maxiter
     - threshold
     - lmax
-    - radius_cutoff
     - solver
     - solver_options
+    - grid_type

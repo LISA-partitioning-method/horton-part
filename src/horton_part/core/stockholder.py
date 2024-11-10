@@ -36,7 +36,6 @@ class AbstractStockholderWPart(WPart):
 
     def _init_subgrids(self):
         WPart._init_subgrids(self)
-        # TODO: remove this, only use this when grid_type == 4
         # self.initial_local_grids()
         self._log_grid_info()
 
@@ -121,6 +120,12 @@ class AbstractStockholderWPart(WPart):
         self.logger.info("-" * 80)
         # self.logger.info("Compute local grids ...")
         self.logger.info(f"Grid size of molecular grid: {self.grid.size}")
+
+        if not self.local:
+            self.logger.info("=" * 80)
+            self.logger.info(" ")
+            return
+
         for iatom in range(self.natom):
             self.logger.info(f" Atom {iatom} ".center(80, "*"))
             atom_grid = self.get_grid(iatom)
@@ -165,89 +170,27 @@ class AbstractStockholderWPart(WPart):
         promoldens += work
         promoldens += 1e-100
         # TODO: this is related to the grids used.
-        if self.grid_type in [1]:
-            proatdens[:] = self.to_atomic_grid(index, work)
-        elif self.grid_type == 2:
+        if self.on_molgrid:
             proatdens[:] = work[:]
         else:
-            self.logger.info(f"Unsupported grid_type: {self.grid_type} in update_pro")
-            raise NotImplementedError
+            proatdens[:] = self.to_atomic_grid(index, work)
 
-    # def update_pro_old(self, index, proatdens, promoldens):
-    #     """
-    #     Update the pro-molecule density arrays based on the pro-atom density for a specified atom index.
-
-    #     This method evaluates the pro-atom density for the specified atom index over either a local grid
-    #     (if defined) or the global grid. The evaluated density is then used to update the pro-molecule
-    #     density array. This process contributes to constructing the complete pro-molecule density profile
-    #     by accumulating contributions from individual atoms.
-
-    #     Parameters
-    #     ----------
-    #     index : int
-    #         The index of the atom for which the pro-atom and pro-molecule densities are to be updated.
-    #     proatdens : 1D np.ndarray
-    #         The array representing the pro-atom density. This array is updated with the new density values
-    #         for the specified atom.
-    #     promoldens : 1D np.ndarray
-    #         The array representing the pro-molecule density. This array accumulates the density contributions
-    #         from each atom, including the one specified by `index`.
-
-    #     Notes
-    #     -----
-    #     The method checks if `local_grids` attribute is available. If so, it uses the local grid specific
-    #     to the atom index for density evaluation. Otherwise, it defaults to using the global grid.
-
-    #     The `eval_proatom` method is used to evaluate the pro-atom density, which is then used to update
-    #     the `proatdens` and `promoldens` arrays. A small constant (1e-100) is added to `promoldens` to avoid
-    #     zero values, especially important for iterative methods requiring non-zero initial values.
-
-    #     If `local_grids` is not present, the method employs the global grid for density evaluation and updates
-    #     the `proatdens` array using the `to_atomic_grid` method.
-
-    #     """
-    #     if hasattr(self, "local_grids"):
-    #         # TODO: maybe remove the local grids, it is too difficult to debug.
-    #         local_grid = self.local_grids[index]
-    #         work = np.zeros((local_grid.size,))
-    #         self.eval_proatom(index, work, local_grid)
-    #         promoldens[local_grid.indices] += work
-    #         promoldens += 1e-100
-    #         proatdens[self.pt_indices_relative_to_atom[index]] = work[
-    #             self.atom_points_overlap[index]
-    #         ]
-    #     else:
-    #         # work = self.grid.zeros()
-    #         work = np.zeros((self.grid.size,))
-    #         self.eval_proatom(index, work, self.grid)
-    #         promoldens += work
-    #         promoldens += 1e-100
-    #         proatdens[:] = self.to_atomic_grid(index, work)
-
-    def update_pro_molgrids(self, index, proatdens, promoldens):
-        """See ``update_pro``."""
-        work = np.zeros((self.grid.size,))
-        self.eval_proatom(index, work, self.grid)
-        promoldens += work
-        promoldens += 1e-100
-        proatdens[:] = work[:]
-
-    def get_rgrid(self, index):
+    def get_rgrid(self, index: int):
         """Load radial grid.
 
         Parameters
         ----------
-        index: int
+        index:
             The atom index.
         """
         raise NotImplementedError
 
-    def get_proatom_rho(self, iatom, *args, **kwargs):
-        """Get pro-atom density for atom `iatom`.
+    def get_proatom_rho(self, iatom: int, *args, **kwargs):
+        """Get pro-atom density for atom `iatom` on a radial grid.
 
         Parameters
         ----------
-        iatom : int
+        iatom :
             The atom index
         *args :
             Variable length argument list, used for passing non-keyworded arguments.
@@ -257,16 +200,16 @@ class AbstractStockholderWPart(WPart):
         """
         raise NotImplementedError
 
-    def fix_proatom_rho(self, index, rho, deriv):
+    def fix_proatom_rho(self, index: int, rho: np.ndarray, deriv: int):
         """Check if the radial density for the proatom is correct and fix as needed.
 
         Parameters
         ----------
-        index: int
+        index:
              The atom for which this proatom rho is created.
         rho: 1D np.ndarray
              The radial density
-        deriv: int
+        deriv:
              the derivative of the radial density or None.
         """
         rgrid = self.get_rgrid(index)
@@ -376,6 +319,8 @@ class AbstractStockholderWPart(WPart):
             The array where the evaluated radial density values will be stored. This array is modified in-place.
         grid : Grid
             The grid points where the radial density is to be evaluated.
+        on_molgrid:
+            Whether evaluate pro-atom density on the molecular grid.
 
         Notes
         -----
@@ -407,70 +352,29 @@ class AbstractStockholderWPart(WPart):
 
     def update_at_weights(self):
         """See ``Part.update_at_weights``."""
-        self.logger.debug(f"The part obj has grid_type and it is {self.grid_type}.")
-        if self.grid_type in [1]:
-            return self._update_at_weights_using_atgrids()
-        elif self.grid_type == 2:
-            self.logger.debug("The full molecular grids are used.")
-            return self._update_at_weights_using_molgrids()
-        else:
-            raise RuntimeError(
-                f"Unknown grid type : {self.grid_type}. The supported type is 1 and 2."
-            )
-
-    def _update_at_weights_using_molgrids(self):
-        """See ``Part.update_at_weights``."""
-        # This will reconstruct the promolecular density and atomic weights
-        # based on the current proatomic splines.
         promoldens = self.cache.load("promoldens", alloc=self.grid.size)[0]
         promoldens[:] = 0
 
-        # update the promolecule density and store the proatoms in the at_weights
-        # arrays for later.
+        # Update the pro-molecule density and store the pro-atoms in the at_weights.
         t0 = time.time()
         for index in range(self.natom):
-            at_weights = self.cache.load(f"at_weights_{index}", alloc=self.grid.size)[0]
-            # Here the proatom density is stored in at_weights.
-            self.update_pro_molgrids(index, at_weights, promoldens)
-        t1 = time.time()
-
-        # Compute the atomic weights by taking the ratios between proatoms and
-        # promolecules.
-        for index in range(self.natom):
-            at_weights = self.cache.load(f"at_weights_{index}")
-            at_weights /= promoldens
-            np.clip(at_weights, 0, 1, out=at_weights)
-        t2 = time.time()
-
-        if "history_time_update_promolecule" not in self.time_usage:
-            self.time_usage["history_time_update_promolecule"] = []
-            self.time_usage["history_time_compute_at_weights"] = []
-        self.time_usage["history_time_update_promolecule"].append(t1 - t0)
-        self.time_usage["history_time_compute_at_weights"].append(t2 - t1)
-
-    def _update_at_weights_using_atgrids(self):
-        """See ``Part.update_at_weights``."""
-        # This will reconstruct the promolecular density and atomic weights
-        # based on the current proatomic splines.
-        promoldens = self.cache.load("promoldens", alloc=self.grid.size)[0]
-        promoldens[:] = 0
-
-        # update the promolecule density and store the proatoms in the at_weights
-        # arrays for later.
-        t0 = time.time()
-        for index in range(self.natom):
-            atmgrid = self.get_grid(index)
-            at_weights = self.cache.load(f"at_weights_{index}", alloc=atmgrid.size)[0]
-            # Here the proatom density is stored in at_weights.
+            if self.on_molgrid:
+                weights_size = self.grid.size
+            else:
+                weights_size = self.get_grid(index).size
+            at_weights = self.cache.load(f"at_weights_{index}", alloc=weights_size)[0]
+            # The pro-atom density is stored in at_weights.
             self.update_pro(index, at_weights, promoldens)
         t1 = time.time()
 
-        # Compute the atomic weights by taking the ratios between proatoms and
-        # promolecules.
+        # Compute the atomic weights by taking the ratios: pro-atom-dens/pro-molecule-dens.
         for index in range(self.natom):
             # Here, at_weights is proatom density.
             at_weights = self.cache.load(f"at_weights_{index}")
-            at_weights /= self.to_atomic_grid(index, promoldens)
+            if self.on_molgrid:
+                at_weights /= promoldens
+            else:
+                at_weights /= self.to_atomic_grid(index, promoldens)
             np.clip(at_weights, 0, 1, out=at_weights)
         t2 = time.time()
 

@@ -202,7 +202,10 @@ class Part(JustOnceClass):
         np.ndarray
             The molecular electron density on the atomic grid.
         """
-        result = self.to_atomic_grid(index, self._moldens)
+        if index is None or not self.local:
+            result = self._moldens
+        else:
+            result = self.to_atomic_grid(index, self._moldens)
         if output is not None:
             output[:] = result
         return result
@@ -228,7 +231,10 @@ class Part(JustOnceClass):
         np.ndarray
             The spin density on the atomic grid.
         """
-        result = self.to_atomic_grid(index, self._spindens)
+        if index is None or not self.local:
+            result = self._spindens
+        else:
+            result = self.to_atomic_grid(index, self._spindens)
         if output is not None:
             output[:] = result
         return result
@@ -252,7 +258,6 @@ class Part(JustOnceClass):
 
     def compute_pseudo_population(self, index):
         """Compute pseudo population"""
-        # TODO: fix me, the grid here is also needed to be fixed.
         grid = self.get_grid(index)
         dens = self.get_moldens(index)
         at_weights = self.cache.load(f"at_weights_{index}")
@@ -265,7 +270,7 @@ class Part(JustOnceClass):
 
     do_partitioning.names = []
 
-    def update_at_weights(self):
+    def update_at_weights(self, *args, **kwargs):
         """Updates the at_weights arrays in the case (and all related arrays)"""
         raise NotImplementedError
 
@@ -278,7 +283,7 @@ class Part(JustOnceClass):
             pseudo_populations = self.cache.load("pseudo_populations", alloc=self.natom, tags="o")[
                 0
             ]
-            print("Computing atomic populations.")
+            self.logger.info("Computing atomic populations.")
             for index in range(self.natom):
                 # pseudo_populations[i] = self.compute_pseudo_population(index)
                 # Be consistent with do_spin_dens
@@ -299,7 +304,7 @@ class Part(JustOnceClass):
         if new:
             self.do_populations()
             populations = self._cache.load("populations")
-            print("Computing atomic charges.")
+            self.logger.info("Computing atomic charges.")
             charges[:] = self.numbers - populations
 
     @just_once
@@ -308,7 +313,7 @@ class Part(JustOnceClass):
         if self._spindens is not None:
             spin_charges, new = self._cache.load("spin_charges", alloc=self.natom, tags="o")
             self.do_partitioning()
-            print("Computing atomic spin charges.")
+            self.logger.info("Computing atomic spin charges.")
             for index in range(self.natom):
                 grid = self.get_grid(index)
                 spindens = self.get_spindens(index)
@@ -437,8 +442,11 @@ class WPart(Part):
         lmax : int, optional
              The maximum angular momentum in multipole expansions.
         """
-        local = True if grid_type in [1, 3] else False
         self._grid_type = grid_type
+        self._on_molgrid = None
+        self._only_use_molgrid = None
+        self.setup_grids()
+        local = not self._only_use_molgrid
 
         if local and grid.atgrids is None:
             raise ValueError(
@@ -464,10 +472,36 @@ class WPart(Part):
         # attributes related to grids.
         self._radial_distances = []
 
+    def setup_grids(self):
+        """Setup grids used in partitioning.
+
+        # 1. atom_grids + mol_grid, use atoms for everything and mol_grid is only used for weights calculation
+        # 2. atom_grids + mol_grid, use mol_grid for everything but atom_grids are used applied contratins.
+        # 3. mol_grid, use mol_grid for everything, like in gLISA+.
+        """
+        assert self.grid_type in [1, 2, 3]
+        self._on_molgrid = True if self.grid_type in [2, 3] else False
+        self._only_use_molgrid = True if self.grid_type in [3] else False
+
     @property
     def grid_type(self):
         """The type of grids used in partitioning density."""
         return self._grid_type
+
+    @property
+    def only_use_molgrid(self):
+        """Whether only use molecular grid."""
+        return self._only_use_molgrid
+
+    @property
+    def on_molgrid(self):
+        """The type of grids used for evaluating properties.
+
+        Including:
+
+        - 1. get_proatom_rho
+        """
+        return self._on_molgrid
 
     def _init_log_base(self):
         self.logger.info("Performing a density-based AIM analysis with a wavefunction as input.")

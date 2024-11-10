@@ -57,7 +57,10 @@ class ISAWPart(AbstractISAWPart):
         # biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")
 
     def get_rgrid(self, index):
-        return self.get_grid(index).rgrid
+        if self.only_use_molgrid:
+            raise NotImplementedError
+        else:
+            return self.get_grid(index).rgrid
 
     def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """
@@ -82,7 +85,10 @@ class ISAWPart(AbstractISAWPart):
         """
         if propars is None:
             propars = self.cache.load("propars")
-        return propars[self._ranges[iatom] : self._ranges[iatom + 1]], None
+        if self.on_molgrid:
+            raise NotImplementedError
+        else:
+            return propars[self._ranges[iatom] : self._ranges[iatom + 1]], None
 
     def _init_propars(self):
         # AbstractISAWPart._init_propars(self)

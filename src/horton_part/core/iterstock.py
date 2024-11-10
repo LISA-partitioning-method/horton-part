@@ -29,7 +29,7 @@ from .stockholder import AbstractStockholderWPart
 __all__ = ["AbstractISAWPart", "compute_change"]
 
 
-def compute_change(part, propars1, propars2):
+def compute_change(part, propars1, propars2, on_molgrid):
     """Compute the difference between an old and a new proatoms"""
     # Compute mean-square deviation
     msd = 0.0
@@ -37,14 +37,11 @@ def compute_change(part, propars1, propars2):
         rho1, deriv1 = part.get_proatom_rho(index, propars1)
         rho2, deriv2 = part.get_proatom_rho(index, propars2)
         delta = rho1 - rho2
-        if part.grid_type in [1, 3]:
+        if on_molgrid:
+            msd += part.grid.integrate(delta, delta)
+        else:
             rgrid = part.get_rgrid(index)
             msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
-        elif part.grid_type == 2:
-            grid = part.grid
-            msd += grid.integrate(delta, delta)
-        else:
-            raise NotImplementedError
     return np.sqrt(msd)
 
 
@@ -143,7 +140,7 @@ class AbstractISAWPart(AbstractStockholderWPart):
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
         # Compute mean-square deviation
-        return compute_change(self, propars1, propars2)
+        return compute_change(self, propars1, propars2, self.on_molgrid)
 
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""

@@ -46,12 +46,7 @@ from .core.iterstock import compute_change
 from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .gisa import get_proatom_rho
-from .utils import (
-    NEGATIVE_CUTOFF,
-    PERIODIC_TABLE,
-    check_pro_atom_parameters,
-    fix_propars,
-)
+from .utils import NEGATIVE_CUTOFF, check_pro_atom_parameters, fix_propars
 
 __all__ = ["GlobalLinearISAWPart"]
 
@@ -75,6 +70,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
+        grid_type=2,
         **kwargs,
     ):
         """
@@ -104,9 +100,9 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         self._bs_helper = None
         self._solver = solver
         self._solver_options = solver_options or {}
+        self._ranges = []
 
-        AbstractStockholderWPart.__init__(
-            self,
+        super().__init__(
             coordinates,
             numbers,
             pseudo_numbers,
@@ -115,20 +111,26 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             spindens,
             lmax,
             logger,
+            grid_type,
         )
 
-    @property
-    def bs_helper(self):
-        """A basis function helper."""
-        return setup_bs_helper(self)
-
+    # -------------------------
+    # Turn off local grids info
+    # -------------------------
     def get_rgrid(self, index):
         """Load radial grid."""
-        return self.get_grid(index).rgrid
+        if self.only_use_molgrid:
+            self.logger.debug("rgird is not available when only_use_molgrid is `True`.")
+            raise NotImplementedError
+        else:
+            return self.get_grid(index).rgrid
 
-    def compute_change(self, propars1, propars2):
-        """Compute the difference between an old and a new proatoms"""
-        return compute_change(self, propars1, propars2)
+    def to_atomic_grid(self, index, data):
+        if self.only_use_molgrid:
+            self.logger.debug("atom grids are not available when only_use_molgrid is `True`.")
+            raise NotImplementedError
+        else:
+            return super().to_atomic_grid(index, data)
 
     def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
@@ -139,11 +141,22 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         ----------
         iatom: int
             The index of atom `iatom`.
-        propars: np.array
+        propars: 1D np.array
             The pro-atom parameters.
 
         """
-        return get_proatom_rho(self, iatom, propars=propars)
+        return get_proatom_rho(self, iatom, propars=propars, on_molgrid=self.on_molgrid)
+
+    # -------------------------
+
+    @property
+    def bs_helper(self):
+        """A basis function helper."""
+        return setup_bs_helper(self)
+
+    def compute_change(self, propars1, propars2):
+        """Compute the difference between an old and a new proatoms"""
+        return compute_change(self, propars1, propars2, on_molgrid=self.on_molgrid)
 
     @property
     def maxiter(self):
@@ -194,7 +207,9 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
-        return gisa.init_propars(self)
+        self.logger.debug("Initial propars ...")
+        propars = gisa.init_propars(self)
+        return propars
 
     def eval_proatom(self, index, output, grid):
         """Evaluate function on a local grid.
@@ -219,21 +234,16 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         )
 
     @just_once
-    def _evaluate_basis_functions(self):
-        # gisa.evaluate_basis_functions(self)
-        pass
-
-    @just_once
     def do_partitioning(self):
         """Do global partitioning scheme."""
-        # Initialize local grids to save resources
-        # self.initial_local_grids()
-
-        new = any(("at_weights", i) not in self.cache for i in range(self.natom))
+        new = any(f"at_weights_{i}" not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache
         if new:
             # Initialize pro-atom parameters.
             self._init_propars()
+            # Evaluate basis functions on molecular grid.
+            gisa.evaluate_basis_functions(self)
+
             t0 = time.time()
             new_propars = self._opt_propars(**self._solver_options)
             t1 = time.time()
@@ -247,69 +257,14 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.update_at_weights()
             # compute the new charge
             charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
-
-            promol = self.calc_promol_dens(propars)
-            promol += 1e-100 * self.natom
-
-            # tot_charge1 = 0.0
-            # tot_charge2 = 0.0
-            # tot_charge3 = 0.0
-            # tot_charge4 = 0.0
-
             for iatom in range(self.natom):
-                # at_weights = self.cache.load("at_weights", iatom)
-                # at_weights = self.cache.load(f"at_weights_{iatom}")
-                # dens = self.get_moldens(iatom)
-                # atgrid = self.get_grid(iatom)
-
-                # # Method 1
-                # nelec1 = atgrid.integrate(dens * at_weights)
-                # charge1 = self.pseudo_numbers[iatom] - nelec1
-                # self.check_pro(iatom, propars)
-                # # tot_charge1 += charge1
-
-                # Method 2
-                mask = np.zeros_like(propars)
-                mask[self._ranges[iatom] : self._ranges[iatom + 1]] = 1.0
-                propars_iatom = propars * mask
-                rhoa0 = self.calc_promol_dens(propars_iatom)
-                assert (rhoa0 <= promol).all()
-                at_weights2 = rhoa0 / promol
-                nelec2 = self.grid.integrate(at_weights2 * self._moldens)
-                charge2 = self.pseudo_numbers[iatom] - nelec2
-                # tot_charge2 += charge2
-
-                # # Method 3
-                # at_weights3 = self.to_atomic_grid(iatom, at_weights2)
-                # nelec3 = atgrid.integrate(at_weights3 * dens)
-                # charge3 = self.pseudo_numbers[iatom] - nelec3
-                # tot_charge3 += charge3
-
-                # # Method 4
-                # rhoa0_on_atom_grid = self.to_atomic_grid(iatom, rhoa0)
-                # molrho0_on_atom_grid = self.to_atomic_grid(iatom, promol)
-                # at_weights4 = rhoa0_on_atom_grid / molrho0_on_atom_grid
-                # nelec4 = atgrid.integrate(at_weights4 * dens)
-                # charge4 = self.pseudo_numbers[iatom] - nelec4
-                # tot_charge4 += charge4
-
-                # print(f"charge by method 1: {charge1}")
-                # print(f"charge by method 2: {charge2}")
-                # print(f"charge by method 3: {charge3}")
-                # print(f"charge by method 4: {charge4}")
-                # print("-" * 80)
-
-                # we choose Method 1, which is used in aLISA and other ISA variants.
-                # charges[iatom] = charge1
-                charges[iatom] = charge2
-            # print(f"The total charge of molecule is (old): {tot_charge1}")
-            # print(f"The total charge of molecule is (new1): {tot_charge2}")
-            # print(f"The total charge of molecule is (new2): {tot_charge3}")
-            # print(f"The total charge of molecule is (new3): {tot_charge4}")
-
+                at_weights = self.cache.load(f"at_weights_{iatom}")
+                nelec = self.grid.integrate(at_weights * self._moldens)
+                charge = self.pseudo_numbers[iatom] - nelec
+                charges[iatom] = charge
             t1 = time.time()
-            self.history_time_update_at_weights.append(t1 - t0)
 
+            self.history_time_update_at_weights.append(t1 - t0)
             self._finalize_propars()
 
     def is_promol_valid(self, propars):
@@ -324,7 +279,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
     def is_proatom_valid(self, iatom, propars):
         """Check if the proatom density is valid."""
-        rho0_iatom, _ = self.get_proatom_rho(iatom, propars)
+        rho0_iatom, _ = get_proatom_rho(self, iatom, propars, on_molgrid=False)
         valid = 0
         if (rho0_iatom < NEGATIVE_CUTOFF).any() or (
             rho0_iatom[:-1] - rho0_iatom[1:] < NEGATIVE_CUTOFF
@@ -335,49 +290,31 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 valid = 2
         return valid
 
-    def check_pro(self, iatom, propars):
-        """Check if the proatom paramters are valid."""
-        valid = self.is_proatom_valid(iatom, propars)
-        if valid != 0:
-            self.logger.debug(f"{PERIODIC_TABLE[self.numbers[iatom]]} with index = {iatom}")
-            exps = self.bs_helper.exponents[self.numbers[iatom]]
-            caks = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-            self.logger.debug(f"{'Exp.':>20}{'c_ak':>20} ")
-            for exp, c_ak in zip(exps, caks):
-                self.logger.debug(f"{exp:>20.8f}       {c_ak:>20.8f}")
-            if valid == 1:
-                raise RuntimeError("The proatom density is negative somewhere!")
-            elif valid == 2:
-                raise RuntimeError("The proatom density is not monotonic decay!")
+    # def check_pro(self, iatom, propars):
+    #     """Check if the proatom paramters are valid."""
+    #     valid = self.is_proatom_valid(iatom, propars)
+    #     if valid != 0:
+    #         self.logger.debug(
+    #             f"{PERIODIC_TABLE[self.numbers[iatom]]} with index = {iatom}"
+    #         )
+    #         exps = self.bs_helper.exponents[self.numbers[iatom]]
+    #         caks = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+    #         self.logger.debug(f"{'Exp.':>20}{'c_ak':>20} ")
+    #         for exp, c_ak in zip(exps, caks):
+    #             self.logger.debug(f"{exp:>20.8f}       {c_ak:>20.8f}")
+    #         if valid == 1:
+    #             raise RuntimeError("The proatom density is negative somewhere!")
+    #         elif valid == 2:
+    #             raise RuntimeError("The proatom density is not monotonic decay!")
 
     @just_once
     def eval_pro_shells(self):
         """Evaluate pro-shell functions on molecular grids."""
         nshell = len(self.cache.load("propars"))
         pro_shells = self.cache.load("pro_shells", alloc=(nshell, self.grid.size))[0]
-        pro_shells[:] = 0.0
-        centers = self.cache.load("pro_shell_centers", alloc=(nshell, 3))[0]
-
-        index = 0
         for iatom in range(self.natom):
-            centers[iatom] = self.coordinates[iatom, :]
-            number = self.numbers[iatom]
-            for ishell in range(self.bs_helper.get_nshell(number)):
-                # Note: evaluate pro_shell on a local grid.
-                g_ai = self.cache.load(
-                    "pro_shell", iatom, ishell, alloc=len(self.radial_distances[iatom])
-                )[0]
-                g_ai[:] = self.bs_helper.compute_proshell_dens(
-                    number, ishell, 1.0, self.radial_distances[iatom], 0
-                )
-                pro_shells[index, :] = g_ai
-                if np.isclose(self.grid.integrate(pro_shells[index, :]), 1e-4):
-                    raise RuntimeError(
-                        rf"The \int_R^3 g_({iatom},{ishell}(r) dr on the (local) grid of atom {iatom} is "
-                        f"not close to 1.0"
-                    )
-                index += 1
-
+            bs_funcs_i = self.cache.load(f"bs_funcs_{iatom}")
+            pro_shells[self._ranges[iatom] : self._ranges[iatom + 1], :] = bs_funcs_i
         rho_g = self.cache.load("rho*pro_shells", alloc=(nshell, self.grid.size))[0]
         rho_g[:] = self._moldens[None, :] * pro_shells[:, :]
 
@@ -409,15 +346,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         return self.cache.load("pro_shells")
 
     @property
-    def pro_shell_centers(self):
-        """The coordinates of the center for each basis function.
-
-        It has a shape of (N, 3) where `N` is the total number of basis functions.
-        """
-        self.eval_pro_shells()
-        return self.cache.load("pro_shell_centers")
-
-    @property
     def rho_x_pro_shells(self):
         r"""The intermediate quantity: :math:`\rho(r) \times g_{ak}`.
 
@@ -444,7 +372,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             in the local grid.
         """
         self.eval_pro_shells()
-        return self.cache.load(("pro_shell", iatom, ishell))
+        return self.cache.load(f"bs_funcs_{iatom}")[ishell]
+        # return self.cache.load(("pro_shell", iatom, ishell))
 
     @property
     def propars(self):
@@ -873,6 +802,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             old_propars = propars.copy()
 
             propars[:] = self.function_g(propars, density_cutoff=density_cutoff)
+            self.logger.debug(propars)
             change = self.compute_change(propars, old_propars)
 
             # Be consistent to LISA entropy corresponding to old_propars
@@ -898,6 +828,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
     def function_g(self, x, density_cutoff=1e-15):
         """The fixed-point equation :math:`g(x)=x`."""
         # 1. load molecular and pro-molecule density from cache
+        self.logger.debug("Enter function_g ...")
         rho = self._moldens
         old_rho0 = self.calc_promol_dens(x)
         sick = (rho < density_cutoff) | (old_rho0 < density_cutoff)
@@ -922,6 +853,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
             # 4. set new x values
             new_x[self._ranges[iatom] : self._ranges[iatom + 1]] = np.asarray(fun_val)
+        self.logger.debug("Out function_g")
         return new_x
 
     # TODO: this is duplicated
