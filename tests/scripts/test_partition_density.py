@@ -208,9 +208,9 @@ def test_glisa_with_molgrid(grid_type, solver, method, fn_wfn, tmpdir):
 
 @pytest.mark.parametrize("grid_type", [1, 2, 3])
 @pytest.mark.parametrize("solver", ["sc"])
-@pytest.mark.parametrize("method", ["mbis", "nlis", "gmbis"])
+@pytest.mark.parametrize("method", ["gmbis"])
 @pytest.mark.parametrize("fn_wfn", ["water_sto3g_hf_g03.fchk"])
-def test_lisa_with_molgrid(grid_type, solver, method, fn_wfn, tmpdir):
+def test_gmbis(grid_type, solver, method, fn_wfn, tmpdir):
     with resources.path("iodata.test.data", fn_wfn) as fn_full:
         fn_density = os.path.join(tmpdir, "density.npz")
         fn_log = os.path.join(tmpdir, "density.log")
@@ -255,3 +255,115 @@ def test_lisa_with_molgrid(grid_type, solver, method, fn_wfn, tmpdir):
         abs = 1e-3 if method in ["mbis", "nlis", "gmbis"] else 1e-4
         assert np.sum(data["charges"]) == pytest.approx(0.00, abs=abs)
         assert data["charges"][0] < 0 and data["charges"][1] > 0 and data["charges"][2] > 0
+        assert data["charges"] == pytest.approx(
+            [-0.6179280883502, 0.30913844981854, 0.30918595758548], abs=1e-2
+        )
+
+
+@pytest.mark.parametrize("grid_type", [1, 2, 3])
+@pytest.mark.parametrize("solver", ["sc"])
+@pytest.mark.parametrize("method", ["mbis"])
+@pytest.mark.parametrize("fn_wfn", ["water_sto3g_hf_g03.fchk"])
+def test_mbis(grid_type, solver, method, fn_wfn, tmpdir):
+    with resources.path("iodata.test.data", fn_wfn) as fn_full:
+        fn_density = os.path.join(tmpdir, "density.npz")
+        fn_log = os.path.join(tmpdir, "density.log")
+
+        yaml_file_gen = tmpdir.join("input_gen.yaml")
+        yaml_content_gen = f"""
+            part-gen:
+              inputs:
+              - {fn_full}
+              outputs:
+              - {fn_density}
+              log_files:
+              - {fn_log}
+            """
+        yaml_file_gen.write(yaml_content_gen)
+
+        with pytest.warns(None):
+            main_gen([str(yaml_file_gen)])
+        assert os.path.isfile(fn_density)
+
+        fn_part = os.path.join(tmpdir, "part.npz")
+        yaml_file_part = tmpdir.join("input_part.yaml")
+        yaml_content_part = f"""
+            part-dens:
+              inputs:
+              - {fn_density}
+              outputs:
+              - {fn_part}
+              log_files:
+              - {fn_log}
+              type : {method}
+              solver : {solver}
+              grid_type : {grid_type}
+        """
+        yaml_file_part.write(yaml_content_part)
+
+        with pytest.warns(None):
+            main_part([str(yaml_file_part)])
+        assert os.path.isfile(fn_part)
+        data = np.load(fn_part)
+        assert data["charges"].size == 3
+        abs = 1e-3 if method in ["mbis", "nlis", "gmbis"] else 1e-4
+        assert np.sum(data["charges"]) == pytest.approx(0.00, abs=abs)
+        assert data["charges"][0] < 0 and data["charges"][1] > 0 and data["charges"][2] > 0
+        assert data["charges"] == pytest.approx(
+            [-0.6179280883502, 0.30913844981854, 0.30918595758548], abs=1e-2
+        )
+
+
+@pytest.mark.parametrize("grid_type", [1, 2, 3])
+@pytest.mark.parametrize("solver", ["sc"])
+@pytest.mark.parametrize("method", ["nlis"])
+@pytest.mark.parametrize("fn_wfn", ["water_sto3g_hf_g03.fchk"])
+def test_nlis(grid_type, solver, method, fn_wfn, tmpdir):
+    with resources.path("iodata.test.data", fn_wfn) as fn_full:
+        fn_density = os.path.join(tmpdir, "density.npz")
+        fn_log = os.path.join(tmpdir, "density.log")
+
+        yaml_file_gen = tmpdir.join("input_gen.yaml")
+        yaml_content_gen = f"""
+            part-gen:
+              inputs:
+              - {fn_full}
+              outputs:
+              - {fn_density}
+              log_files:
+              - {fn_log}
+            """
+        yaml_file_gen.write(yaml_content_gen)
+
+        with pytest.warns(None):
+            main_gen([str(yaml_file_gen)])
+        assert os.path.isfile(fn_density)
+
+        fn_part = os.path.join(tmpdir, "part.npz")
+        yaml_file_part = tmpdir.join("input_part.yaml")
+        yaml_content_part = f"""
+            part-dens:
+              inputs:
+              - {fn_density}
+              outputs:
+              - {fn_part}
+              log_files:
+              - {fn_log}
+              type : {method}
+              solver : {solver}
+              grid_type : {grid_type}
+        """
+        yaml_file_part.write(yaml_content_part)
+
+        with pytest.warns(None):
+            main_part([str(yaml_file_part)])
+        assert os.path.isfile(fn_part)
+        data = np.load(fn_part)
+        assert data["charges"].size == 3
+        abs = 1e-3 if method in ["mbis", "nlis", "gmbis"] else 1e-4
+        assert np.sum(data["charges"]) == pytest.approx(0.00, abs=abs)
+        print(data["charges"])
+        assert data["charges"][0] < 0 and data["charges"][1] > 0 and data["charges"][2] > 0
+        assert data["charges"] == pytest.approx(
+            [-0.6179280883502, 0.30913844981854, 0.30918595758548], abs=1e-2
+        )
