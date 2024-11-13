@@ -39,6 +39,7 @@ __all__ = [
     "check_dens_monotonicity",
     "check_pars_population",
     "fix_propars",
+    "DENSITY_CUTOFF",
     "NEGATIVE_CUTOFF",
     "POPULATION_CUTOFF",
     "ANGSTROM",
@@ -51,6 +52,7 @@ DATA_PATH = files("horton_part.data")
 with open(DATA_PATH.joinpath("constants.yaml")) as f:
     docu = yaml.safe_load(f)
 
+DENSITY_CUTOFF = docu["DENSITY_CUTOFF"]
 NEGATIVE_CUTOFF = docu["NEGATIVE_CUTOFF"]
 POPULATION_CUTOFF = docu["POPULATION_CUTOFF"]
 ANGSTROM = docu["ANGSTROM"]
@@ -256,6 +258,8 @@ def check_pro_atom_parameters_non_neg_pars(
     total_population: float = None,
     pro_atom_density: np.ndarray = None,
     logger: logging.Logger = None,
+    negative_cutoff=NEGATIVE_CUTOFF,
+    population_cutoff=POPULATION_CUTOFF,
 ):
     """Validation for method with non-negative propars. See``check_pro_atom_parameters``."""
     return check_pro_atom_parameters(
@@ -267,6 +271,8 @@ def check_pro_atom_parameters_non_neg_pars(
         check_negativity=False,
         check_propars_negativity=False,
         logger=logger,
+        negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
     )
 
 
@@ -278,6 +284,8 @@ def check_pro_atom_parameters_neg_pars(
     check_monotonicity: bool = True,
     check_negativity: bool = True,
     logger: logging.Logger = None,
+    negative_cutoff=NEGATIVE_CUTOFF,
+    population_cutoff=POPULATION_CUTOFF,
 ):
     """Validation for method with negative propars. See``check_pro_atom_parameters``."""
     return check_pro_atom_parameters(
@@ -289,6 +297,8 @@ def check_pro_atom_parameters_neg_pars(
         check_monotonicity=check_monotonicity,
         check_negativity=check_negativity,
         logger=logger,
+        negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
     )
 
 
@@ -301,6 +311,8 @@ def check_pro_atom_parameters(
     check_negativity: bool = True,
     check_propars_negativity: bool = True,
     logger: logging.Logger = None,
+    negative_cutoff=NEGATIVE_CUTOFF,
+    population_cutoff=POPULATION_CUTOFF,
 ):
     """
     Check the validity of pro-atom parameters.
@@ -329,6 +341,10 @@ def check_pro_atom_parameters(
         Check if the propars is negative.
     logger: logging.Logger or None
         Logger object.
+    negative_cutoff: float
+        Value that small than `negative_cutoff` is treated as negative number.
+    population_cutoff: float
+        The threshold for the difference between test and real population.
 
     Raises
     ------
@@ -350,7 +366,7 @@ def check_pro_atom_parameters(
 
     # Check if pro-atom parameters are positive
     if check_propars_negativity:
-        check_pars_negativity(pro_atom_params)
+        check_pars_negativity(pro_atom_params, negative_cutoff=negative_cutoff)
 
     # Calculate pro-atom density if not provided
     if basis_functions is not None and pro_atom_density is None:
@@ -362,14 +378,24 @@ def check_pro_atom_parameters(
 
     # Check for negative pro-atom density
     if check_negativity and pro_atom_density is not None:
-        check_dens_negativity(pro_atom_density, logger=logger)
+        check_dens_negativity(pro_atom_density, logger=logger, negative_cutoff=negative_cutoff)
 
     # Check if the sum of pro-atom parameters matches total population
     if total_population is not None:
-        check_pars_population(pro_atom_params, total_population, logger=logger)
+        check_pars_population(
+            pro_atom_params,
+            total_population,
+            logger=logger,
+            population_cutoff=population_cutoff,
+        )
 
     if check_monotonicity and pro_atom_density is not None:
-        check_dens_monotonicity(pro_atom_density, as_warn=False, logger=logger)
+        check_dens_monotonicity(
+            pro_atom_density,
+            as_warn=False,
+            logger=logger,
+            negative_cutoff=negative_cutoff,
+        )
 
 
 def check_inputs(pro_atom_params, basis_functions, pro_atom_density):
@@ -394,7 +420,7 @@ def check_pars_population(
     ref_pop: float,
     as_warn: bool = True,
     logger: logging.Logger = None,
-    atol: float = POPULATION_CUTOFF,
+    population_cutoff: float = POPULATION_CUTOFF,
 ):
     """Check the proatom parameters if the sum of them is equal to the reference population.
 
@@ -409,12 +435,12 @@ def check_pars_population(
         Whether treat the error as a warning or not. The default is `True`.
     logger: logging.Logger or None
         The logger object. The default is `None`.
-    atol:
+    population_cutoff:
         The absolute tolerance.
 
     """
     test_pop = np.sum(propars)
-    if not np.isclose(test_pop, ref_pop, atol=atol):
+    if not np.isclose(test_pop, ref_pop, atol=population_cutoff):
         info_level = "WARNING" if as_warn else "ERROR"
         info = (
             rf"{info_level}: The sum of pro-atom parameters is not equal to atomic population.\n"
@@ -433,7 +459,7 @@ def check_pars_negativity(
     pars: np.ndarray,
     as_warn: bool = True,
     logger: logging.Logger = None,
-    threshold: float = NEGATIVE_CUTOFF,
+    negative_cutoff: float = NEGATIVE_CUTOFF,
 ):
     """Check if a density is non-negative.
 
@@ -446,11 +472,11 @@ def check_pars_negativity(
         Whether treat the error as a warning or not. The default is `False`.
     logger: logging.Logger or None
         The logger object. The default is `None`.
-    threshold:
+    negative_cutoff:
         The value less than `threshold` is treated as negative. The default is `NEGATIVE_CUTOFF`
     """
     assert np.ndim(pars) == 1
-    if (pars < threshold).any():
+    if (pars < negative_cutoff).any():
         if as_warn:
             warn_info = "WARNING: Not all pro-atom parameters are positive!"
             if logger is not None:
@@ -465,7 +491,7 @@ def check_dens_negativity(
     dens: np.ndarray,
     as_warn: bool = False,
     logger: logging.Logger = None,
-    threshold: float = NEGATIVE_CUTOFF,
+    negative_cutoff: float = NEGATIVE_CUTOFF,
 ):
     """Check if a density is non-negative.
 
@@ -478,11 +504,11 @@ def check_dens_negativity(
         Whether treat the error as a warning or not. The default is `False`.
     logger: logging.Logger or None
         The logger object. The default is `None`.
-    threshold:
+    negative_cutoff:
         The value less than `threshold` is treated as negative. The default is `NEGATIVE_CUTOFF`
     """
     assert np.ndim(dens) in [1, 3]
-    if (dens < threshold).any():
+    if (dens < negative_cutoff).any():
         if as_warn:
             warn_info = "WARNING: Not all pro-atom density are positive!"
             if logger is not None:
@@ -497,7 +523,7 @@ def check_dens_monotonicity(
     dens: np.ndarray,
     as_warn: bool = True,
     logger: logging.Logger = None,
-    threshold: float = NEGATIVE_CUTOFF,
+    negative_cutoff: float = NEGATIVE_CUTOFF,
 ):
     """Check the monotonicity of a density.
 
@@ -509,12 +535,12 @@ def check_dens_monotonicity(
         Whether treat this as a warning. The default is `True`.
     logger:
         The logging object. The default is `None`.
-    threshold:
+    negative_cutoff:
         The value less than `threshold` is treated as negative. The default is `NEGATIVE_CUTOFF`
 
     """
     assert np.ndim(dens) == 1
-    if (dens[:-1] - dens[1:] < threshold).any():
+    if (dens[:-1] - dens[1:] < negative_cutoff).any():
         if as_warn:
             warn_info = "WARNING: Pro-atom density should be monotonically decreasing."
             if logger is not None:

@@ -54,8 +54,7 @@ def test_from_horton3_density(fn_wfn, tmpdir):
         yaml_file.write(yaml_content)
 
         # Run the main function using the YAML file as input
-        with pytest.warns(None):
-            main([str(yaml_file)])
+        main([str(yaml_file)])
         assert os.path.isfile(fn_density)
         # data = dict(np.load(fn_density))
         # fn_name = ".".join(os.path.basename(fn_wfn).split(".")[:-1])

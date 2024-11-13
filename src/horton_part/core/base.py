@@ -25,7 +25,7 @@ import logging
 import numpy as np
 from grid import AtomGrid
 
-from ..utils import typecheck_geo
+from ..utils import DENSITY_CUTOFF, NEGATIVE_CUTOFF, POPULATION_CUTOFF, typecheck_geo
 from .cache import Cache, JustOnceClass, just_once
 from .logging import deflist, setup_logger
 
@@ -417,6 +417,9 @@ class WPart(Part):
         lmax=3,
         logger=None,
         grid_type=1,
+        density_cutoff=DENSITY_CUTOFF,
+        negative_cutoff=NEGATIVE_CUTOFF,
+        population_cutoff=POPULATION_CUTOFF,
         **kwargs,
     ):
         """
@@ -471,6 +474,11 @@ class WPart(Part):
 
         # attributes related to grids.
         self._radial_distances = []
+
+        # Setup cutoff for numerical calculations.
+        self.density_cutoff = density_cutoff
+        self.population_cutoff = population_cutoff
+        self.negative_cutoff = negative_cutoff
 
     def setup_grids(self):
         """Setup grids used in partitioning.

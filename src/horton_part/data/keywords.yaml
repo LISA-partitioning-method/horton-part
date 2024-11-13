@@ -10,6 +10,9 @@ is:
     - threshold
     - inner_threshold
     - lmax
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
 
 gisa:
   io_infos:
@@ -26,6 +29,9 @@ gisa:
     - solver
     - solver_options
     - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
 
 mbis:
   io_infos:
@@ -40,6 +46,9 @@ mbis:
     - inner_threshold
     - lmax
     - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
 
 lisa:
   io_infos:
@@ -58,6 +67,9 @@ lisa:
     - solver
     - solver_options
     - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
 
 nlis:
   io_infos:
@@ -74,6 +86,9 @@ nlis:
     - exp_n_dict
     - nshell_dict
     - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
 
 gmbis:
   io_infos:
@@ -89,6 +104,9 @@ gmbis:
     - lmax
     - exp_n_dict
     - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
 
 glisa:
   io_infos:
@@ -106,3 +124,6 @@ glisa:
     - solver
     - solver_options
     - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff

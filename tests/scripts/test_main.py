@@ -74,9 +74,8 @@ def test_part_dens_default_setup(fn_wfn, type, tmpdir):
 
         yaml_file.write(yaml_content)
 
-        with pytest.warns(None):
-            main1([str(yaml_file)])
-            main2([str(yaml_file)])
+        main1([str(yaml_file)])
+        main2([str(yaml_file)])
         assert os.path.isfile(fn_density)
         assert os.path.isfile(fn_out)
         data = dict(np.load(fn_out))

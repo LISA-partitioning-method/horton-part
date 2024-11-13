@@ -37,7 +37,6 @@ from .core.basis import BasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
 from .utils import (
-    NEGATIVE_CUTOFF,
     check_pro_atom_parameters_neg_pars,
     check_pro_atom_parameters_non_neg_pars,
     compute_quantities,
@@ -69,7 +68,9 @@ def solver_cvxopt(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
     allow_neg_params=False,
     **cvxopt_options,
 ):
@@ -118,7 +119,6 @@ def solver_cvxopt(
         vector_constraint_ineq = cvxopt.matrix(0.0, (nprim, 1))
 
     pop = np.einsum("i,i", weights, rho)
-
     matrix_constraint_eq = cvxopt.matrix(1.0, (1, nprim))
     vector_constraint_eq = cvxopt.matrix(pop, (1, 1))
 
@@ -130,7 +130,6 @@ def solver_cvxopt(
         pro_shells, pro, sick, ratio, ln_ratio = compute_quantities(
             rho, x, bs_funcs, density_cutoff
         )
-
         f = np.einsum("i,i,i", weights, rho, ln_ratio)
 
         # compute gradient
@@ -170,10 +169,13 @@ def solver_cvxopt(
             new_propars,
             basis_functions=bs_funcs,
             logger=logger,
+            total_population=pop,
+            negative_cutoff=negative_cutoff,
+            population_cutoff=population_cutoff,
         )
         return new_propars
     else:
-        raise RuntimeError("CVXOPT not converged!")
+        logger.error("CVXOPT not converged!")
 
 
 def solver_sc(
@@ -184,8 +186,10 @@ def solver_sc(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
-    max_niter_inner=1e5,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
+    max_niter_inner=100000,
 ):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
@@ -234,16 +238,15 @@ def solver_sc(
     The method iteratively optimizes the proatom density function parameters.
     In each iteration, the basis functions and current parameters are used to compute
     updated parameters, assessing convergence against the specified threshold.
+
     """
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
     oldpro = None
     for irep in range(int(float(max_niter_inner))):
-        # print(rho.shape, propars.shape, bs_funcs.shape)
         pro_shells, pro, sick, ratio, _ = compute_quantities(
             rho, propars, bs_funcs, density_cutoff, do_ln_ratio=False
         )
-
         # the partitions and the updated parameters
         propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
 
@@ -256,12 +259,16 @@ def solver_sc(
 
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
-            check_pro_atom_parameters_non_neg_pars(propars, basis_functions=bs_funcs, logger=logger)
+            check_pro_atom_parameters_non_neg_pars(
+                propars,
+                basis_functions=bs_funcs,
+                logger=logger,
+                negative_cutoff=negative_cutoff,
+            )
             return propars
         oldpro = pro
-    logger.warn("Warning: Inner iteration is not converge!")
+    logger.warning("Warning: Inner iteration is not converge!")
     return propars
-    # raise RuntimeError("Error: Inner iteration is not converge!")
 
 
 def solver_sc_1_iter(
@@ -272,7 +279,9 @@ def solver_sc_1_iter(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
 ):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
@@ -327,8 +336,11 @@ def solver_sc_plus_cvxopt(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
     sc_iter_limit=1000,
+    cvxopt_options=None,
 ):
     r"""
     Optimize parameters for proatom density functions using a mixing of self-consistent (SC) method and convex
@@ -355,6 +367,8 @@ def solver_sc_plus_cvxopt(
         Density values below this cutoff are considered invalid.
     sc_iter_limit: int
         The number of iteration steps of self-consistent method.
+    cvxopt_options: dict
+        The options for cvxopt solver. See `solver_cvxopt`.
 
     Returns
     -------
@@ -377,7 +391,11 @@ def solver_sc_plus_cvxopt(
 
         # the partitions and the updated parameters
         propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
-        check_pro_atom_parameters_non_neg_pars(propars, logger=logger)
+        check_pro_atom_parameters_non_neg_pars(
+            propars,
+            logger=logger,
+            negative_cutoff=negative_cutoff,
+        )
 
         # check for convergence
         if oldpro is None:
@@ -390,8 +408,20 @@ def solver_sc_plus_cvxopt(
             return propars
         oldpro = pro
     else:
-        warnings.warn("Inner iteration is not converge! Using LISA-I scheme.")
-        return solver_cvxopt(bs_funcs, rho, propars, points, weights, threshold, density_cutoff)
+        logger.warning("Inner iteration is not converge! Using LISA-I scheme.")
+        cvxopt_options = cvxopt_options or {}
+        return solver_cvxopt(
+            bs_funcs,
+            rho,
+            propars=propars,
+            points=points,
+            weights=weights,
+            threshold=threshold,
+            logger=logger,
+            density_cutoff=density_cutoff,
+            negative_cutoff=negative_cutoff,
+            **cvxopt_options,
+        )
 
 
 def solver_diis(
@@ -402,8 +432,10 @@ def solver_diis(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
-    **diis_options,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
+    solver_options=None,
 ):
     r"""
     Optimize parameters for proatom density functions using direct inversion in an iterative space (DIIS).
@@ -448,10 +480,13 @@ def solver_diis(
         )
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
+    solver_options = solver_options or {}
     new_propars, niter, history_x = diis(
-        propars, function_g, threshold, logger=logger, **diis_options
+        propars, function_g, threshold, logger=logger, **solver_options
     )
-    check_pro_atom_parameters_neg_pars(new_propars, bs_funcs, logger=logger)
+    check_pro_atom_parameters_neg_pars(
+        new_propars, bs_funcs, logger=logger, negative_cutoff=negative_cutoff
+    )
     return new_propars
 
 
@@ -463,7 +498,9 @@ def solver_newton(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
     **newton_options,
 ):
     r"""
@@ -509,6 +546,8 @@ def solver_newton(
         threshold,
         logger,
         density_cutoff,
+        negative_cutoff,
+        population_cutoff,
         "exact",
         **newton_options,
     )
@@ -522,8 +561,10 @@ def solver_m_newton(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
-    **newton_options,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
+    solver_options=None,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
@@ -559,6 +600,7 @@ def solver_m_newton(
         If the inner iteration does not converge.
 
     """
+    solver_options = solver_options or {}
     return _solver_general_newton(
         bs_funcs,
         rho,
@@ -569,7 +611,8 @@ def solver_m_newton(
         logger,
         density_cutoff,
         "modified",
-        **newton_options,
+        negative_cutoff=negative_cutoff,
+        **solver_options,
     )
 
 
@@ -581,8 +624,10 @@ def solver_quasi_newton(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
-    **newton_options,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
+    solver_options=None,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Quasi-Newton method
@@ -618,6 +663,7 @@ def solver_quasi_newton(
         If the inner iteration does not converge.
 
     """
+    solver_options = solver_options or {}
     return _solver_general_newton(
         bs_funcs,
         rho,
@@ -627,8 +673,10 @@ def solver_quasi_newton(
         threshold,
         logger,
         density_cutoff,
-        "bfgs",
-        **newton_options,
+        negative_cutoff,
+        population_cutoff,
+        mode="bfgs",
+        **solver_options,
     )
 
 
@@ -640,10 +688,13 @@ def _solver_general_newton(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
     mode="bfgs",
     tau=1.0,
     linspace_size=20,
+    check_mono=False,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Quasi-Newton method
@@ -722,11 +773,22 @@ def _solver_general_newton(
                 do_ratio=False,
                 do_ln_ratio=False,
             )
+            if check_mono:
+                # Check if all elements in new_pro are above density_cutoff
+                # and if the values in new_pro are monotonically decreasing
+                if (new_pro > negative_cutoff).all() and (
+                    new_pro[:-1] - new_pro[1:] > negative_cutoff
+                ).all():
+                    return new_propars, _s
+            else:
+                # Check only if all elements in new_pro are above density_cutoff
+                if (new_pro > negative_cutoff).all():
+                    return new_propars, _s
 
-            if (new_pro > NEGATIVE_CUTOFF).all() and (
-                new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
-            ).all():
-                return new_propars, _s
+            # if (new_pro > NEGATIVE_CUTOFF).all() and (
+            #     new_pro[:-1] - new_pro[1:] > NEGATIVE_CUTOFF
+            # ).all():
+            #     return new_propars, _s
         else:
             logger.debug(f"propars: {propars}")
             logger.debug(f"new_propars: {new_propars}")
@@ -796,8 +858,11 @@ def solver_trust_region(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
     explicit_constr=True,
+    trust_region_options=None,
 ):
     """
     Optimize parameters for pro-atom density functions using trust-region method.
@@ -856,6 +921,7 @@ def solver_trust_region(
         return f, df
 
     bounds = [(0.0, 200)] * nprim
+    trust_region_options = trust_region_options or {}
     opt_res = minimize(
         obj_funcs,
         x0=propars,
@@ -865,7 +931,7 @@ def solver_trust_region(
         constraints=constraint,
         # hess="3-point",
         hess=SR1(),
-        options={"gtol": threshold * 1e-3, "maxiter": 1000},
+        options={"gtol": threshold * 1e-3, "maxiter": 1000}.update(trust_region_options),
     )
 
     if not opt_res.success:
@@ -873,7 +939,11 @@ def solver_trust_region(
 
     result = np.asarray(opt_res["x"]).flatten()
     check_pro_atom_parameters_non_neg_pars(
-        result, bs_funcs, total_population=float(pop), logger=logger
+        result,
+        bs_funcs,
+        total_population=float(pop),
+        logger=logger,
+        negative_cutoff=negative_cutoff,
     )
     return result
 
@@ -886,8 +956,10 @@ def solver_cdiis(
     weights,
     threshold,
     logger,
-    density_cutoff=1e-15,
-    **cdiis_options,
+    density_cutoff,
+    negative_cutoff,
+    population_cutoff,
+    solver_options=None,
 ):
     """
     Optimize parameters for proatom density functions using CDIIS algorithm.
@@ -927,19 +999,25 @@ def solver_cdiis(
         )
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
+    solver_options = solver_options or {}
+    solver_options.setdefault("verbose", False)
     conv, nbiter, rnormlist, mklist, cnormlist, xlast, history_x = cdiis(
         propars,
         function_g,
         threshold,
         logger=logger,
-        verbose=False,
-        **cdiis_options,
+        **solver_options,
     )
     if not conv:
         raise RuntimeError("Not converged!")
     pop = np.einsum("i,i", weights, rho)
     check_pro_atom_parameters_neg_pars(
-        xlast, basis_functions=bs_funcs, total_population=pop, logger=logger
+        xlast,
+        basis_functions=bs_funcs,
+        total_population=pop,
+        logger=logger,
+        negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
     )
     return xlast
 
@@ -1022,7 +1100,6 @@ class LinearISAWPart(GaussianISAWPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
@@ -1068,6 +1145,7 @@ class LinearISAWPart(GaussianISAWPart):
             solver,
             solver_options,
             grid_type,
+            **kwargs,
         )
 
         if self.grid_type not in [1]:
@@ -1107,7 +1185,7 @@ class LinearISAWPart(GaussianISAWPart):
             ]
         )
         for k, v in self._solver_options.items():
-            info_list.append((k, str(v)))
+            info_list.append((f"Solver options -- {k}", str(v)))
         deflist(self.logger, info_list)
         self.logger.info(" ")
 
@@ -1138,5 +1216,8 @@ class LinearISAWPart(GaussianISAWPart):
             weights,
             threshold,
             self.logger,
+            density_cutoff=self.density_cutoff,
+            negative_cutoff=self.negative_cutoff,
+            population_cutoff=self.population_cutoff,
             **self._solver_options,
         )

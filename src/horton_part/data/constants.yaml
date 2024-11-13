@@ -24,6 +24,7 @@ radius_covalent:
    1.87, 1.8, 1.69, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
    null, null, null, null, null, null]
 
+DENSITY_CUTOFF: 1.0e-15
 NEGATIVE_CUTOFF: -1.0e-12
 POPULATION_CUTOFF: 1.0e-4
 ANGSTROM: 1.889726133921252

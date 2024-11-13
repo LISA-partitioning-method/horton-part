@@ -48,8 +48,7 @@ def test_construct_molgrid_from_dict(fn_wfn, tmpdir):
             """
         yaml_file.write(yaml_content)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file)])
+        main_gen([str(yaml_file)])
         assert os.path.isfile(fn_density)
         data = dict(np.load(fn_density))
         molgrid = construct_molgrid_from_dict(data)
@@ -87,8 +86,7 @@ def test_part_dens(part_type, fn_wfn, tmpdir):
             """
         yaml_file_gen.write(yaml_content_gen)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file_gen)])
+        main_gen([str(yaml_file_gen)])
         assert os.path.isfile(fn_density)
 
         fn_part = os.path.join(tmpdir, "part.npz")
@@ -106,8 +104,7 @@ def test_part_dens(part_type, fn_wfn, tmpdir):
         """
         yaml_file_part.write(yaml_content_part)
 
-        with pytest.warns(None):
-            main_part([str(yaml_file_part)])
+        main_part([str(yaml_file_part)])
         assert os.path.isfile(fn_part)
 
 
@@ -131,8 +128,7 @@ def test_lisa_with_mol_grids(solver, fn_wfn, tmpdir):
             """
         yaml_file_gen.write(yaml_content_gen)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file_gen)])
+        main_gen([str(yaml_file_gen)])
         assert os.path.isfile(fn_density)
 
         fn_part = os.path.join(tmpdir, "part.npz")
@@ -151,8 +147,7 @@ def test_lisa_with_mol_grids(solver, fn_wfn, tmpdir):
         """
         yaml_file_part.write(yaml_content_part)
 
-        with pytest.warns(None):
-            main_part([str(yaml_file_part)])
+        main_part([str(yaml_file_part)])
         assert os.path.isfile(fn_part)
 
 
@@ -177,8 +172,7 @@ def test_glisa_with_molgrid(grid_type, solver, method, fn_wfn, tmpdir):
             """
         yaml_file_gen.write(yaml_content_gen)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file_gen)])
+        main_gen([str(yaml_file_gen)])
         assert os.path.isfile(fn_density)
 
         fn_part = os.path.join(tmpdir, "part.npz")
@@ -197,8 +191,7 @@ def test_glisa_with_molgrid(grid_type, solver, method, fn_wfn, tmpdir):
         """
         yaml_file_part.write(yaml_content_part)
 
-        with pytest.warns(None):
-            main_part([str(yaml_file_part)])
+        main_part([str(yaml_file_part)])
         assert os.path.isfile(fn_part)
         data = np.load(fn_part)
         assert data["charges"].size == 3
@@ -227,8 +220,7 @@ def test_gmbis(grid_type, solver, method, fn_wfn, tmpdir):
             """
         yaml_file_gen.write(yaml_content_gen)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file_gen)])
+        main_gen([str(yaml_file_gen)])
         assert os.path.isfile(fn_density)
 
         fn_part = os.path.join(tmpdir, "part.npz")
@@ -247,8 +239,7 @@ def test_gmbis(grid_type, solver, method, fn_wfn, tmpdir):
         """
         yaml_file_part.write(yaml_content_part)
 
-        with pytest.warns(None):
-            main_part([str(yaml_file_part)])
+        main_part([str(yaml_file_part)])
         assert os.path.isfile(fn_part)
         data = np.load(fn_part)
         assert data["charges"].size == 3
@@ -281,8 +272,7 @@ def test_mbis(grid_type, solver, method, fn_wfn, tmpdir):
             """
         yaml_file_gen.write(yaml_content_gen)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file_gen)])
+        main_gen([str(yaml_file_gen)])
         assert os.path.isfile(fn_density)
 
         fn_part = os.path.join(tmpdir, "part.npz")
@@ -301,8 +291,7 @@ def test_mbis(grid_type, solver, method, fn_wfn, tmpdir):
         """
         yaml_file_part.write(yaml_content_part)
 
-        with pytest.warns(None):
-            main_part([str(yaml_file_part)])
+        main_part([str(yaml_file_part)])
         assert os.path.isfile(fn_part)
         data = np.load(fn_part)
         assert data["charges"].size == 3
@@ -335,8 +324,7 @@ def test_nlis(grid_type, solver, method, fn_wfn, tmpdir):
             """
         yaml_file_gen.write(yaml_content_gen)
 
-        with pytest.warns(None):
-            main_gen([str(yaml_file_gen)])
+        main_gen([str(yaml_file_gen)])
         assert os.path.isfile(fn_density)
 
         fn_part = os.path.join(tmpdir, "part.npz")
@@ -355,8 +343,7 @@ def test_nlis(grid_type, solver, method, fn_wfn, tmpdir):
         """
         yaml_file_part.write(yaml_content_part)
 
-        with pytest.warns(None):
-            main_part([str(yaml_file_part)])
+        main_part([str(yaml_file_part)])
         assert os.path.isfile(fn_part)
         data = np.load(fn_part)
         assert data["charges"].size == 3

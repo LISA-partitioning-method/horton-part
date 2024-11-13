@@ -75,7 +75,6 @@ class AbstractISAWPart(AbstractStockholderWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        # radius_cutoff=np.inf,
         grid_type=1,
         **kwargs,
     ):
@@ -101,7 +100,6 @@ class AbstractISAWPart(AbstractStockholderWPart):
         self._threshold = threshold
         self._inner_threshold = inner_threshold if inner_threshold < threshold else threshold
         self._maxiter = maxiter
-        # self._radius_cutoff = radius_cutoff
         super().__init__(
             coordinates,
             numbers,
@@ -112,29 +110,8 @@ class AbstractISAWPart(AbstractStockholderWPart):
             lmax,
             logger,
             grid_type=grid_type,
+            **kwargs,
         )
-
-    # @property
-    # def radius_cutoff(self):
-    #     """
-    #     Get the radius of the local grid sphere.
-
-    #     This property returns the radius of the sphere within which local grids are considered.
-    #     The local grid radius is used in [global methods]. It's a key parameter in [some process].
-
-    #     Returns
-    #     -------
-    #     float
-    #         The radius of the local grid sphere.
-
-    #     Raises
-    #     ------
-    #     ValueError
-    #         If the local grid radius is not set or out of an expected range.
-    #     """
-    #     if self._radius_cutoff is None or self._radius_cutoff < 0:
-    #         raise ValueError("Local grid radius is not properly set.")
-    #     return self._radius_cutoff
 
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
@@ -182,7 +159,6 @@ class AbstractISAWPart(AbstractStockholderWPart):
     @just_once
     def do_partitioning(self):
         """Do partitioning"""
-        # self.initial_local_grids()
         # Perform one general check in the beginning to avoid recomputation
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache

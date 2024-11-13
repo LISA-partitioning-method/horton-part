@@ -27,7 +27,15 @@ import pytest
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 
-from horton_part.alisa import solver_cvxopt, solver_diis, solver_sc, solver_trust_region
+from horton_part.alisa import (
+    DENSITY_CUTOFF,
+    NEGATIVE_CUTOFF,
+    POPULATION_CUTOFF,
+    solver_cvxopt,
+    solver_diis,
+    solver_sc,
+    solver_trust_region,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +97,9 @@ def check_rho(rho):
     ],
 )
 def test_optimization_methods(case, opt_propars):
-    density_cutoff = 1e-15
+    density_cutoff = DENSITY_CUTOFF
+    negative_cutoff = NEGATIVE_CUTOFF
+    population_cutoff = POPULATION_CUTOFF
     threshold = 1e-8
 
     populations, exponents = case
@@ -112,7 +122,7 @@ def test_optimization_methods(case, opt_propars):
     bs_funcs = np.asarray([func.compute(r) for func in gauss_funcs])
     kwargs = {}
     if opt_propars == solver_diis:
-        kwargs["diis_size"] = 10
+        kwargs["solver_options"] = {"diis_size": 10}
 
     local_r = local_rgrid.points
     local_weights = 4 * np.pi * local_r**2 * local_rgrid.weights
@@ -126,7 +136,9 @@ def test_optimization_methods(case, opt_propars):
         local_weights,
         threshold,
         logger,
-        density_cutoff,
+        density_cutoff=density_cutoff,
+        negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
         **kwargs,
     )
 

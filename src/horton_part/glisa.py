@@ -389,7 +389,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         """
         return self.cache.load("propars")
 
-    def _working_matrix(self, rho, rho0, nb_par, nderiv=0, density_cutoff=1e-15):
+    def _working_matrix(self, rho, rho0, nb_par, nderiv=0):
         """
         Compute the working matrix for optimization, based on molecular and pro-molecule densities, and pro-atom parameters.
 
@@ -423,7 +423,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         Numerical stability for division by `rho0` is ensured by adding a small constant to `rho0`.
 
         """
-        sick = (rho < density_cutoff) | (rho0 < density_cutoff)
+        sick = (rho < self.density_cutoff) | (rho0 < self.density_cutoff)
         ratio = np.divide(rho, rho0, out=np.zeros_like(rho), where=~sick)
         ln_ratio = np.log(ratio, out=np.zeros_like(ratio), where=~sick)
 
@@ -551,11 +551,9 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         else:
             raise RuntimeError("CVXOPT not converged!")
 
-    def solver_newton(self, maxiter=100, density_cutoff=1e-15):
+    def solver_newton(self, maxiter=100):
         """Default, Exact Newton method."""
-        return self._solver_general_newton(
-            maxiter=maxiter, mode="exact", density_cutoff=density_cutoff
-        )
+        return self._solver_general_newton(maxiter=maxiter, mode="exact")
 
     def solver_m_newton(
         self,
@@ -572,7 +570,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             linesearch_mode=linesearch_mode,
             tau=tau,
             linspace_size=linspace_size,
-            density_cutoff=density_cutoff,
         )
 
     def solver_quasi_newton(
@@ -594,7 +591,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             linesearch_mode=linesearch_mode,
             tau=tau,
             linspace_size=linspace_size,
-            density_cutoff=density_cutoff,
         )
 
     def _solver_general_newton(
@@ -605,7 +601,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         linesearch_mode="valid-promol",
         tau=1.0,
         linspace_size=40,
-        density_cutoff=1e-15,
     ):
         """
         Implements a Newton solver with various modes and line search strategies for optimization problems,
@@ -626,8 +621,6 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             Initial step size in the line search. Default is 1.0.
         linspace_size : int, optional
             Size of the linspace used in the line search. Default is 40.
-        density_cutoff : float, optional
-            Cutoff value for small density. Default is 1e-15.
 
         Raises
         ------
@@ -697,7 +690,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                         break
                     elif linesearch_mode == "with-extended-kl":
                         new_pro = self.calc_promol_dens(new_propars)
-                        f = self._working_matrix(rho, new_pro, nb_par, 0, density_cutoff)
+                        f = self._working_matrix(rho, new_pro, nb_par, 0)
                         pro_pop = self.grid.integrate(new_pro)
                         extended_kl = f + pro_pop
                         old_extended_kl = old_f + old_pro_pop
@@ -732,20 +725,20 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             if mode == "bfgs":
                 if irep == 0 or irep <= niter_exact_newton - 1:
                     if niter_exact_newton == 0:
-                        f, df = self._working_matrix(rho, pro, nb_par, 1, density_cutoff)
+                        f, df = self._working_matrix(rho, pro, nb_par, 1)
                         hess = np.identity(len(df))
                     else:
-                        f, df, hess = self._working_matrix(rho, pro, nb_par, 2, density_cutoff)
+                        f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
                     H = np.linalg.inv(hess)
                 else:
-                    f, df = self._working_matrix(rho, pro, nb_par, 1, density_cutoff)
+                    f, df = self._working_matrix(rho, pro, nb_par, 1)
                     H = bfgs(df, s, olddf, oldH)
 
                 self.logger.debug("Hessian matrix:")
                 self.logger.debug(H)
                 delta = H @ (-1 - df)
             elif mode in ["exact", "modified"]:
-                f, df, hess = self._working_matrix(rho, pro, nb_par, 2, density_cutoff)
+                f, df, hess = self._working_matrix(rho, pro, nb_par, 2)
                 try:
                     delta = solve(hess, -1 - df, assume_a="sym")
                 except np.linalg.LinAlgError as e:
@@ -759,7 +752,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
 
             # Note: the first entropy corresponds to the initial values.
             # Compute entropy, and we use oldpro instead rho to be consistent with LISA method.
-            entropy = self._compute_entropy(rho, pro, density_cutoff)
+            entropy = self._compute_entropy(rho, pro)
             change = self.compute_change(propars, old_propars)
             self.history_entropies.append(entropy)
             self.history_propars.append(propars.copy())
@@ -784,14 +777,12 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         else:
             raise RuntimeError("Not converged!")
 
-    def solver_sc(self, density_cutoff=1e-15, niter_print=1):
+    def solver_sc(self, niter_print=1):
         """
         Self-Consistent solver.
 
         Parameters
         ----------
-        density_cutoff : float, optional
-            Density that is smaller than cutoff is set to zero.
         niter_print : int, optional
             Print info every `niter_print` iterations.
 
@@ -807,7 +798,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         while True:
             old_propars = propars.copy()
 
-            propars[:] = self.function_g(propars, density_cutoff=density_cutoff)
+            propars[:] = self.function_g(propars)
             self.logger.debug(propars)
             change = self.compute_change(propars, old_propars)
 
@@ -831,13 +822,13 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         # self.cache.dump("change", change, tags="o")
         return propars
 
-    def function_g(self, x, density_cutoff=1e-15):
+    def function_g(self, x):
         """The fixed-point equation :math:`g(x)=x`."""
         # 1. load molecular and pro-molecule density from cache
         self.logger.debug("Enter function_g ...")
         rho = self._moldens
         old_rho0 = self.calc_promol_dens(x)
-        sick = (rho < density_cutoff) | (old_rho0 < density_cutoff)
+        sick = (rho < self.density_cutoff) | (old_rho0 < self.density_cutoff)
 
         new_x = np.zeros_like(x)
         ishell = 0

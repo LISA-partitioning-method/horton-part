@@ -162,6 +162,7 @@ class GaussianISAWPart(AbstractISAWPart):
             inner_threshold=inner_threshold,
             radius_cutoff=radius_cutoff,
             grid_type=grid_type,
+            **kwargs,
         )
 
     @property

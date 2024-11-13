@@ -36,7 +36,6 @@ class AbstractStockholderWPart(WPart):
 
     def _init_subgrids(self):
         WPart._init_subgrids(self)
-        # self.initial_local_grids()
         self._log_grid_info()
 
     def get_wcor(self, index):
@@ -143,8 +142,8 @@ class AbstractStockholderWPart(WPart):
         self.logger.info("=" * 80)
         self.logger.info(" ")
 
-    def _compute_entropy(self, rho, rho0, density_cutoff=1e-15):
-        sick = (rho0 < density_cutoff) | (rho < density_cutoff)
+    def _compute_entropy(self, rho, rho0):
+        sick = (rho0 < self.density_cutoff) | (rho < self.density_cutoff)
         with np.errstate(all="ignore"):
             ratio = np.divide(rho, rho0, out=np.zeros_like(rho), where=~sick)
             ln_ratio = np.log(ratio, out=np.zeros_like(rho), where=~sick)
