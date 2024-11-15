@@ -96,6 +96,10 @@ def solver_cvxopt(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
     allow_neg_params : bool (optional)
         Whether negative parameters are allowed. The default is `False`.
 
@@ -220,6 +224,10 @@ def solver_sc(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
     max_niter_inner : int
         The maximum number of inner iterations.
 
@@ -309,6 +317,10 @@ def solver_sc_1_iter(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
 
     Returns
     -------
@@ -365,6 +377,10 @@ def solver_sc_plus_cvxopt(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
     sc_iter_limit: int
         The number of iteration steps of self-consistent method.
     cvxopt_options: dict
@@ -459,6 +475,12 @@ def solver_diis(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
+    solver_options: dict
+        The other options for the solver.
 
 
     Returns
@@ -525,6 +547,12 @@ def solver_newton(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
+    newton_options: dict
+        Other options for the solver.
 
     Returns
     -------
@@ -588,6 +616,12 @@ def solver_m_newton(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
+    solver_options: dict
+        Other options for the solver.
 
     Returns
     -------
@@ -610,8 +644,9 @@ def solver_m_newton(
         threshold,
         logger,
         density_cutoff,
-        "modified",
-        negative_cutoff=negative_cutoff,
+        negative_cutoff,
+        population_cutoff,
+        mode="modified",
         **solver_options,
     )
 
@@ -651,6 +686,12 @@ def solver_quasi_newton(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
+    solver_options: dict
+        Other options for the solver.
 
     Returns
     -------
@@ -718,6 +759,10 @@ def _solver_general_newton(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
 
     Returns
     -------
@@ -886,8 +931,14 @@ def solver_trust_region(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
     explicit_constr : bool (optional)
         Whether adding an explicit constraint for the atomic population. The default is `False`.
+    trust_region_options: dict
+        Other options for `trust_region` solver.
 
     Returns
     -------
@@ -985,6 +1036,12 @@ def solver_cdiis(
         The log object.
     density_cutoff : float
         Density values below this cutoff are considered invalid.
+    negative_cutoff : float
+        The value less than `negative_cutoff` is treated as negative.
+    population_cutoff : float
+        The criteria for the difference between the sum of propars and reference population.
+    solver_options: dict
+        Other options for the solver.
 
     Returns
     -------

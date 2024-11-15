@@ -476,9 +476,9 @@ class WPart(Part):
         self._radial_distances = []
 
         # Setup cutoff for numerical calculations.
-        self.density_cutoff = density_cutoff
-        self.population_cutoff = population_cutoff
-        self.negative_cutoff = negative_cutoff
+        self._density_cutoff = density_cutoff
+        self._population_cutoff = population_cutoff
+        self._negative_cutoff = negative_cutoff
 
     def setup_grids(self):
         """Setup grids used in partitioning.
@@ -493,23 +493,111 @@ class WPart(Part):
 
     @property
     def grid_type(self):
-        """The type of grids used in partitioning density."""
+        """Get the type of grids used for partitioning density.
+
+        Returns
+        -------
+        str
+            The type of grids used in the partitioning process.
+        """
         return self._grid_type
 
     @property
     def only_use_molgrid(self):
-        """Whether only use molecular grid."""
+        """
+        Check whether intermediate values are computed exclusively using molecular grids.
+
+        When set to `True`, all quantities are computed solely on the molecular grid.
+
+        Returns
+        -------
+        bool
+            True if intermediate values are computed only using the molecular grid, False otherwise.
+        """
         return self._only_use_molgrid
 
     @property
     def on_molgrid(self):
-        """The type of grids used for evaluating properties.
+        """
+        Check whether quantities are computed on molecular grids.
 
-        Including:
+        These grids are used for evaluating various properties, including:
 
-        - 1. get_proatom_rho
+        - AIM (Atoms-in-Molecule) weight functions: :math:`w_a(\\mathbf{r})`.
+        - Pro-atom density: :math:`\rho_a^0(\\mathbf{r})`.
+        - Pro-molecule density: :math:`\rho^0(\\mathbf{r})`.
+        - Mean-square deviation during computations.
+
+        Returns
+        -------
+        bool
+            True if quantities are computed on molecular grids, False otherwise.
         """
         return self._on_molgrid
+
+    @property
+    def radial_distances(self):
+        """
+        Get the radial distances of points from the atomic coordinates.
+
+        The radial distances are calculated as the L2 norm (Euclidean distance)
+        of the points relative to the atomic coordinates.
+
+        Notes
+        -----
+        Accessing this property triggers the calculation of radial distances
+        via the `calc_radial_distances` method.
+
+        Returns
+        -------
+        list
+            A list containing the radial distances of points for each atom.
+        """
+        self.calc_radial_distances()
+        return self._radial_distances
+
+    @property
+    def density_cutoff(self):
+        """
+        Get the density cutoff value.
+
+        Density values below this cutoff are considered to be invalid.
+
+        Returns
+        -------
+        float
+            The cutoff value for density.
+        """
+        return self._density_cutoff
+
+    @property
+    def population_cutoff(self):
+        """
+        Get the population cutoff criterion.
+
+        This represents the allowed difference between the sum of proatom parameters
+        and the reference population for determining accuracy of methods.
+
+        Returns
+        -------
+        float
+            The cutoff value for population differences.
+        """
+        return self._population_cutoff
+
+    @property
+    def negative_cutoff(self):
+        """
+        Get the negative cutoff value.
+
+        Values less than this threshold are treated as negative in computations.
+
+        Returns
+        -------
+        float
+            The negative cutoff value.
+        """
+        return self._negative_cutoff
 
     def _init_log_base(self):
         self.logger.info("Performing a density-based AIM analysis with a wavefunction as input.")
@@ -538,12 +626,6 @@ class WPart(Part):
         for iatom in range(self.natom):
             r = np.linalg.norm(self.grid.points - self.coordinates[iatom], axis=1)
             self._radial_distances.append(r)
-
-    @property
-    def radial_distances(self):
-        """A list of radial distance."""
-        self.calc_radial_distances()
-        return self._radial_distances
 
     @just_once
     def do_density_decomposition(self):
