@@ -440,11 +440,12 @@ def check_pars_population(
 
     """
     test_pop = np.sum(propars)
-    if not np.isclose(test_pop, ref_pop, atol=population_cutoff):
+    if np.abs(test_pop - ref_pop) > population_cutoff:
+        # if not np.isclose(test_pop, ref_pop, atol=population_cutoff):
         info_level = "WARNING" if as_warn else "ERROR"
         info = (
-            rf"{info_level}: The sum of pro-atom parameters is not equal to atomic population.\n"
-            rf"{info_level}: The difference is {test_pop - ref_pop}"
+            f"{info_level}: The sum of pro-atom parameters is not equal to reference population.\n"
+            f"{info_level}: The difference is {test_pop - ref_pop:.5E}"
         )
         if as_warn:
             if logger is not None:
@@ -552,7 +553,6 @@ def check_dens_monotonicity(
             raise RuntimeError("Pro-atom density should be monotonically decreasing.")
 
 
-# Function to update propars
 def fix_propars(exp_array, propars, delta):
     """Fix the propar of the most diffuse function when it is negative and Newton step `delta` is negative.
 

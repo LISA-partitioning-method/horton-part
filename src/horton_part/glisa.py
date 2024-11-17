@@ -46,7 +46,7 @@ from .core.iterstock import compute_change
 from .core.logging import deflist
 from .core.stockholder import AbstractStockholderWPart
 from .gisa import get_proatom_rho
-from .utils import NEGATIVE_CUTOFF, check_pro_atom_parameters, fix_propars
+from .utils import check_pro_atom_parameters, fix_propars
 
 __all__ = ["GlobalLinearISAWPart"]
 
@@ -70,7 +70,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
-        grid_type=2,
+        grid_type=1,
         **kwargs,
     ):
         """
@@ -112,6 +112,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             lmax,
             logger,
             grid_type,
+            **kwargs,
         )
 
     def setup_grids(self):
@@ -199,6 +200,9 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                     self._solver.__name__ if callable(self._solver) else self._solver.upper(),
                 ),
                 ("Basis function type", self._func_type),
+                # ("Density cutoff", self.density_cutoff),
+                # ("Negative cutoff", self.negative_cutoff),
+                # ("Population cutoff", self.population_cutoff),
                 # ("Local grid radius", self.radius_cutoff),
             ]
         )
@@ -273,28 +277,40 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             self.history_time_update_at_weights.append(t1 - t0)
             self._finalize_propars()
 
-    def is_promol_valid(self, propars):
+    def is_promol_valid(self, propars, check_mono):
         """Check if the promol density is valid."""
         valid = True
         for iatom in range(self.natom):
-            valid_i = self.is_proatom_valid(iatom, propars)
+            valid_i = self.is_proatom_valid(iatom, propars, check_mono)
             if valid_i != 0:
                 valid = False
                 break
         return valid
 
-    def is_proatom_valid(self, iatom, propars):
+    def is_proatom_valid(self, iatom, propars, check_mono):
         """Check if the proatom density is valid."""
         rho0_iatom, _ = get_proatom_rho(self, iatom, propars)
         valid = 0
-        if (rho0_iatom < NEGATIVE_CUTOFF).any() or (
-            rho0_iatom[:-1] - rho0_iatom[1:] < NEGATIVE_CUTOFF
-        ).any():
-            if (rho0_iatom < NEGATIVE_CUTOFF).any():
-                valid = 1
-            else:
-                valid = 2
+
+        if (rho0_iatom < self.negative_cutoff).any():
+            valid = 1
+
+        if (
+            check_mono
+            and not self.on_molgrid
+            and (rho0_iatom[:-1] - rho0_iatom[1:] < self.negative_cutoff).any()
+        ):
+            valid = 2
         return valid
+
+        # if (rho0_iatom < self.negative_cutoff).any() or (
+        #     rho0_iatom[:-1] - rho0_iatom[1:] < self.negative_cutoff
+        # ).any():
+        #     if (rho0_iatom < self.negative_cutoff).any():
+        #         valid = 1
+        #     else:
+        #         valid = 2
+        # return valid
 
     # def check_pro(self, iatom, propars):
     #     """Check if the proatom paramters are valid."""
@@ -561,7 +577,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         linspace_size=40,
         tau=1.0,
         linesearch_mode="valid-promol",
-        density_cutoff=1e-15,
+        **kwargs,
     ):
         """Default Modified Newton method"""
         return self._solver_general_newton(
@@ -570,6 +586,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             linesearch_mode=linesearch_mode,
             tau=tau,
             linspace_size=linspace_size,
+            **kwargs,
         )
 
     def solver_quasi_newton(
@@ -580,7 +597,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         linesearch_mode="valid-promol",
         tau=1.0,
         linspace_size=40,
-        density_cutoff=1e-15,
+        **kwargs,
     ):
         """Default Quasi-Newton method."""
         assert mode in ["bfgs"]
@@ -591,6 +608,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             linesearch_mode=linesearch_mode,
             tau=tau,
             linspace_size=linspace_size,
+            **kwargs,
         )
 
     def _solver_general_newton(
@@ -601,6 +619,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         linesearch_mode="valid-promol",
         tau=1.0,
         linspace_size=40,
+        check_mono=False,
     ):
         """
         Implements a Newton solver with various modes and line search strategies for optimization problems,
@@ -685,7 +704,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                 new_propars = propars + global_fixed_index * _s
                 # new_propars *= global_fixed_index
 
-                if self.is_promol_valid(new_propars):
+                if self.is_promol_valid(new_propars, check_mono=check_mono):
                     if linesearch_mode == "valid-promol":
                         break
                     elif linesearch_mode == "with-extended-kl":
@@ -695,7 +714,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                         extended_kl = f + pro_pop
                         old_extended_kl = old_f + old_pro_pop
 
-                        if (extended_kl - old_extended_kl) < NEGATIVE_CUTOFF:
+                        if (extended_kl - old_extended_kl) < self.negative_cutoff:
                             break
             else:
                 # self-consistent step
@@ -768,6 +787,8 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
                     check_monotonicity=False,
                     check_propars_negativity=False,
                     logger=self.logger,
+                    population_cutoff=self.population_cutoff,
+                    negative_cutoff=self.negative_cutoff,
                 )
                 self.cache.dump("niter", irep + 1, tags="o")
                 return propars
@@ -878,11 +899,15 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             **diis_options,
         )
 
+        # the old one is False by default.
+        check_mono = getattr(diis_options, "check_mono", False)
+        check_mono = check_mono and not self.on_molgrid
+
         check_pro_atom_parameters(
             propars,
             pro_atom_density=self.calc_promol_dens(propars),
             total_population=self.mol_pop,
-            check_monotonicity=False,
+            check_monotonicity=check_mono,
             logger=self.logger,
         )
 
@@ -974,11 +999,16 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         )
         if not conv:
             raise RuntimeError("Not converged!")
+
+        # the old one is False by default.
+        check_mono = getattr(cdiis_options, "check_mono", False)
+        check_mono = check_mono and not self.on_molgrid
+
         check_pro_atom_parameters(
             propars,
             pro_atom_density=self.calc_promol_dens(propars),
             total_population=self.mol_pop,
-            check_monotonicity=False,
+            check_monotonicity=check_mono,
             logger=self.logger,
         )
 

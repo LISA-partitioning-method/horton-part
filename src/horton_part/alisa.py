@@ -71,6 +71,7 @@ def solver_cvxopt(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Options for solver.
     allow_neg_params=False,
     **cvxopt_options,
 ):
@@ -102,6 +103,8 @@ def solver_cvxopt(
         The criteria for the difference between the sum of propars and reference population.
     allow_neg_params : bool (optional)
         Whether negative parameters are allowed. The default is `False`.
+    cvxopt_options: dict
+        Other options for the cvxopt solver.
 
     Returns
     -------
@@ -149,6 +152,7 @@ def solver_cvxopt(
         d2f = z[0] * cvxopt.matrix(d2f)
         return f, df, d2f
 
+    cvxopt_options = cvxopt_options or {}
     if len(cvxopt_options) == 0:
         show_progress = 0
         if logger.level <= logging.DEBUG:
@@ -171,9 +175,9 @@ def solver_cvxopt(
         new_propars = np.asarray(optimized_res).flatten()
         check_pro_atom_parameters_non_neg_pars(
             new_propars,
-            basis_functions=bs_funcs,
+            basis_functions=np.asarray(bs_funcs),
             logger=logger,
-            total_population=pop,
+            total_population=float(pop),
             negative_cutoff=negative_cutoff,
             population_cutoff=population_cutoff,
         )
@@ -193,6 +197,7 @@ def solver_sc(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Options for solver.
     max_niter_inner=100000,
 ):
     r"""
@@ -267,11 +272,14 @@ def solver_sc(
 
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
+            pop = np.einsum("i,i", weights, rho)
             check_pro_atom_parameters_non_neg_pars(
                 propars,
-                basis_functions=bs_funcs,
+                basis_functions=np.asarray(bs_funcs),
                 logger=logger,
+                total_population=float(pop),
                 negative_cutoff=negative_cutoff,
+                population_cutoff=population_cutoff,
             )
             return propars
         oldpro = pro
@@ -290,6 +298,7 @@ def solver_sc_1_iter(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Options for solver.
 ):
     r"""
     Optimize parameters for proatom density functions using a self-consistent (SC) method.
@@ -351,8 +360,9 @@ def solver_sc_plus_cvxopt(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Options for solver.
     sc_iter_limit=1000,
-    cvxopt_options=None,
+    **cvxopt_options,
 ):
     r"""
     Optimize parameters for proatom density functions using a mixing of self-consistent (SC) method and convex
@@ -407,11 +417,6 @@ def solver_sc_plus_cvxopt(
 
         # the partitions and the updated parameters
         propars[:] = np.einsum("p,ip->i", weights, pro_shells * ratio)
-        check_pro_atom_parameters_non_neg_pars(
-            propars,
-            logger=logger,
-            negative_cutoff=negative_cutoff,
-        )
 
         # check for convergence
         if oldpro is None:
@@ -421,6 +426,14 @@ def solver_sc_plus_cvxopt(
             change = np.sqrt(np.einsum("i,i,i->", weights, error, error))
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
+            pop = np.einsum("i,i", weights, rho)
+            check_pro_atom_parameters_non_neg_pars(
+                propars,
+                logger=logger,
+                total_population=float(pop),
+                negative_cutoff=negative_cutoff,
+                population_cutoff=population_cutoff,
+            )
             return propars
         oldpro = pro
     else:
@@ -451,7 +464,9 @@ def solver_diis(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
-    solver_options=None,
+    # Options for solver.
+    check_mono=True,
+    **diis_options,
 ):
     r"""
     Optimize parameters for proatom density functions using direct inversion in an iterative space (DIIS).
@@ -479,7 +494,9 @@ def solver_diis(
         The value less than `negative_cutoff` is treated as negative.
     population_cutoff : float
         The criteria for the difference between the sum of propars and reference population.
-    solver_options: dict
+    check_mono: bool, opotionl
+        Check if the density is monotonically decaying.
+    diis_options: dict
         The other options for the solver.
 
 
@@ -502,12 +519,19 @@ def solver_diis(
         )
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
-    solver_options = solver_options or {}
+    diis_options = diis_options or {}
     new_propars, niter, history_x = diis(
-        propars, function_g, threshold, logger=logger, **solver_options
+        propars, function_g, threshold, logger=logger, **diis_options
     )
+    pop = np.einsum("i,i", weights, rho)
     check_pro_atom_parameters_neg_pars(
-        new_propars, bs_funcs, logger=logger, negative_cutoff=negative_cutoff
+        new_propars,
+        bs_funcs,
+        logger=logger,
+        negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
+        total_population=float(pop),
+        check_monotonicity=check_mono,
     )
     return new_propars
 
@@ -523,6 +547,7 @@ def solver_newton(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Solver options
     **newton_options,
 ):
     r"""
@@ -576,7 +601,7 @@ def solver_newton(
         density_cutoff,
         negative_cutoff,
         population_cutoff,
-        "exact",
+        mode="exact",
         **newton_options,
     )
 
@@ -592,7 +617,8 @@ def solver_m_newton(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
-    solver_options=None,
+    # Solver options
+    **newton_options,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Newton method
@@ -620,7 +646,7 @@ def solver_m_newton(
         The value less than `negative_cutoff` is treated as negative.
     population_cutoff : float
         The criteria for the difference between the sum of propars and reference population.
-    solver_options: dict
+    newton_options: dict
         Other options for the solver.
 
     Returns
@@ -634,7 +660,6 @@ def solver_m_newton(
         If the inner iteration does not converge.
 
     """
-    solver_options = solver_options or {}
     return _solver_general_newton(
         bs_funcs,
         rho,
@@ -647,7 +672,7 @@ def solver_m_newton(
         negative_cutoff,
         population_cutoff,
         mode="modified",
-        **solver_options,
+        **newton_options,
     )
 
 
@@ -662,7 +687,8 @@ def solver_quasi_newton(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
-    solver_options=None,
+    # Solver options
+    **newton_options,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Quasi-Newton method
@@ -690,7 +716,7 @@ def solver_quasi_newton(
         The value less than `negative_cutoff` is treated as negative.
     population_cutoff : float
         The criteria for the difference between the sum of propars and reference population.
-    solver_options: dict
+    newton_options: dict
         Other options for the solver.
 
     Returns
@@ -704,7 +730,6 @@ def solver_quasi_newton(
         If the inner iteration does not converge.
 
     """
-    solver_options = solver_options or {}
     return _solver_general_newton(
         bs_funcs,
         rho,
@@ -717,7 +742,7 @@ def solver_quasi_newton(
         negative_cutoff,
         population_cutoff,
         mode="bfgs",
-        **solver_options,
+        **newton_options,
     )
 
 
@@ -732,10 +757,12 @@ def _solver_general_newton(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Solver options
     mode="bfgs",
     tau=1.0,
     linspace_size=20,
     check_mono=False,
+    niter=10000,
 ):
     r"""
     Optimize parameters for pro-atom density functions using Quasi-Newton method
@@ -763,6 +790,8 @@ def _solver_general_newton(
         The value less than `negative_cutoff` is treated as negative.
     population_cutoff : float
         The criteria for the difference between the sum of propars and reference population.
+    check_mono: bool, opotionl
+        Check if the density is monotonically decaying.
 
     Returns
     -------
@@ -781,15 +810,19 @@ def _solver_general_newton(
     oldpro = None
     change = 1e100
 
-    if logger.level <= logging.DEBUG:
-        diff = rho[:-1] - rho[1:]
-        logger.debug(" Check monotonicity of density ".center(80, "*"))
-        if len(diff[diff < -1e-5]):
-            logger.debug("The spherical average density is not monotonically decreasing.")
-            logger.debug("The different between densities on two neighboring points are negative:")
-            logger.debug(diff[diff < -1e-5])
-        else:
-            logger.debug("Pass.")
+    # if logger.level <= logging.DEBUG:
+    #     diff = rho[:-1] - rho[1:]
+    #     logger.debug(" Check monotonicity of density ".center(80, "*"))
+    #     if len(diff[diff < -1e-5]):
+    #         logger.debug(
+    #             "The spherical average density is not monotonically decreasing."
+    #         )
+    #         logger.debug(
+    #             "The different between densities on two neighboring points are negative:"
+    #         )
+    #         logger.debug(diff[diff < -1e-5])
+    #     else:
+    #         logger.debug("Pass.")
 
     def linesearch(delta: np.ndarray, propars: np.ndarray):
         """Line search used in Newton-method.
@@ -844,7 +877,7 @@ def _solver_general_newton(
     oldH = None
     s = None
     pop = np.einsum("i,i", weights, rho)
-    for irep in range(1000):
+    for irep in range(niter):
         _, pro, sick, ratio, ln_ratio = compute_quantities(rho, propars, bs_funcs, density_cutoff)
         logger.debug(" Optimized pro-atom parameters:")
         logger.debug(propars)
@@ -856,7 +889,13 @@ def _solver_general_newton(
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
         if change < threshold:
             check_pro_atom_parameters_neg_pars(
-                propars, total_population=pop, pro_atom_density=pro, logger=logger
+                propars,
+                total_population=float(pop),
+                pro_atom_density=np.asarray(pro),
+                logger=logger,
+                negative_cutoff=negative_cutoff,
+                population_cutoff=population_cutoff,
+                check_monotonicity=check_mono,
             )
             return propars
 
@@ -906,6 +945,7 @@ def solver_trust_region(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
+    # Solver options
     explicit_constr=True,
     trust_region_options=None,
 ):
@@ -995,6 +1035,7 @@ def solver_trust_region(
         total_population=float(pop),
         logger=logger,
         negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
     )
     return result
 
@@ -1010,7 +1051,9 @@ def solver_cdiis(
     density_cutoff,
     negative_cutoff,
     population_cutoff,
-    solver_options=None,
+    # Solver options
+    check_mono=True,
+    **cdiis_options,
 ):
     """
     Optimize parameters for proatom density functions using CDIIS algorithm.
@@ -1040,8 +1083,10 @@ def solver_cdiis(
         The value less than `negative_cutoff` is treated as negative.
     population_cutoff : float
         The criteria for the difference between the sum of propars and reference population.
-    solver_options: dict
+    cdiis_options: dict
         Other options for the solver.
+    check_mono: bool, opotionl
+        Check if the density is monotonically decaying.
 
     Returns
     -------
@@ -1056,14 +1101,12 @@ def solver_cdiis(
         )
         return np.einsum("ip,p->i", pro_shells * ratio, weights)
 
-    solver_options = solver_options or {}
-    solver_options.setdefault("verbose", False)
     conv, nbiter, rnormlist, mklist, cnormlist, xlast, history_x = cdiis(
         propars,
         function_g,
         threshold,
         logger=logger,
-        **solver_options,
+        **cdiis_options,
     )
     if not conv:
         raise RuntimeError("Not converged!")
@@ -1071,10 +1114,11 @@ def solver_cdiis(
     check_pro_atom_parameters_neg_pars(
         xlast,
         basis_functions=bs_funcs,
-        total_population=pop,
+        total_population=float(pop),
         logger=logger,
         negative_cutoff=negative_cutoff,
         population_cutoff=population_cutoff,
+        check_monotonicity=check_mono,
     )
     return xlast
 
@@ -1207,7 +1251,7 @@ class LinearISAWPart(GaussianISAWPart):
 
         if self.grid_type not in [1]:
             self.logger.info(
-                f"The grid type is {self.grid_type} and only aLISA+ methods are supported."
+                f"The grid type is {self.grid_type} and please set `check_mono` to `False` when using aLISA+- methods."
             )
 
     @property
