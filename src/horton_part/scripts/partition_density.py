@@ -27,7 +27,7 @@ from grid.atomgrid import AtomGrid
 from grid.basegrid import OneDGrid
 from grid.molgrid import MolGrid
 
-from horton_part import PERIODIC_TABLE, __version__, wpart_schemes
+from horton_part import PERIODIC_TABLE, ExpBasisFuncHelper, __version__, wpart_schemes
 from horton_part.utils import DATA_PATH
 
 from .program import PartProg
@@ -153,6 +153,8 @@ class PartDensProg(PartProg):
 
     def print_basis(self, part):
         """Print basis functions used in Partitioning methods."""
+        if not isinstance(part.bs_helper, ExpBasisFuncHelper):
+            return
 
         if part.name in ["gisa", "lisa", "glisa"]:
             bs_info = self.load_basis_info(part)

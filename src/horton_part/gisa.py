@@ -25,7 +25,7 @@ import warnings
 import numpy as np
 import qpsolvers
 
-from .core.basis import BasisFuncHelper
+from .core.basis import ExpBasisFuncHelper
 from .core.cache import just_once
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
@@ -169,7 +169,7 @@ class GaussianISAWPart(AbstractISAWPart):
     def bs_helper(self):
         """A basis function helper."""
         if self._bs_helper is None:
-            self._bs_helper = BasisFuncHelper.from_function_type()
+            self._bs_helper = ExpBasisFuncHelper.from_function_type()
         return self._bs_helper
 
     def _init_log_scheme(self):
@@ -296,7 +296,10 @@ class GaussianISAWPart(AbstractISAWPart):
         propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
         bs_funcs = self.cache.load(f"bs_funcs_{iatom}")
         r_weights = 4 * np.pi * points**2 * rgrid.weights
-        alphas = self.bs_helper.get_exponent(self.numbers[iatom])
+        if isinstance(self.bs_helper, ExpBasisFuncHelper):
+            alphas = self.bs_helper.get_exponent(self.numbers[iatom])
+        else:
+            alphas = None
         # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
             bs_funcs,

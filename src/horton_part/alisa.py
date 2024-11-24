@@ -33,7 +33,7 @@ from scipy.sparse import SparseEfficiencyWarning
 from .algo.cdiis import cdiis
 from .algo.diis import diis
 from .algo.quasi_newton import bfgs
-from .core.basis import BasisFuncHelper
+from .core.basis import ExpBasisFuncHelper, NumericBasisFuncHelper
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
 from .utils import (
@@ -1130,11 +1130,16 @@ def setup_bs_helper(part):
             bs_name = part.basis_func.lower()
             if bs_name in ["gauss", "slater"]:
                 part.logger.info(f"Load {bs_name.upper()} basis functions")
-                part._bs_helper = BasisFuncHelper.from_function_type(bs_name)
+                if part.basis_type == "analytic":
+                    part._bs_helper = ExpBasisFuncHelper.from_function_type(bs_name)
+                elif part.basis_type == "numeric":
+                    part._bs_helper = NumericBasisFuncHelper.from_function_type(bs_name)
+                else:
+                    raise RuntimeError("The bs_type should be one of analytic and numeric.")
             else:
                 part.logger.info(f"Load basis functions from custom json file: {part.basis_func}")
-                part._bs_helper = BasisFuncHelper.from_file(part.basis_func)
-        elif isinstance(part.basis_func, BasisFuncHelper):
+                part._bs_helper = ExpBasisFuncHelper.from_file(part.basis_func)
+        elif isinstance(part.basis_func, (ExpBasisFuncHelper, NumericBasisFuncHelper)):
             part._bs_helper = part.basis_func
         else:
             raise NotImplementedError(
@@ -1210,6 +1215,7 @@ class LinearISAWPart(GaussianISAWPart):
         solver="cvxopt",
         solver_options=None,
         basis_func="gauss",
+        basis_type="analytic",
         grid_type=1,
         **kwargs,
     ):
@@ -1229,6 +1235,7 @@ class LinearISAWPart(GaussianISAWPart):
             self._func_type = self.basis_func.upper()
         else:
             self._func_type = "Customized"
+        self.basis_type = basis_type
 
         super().__init__(
             coordinates,

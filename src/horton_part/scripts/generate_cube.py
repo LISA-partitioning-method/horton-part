@@ -24,7 +24,7 @@ import numpy as np
 from grid import UniformGrid
 from iodata import load_one
 
-from horton_part.core.basis import BasisFuncHelper
+from horton_part.core.basis import ExpBasisFuncHelper
 from horton_part.scripts.generate_density import _compute_stuff
 from horton_part.scripts.program import PartProg
 
@@ -139,9 +139,9 @@ def to_cube(fname, atnums, atcorenums, atcoords, grid: UniformGrid, data):
 
 def _compute_rho0(atnums, points, pops, func_type="gauss", nderiv=0):
     if func_type in ["gauss", "slater"]:
-        bs_helper = BasisFuncHelper.from_function_type(func_type)
+        bs_helper = ExpBasisFuncHelper.from_function_type(func_type)
     elif ".json" in func_type and os.path.exists(func_type):
-        bs_helper = BasisFuncHelper.from_json(func_type)
+        bs_helper = ExpBasisFuncHelper.from_json(func_type)
     else:
         raise RuntimeError(f"Invalid func_type: {func_type}!")
 

@@ -41,6 +41,7 @@ from horton_part.core import iterstock
 
 from .algo import bfgs, cdiis, diis
 from .alisa import setup_bs_helper
+from .core.basis import ExpBasisFuncHelper
 from .core.cache import just_once
 from .core.iterstock import compute_change
 from .core.logging import deflist
@@ -71,6 +72,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         solver_options=None,
         basis_func="gauss",
         grid_type=1,
+        basis_type="analytic",
         **kwargs,
     ):
         """
@@ -98,6 +100,7 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
         else:
             self._func_type = "Customized"
         self._bs_helper = None
+        self.basis_type = basis_type
         self._solver = solver
         self._solver_options = solver_options or {}
         self._ranges = []
@@ -689,14 +692,15 @@ class GlobalLinearISAWPart(AbstractStockholderWPart):
             # If they are positive, we can safely update propars = propars + delta; otherwise, we retain zeros.
 
             global_fixed_index = np.ones_like(delta)
-            for iatom in range(self.natom):
-                exp_array_i = self.bs_helper.get_exponent(self.numbers[iatom])
-                propars_i = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-                delta_i = delta[self._ranges[iatom] : self._ranges[iatom + 1]]
-                fixed_index = fix_propars(exp_array_i, propars_i, delta_i)
-                for _i in fixed_index:
-                    global_fixed_index[_i + self._ranges[iatom]] = 0
-            self.logger.debug(f"global_fixed_index: {global_fixed_index}")
+            if isinstance(self.bs_helper, ExpBasisFuncHelper):
+                for iatom in range(self.natom):
+                    exp_array_i = self.bs_helper.get_exponent(self.numbers[iatom])
+                    propars_i = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
+                    delta_i = delta[self._ranges[iatom] : self._ranges[iatom + 1]]
+                    fixed_index = fix_propars(exp_array_i, propars_i, delta_i)
+                    for _i in fixed_index:
+                        global_fixed_index[_i + self._ranges[iatom]] = 0
+                self.logger.debug(f"global_fixed_index: {global_fixed_index}")
 
             x, _s, new_propars = None, None, None
             for x in np.linspace(tau, 0, linspace_size, endpoint=False):

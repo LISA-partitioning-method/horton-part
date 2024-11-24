@@ -70,6 +70,7 @@ lisa:
     - density_cutoff
     - population_cutoff
     - negative_cutoff
+    - basis_type
 
 nlis:
   io_infos:
@@ -127,3 +128,4 @@ glisa:
     - density_cutoff
     - population_cutoff
     - negative_cutoff
+    - basis_type

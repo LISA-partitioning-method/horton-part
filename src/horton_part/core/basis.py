@@ -23,11 +23,19 @@ import json
 
 import numpy as np
 import yaml
+from grid import BeckeRTransform, GaussChebyshev
+from scipy.interpolate import CubicSpline
 from scipy.special import gamma
 
 from horton_part.utils import DATA_PATH
 
-__all__ = ["BasisFuncHelper", "evaluate_function", "load_params"]
+__all__ = [
+    "BasisFuncHelper",
+    "ExpBasisFuncHelper",
+    "NumericBasisFuncHelper",
+    "evaluate_function",
+    "load_params",
+]
 
 
 def load_params(filename, extension="json"):
@@ -178,6 +186,52 @@ def evaluate_function(n, population, alpha, r, nderiv=0, axis=None):
 
 
 class BasisFuncHelper:
+    """Base of basis function helper."""
+
+    def __init__(self, initials, *args, **kwargs):
+        self._initials = initials
+
+    def get_nshell(self, number):
+        """Get number of basis functions based on the atomic number of an atom."""
+        raise NotImplementedError
+
+    @property
+    def initials(self):
+        """A dictionary mapping atomic numbers to their initial values."""
+        return self._initials
+
+    def get_initial(self, number, ishell=None):
+        """Get initial value for an atom for its `ishell` basis function."""
+        return (
+            np.asarray(self.initials[number]) if ishell is None else self.initials[number][ishell]
+        )
+
+    def compute_proshell_dens(self, number, ishell, population, points, nderiv=0):
+        """Compute pro-shell density on points for an atom."""
+        raise NotImplementedError
+
+    def compute_proatom_dens(self, number, populations, points, nderiv=0):
+        """Compute pro-atom density on points for an atom."""
+        y = d = 0.0
+        for i in range(self.get_nshell(number)):
+            res = self.compute_proshell_dens(number, i, populations[i], points, nderiv)
+            if nderiv == 0:
+                y += res
+            elif nderiv == 1:
+                y += res[0]
+                d += res[1]
+            else:
+                raise NotImplementedError
+
+        if nderiv == 0:
+            return y
+        elif nderiv == 1:
+            return y, d
+        else:
+            raise RuntimeError("The argument `nderiv` should only be 0 or 1.")
+
+
+class ExpBasisFuncHelper(BasisFuncHelper):
     """
     A helper class for handling basis functions in GISA and LISA methods.
 
@@ -189,9 +243,10 @@ class BasisFuncHelper:
     """
 
     def __init__(self, exponents_orders, exponents=None, initials=None):
+        super().__init__(initials)
         self._orders = exponents_orders
         self._exponents = exponents
-        self._initials = initials
+        # self._initials = initials
 
     @property
     def orders(self):
@@ -234,32 +289,6 @@ class BasisFuncHelper:
         exp = self.get_exponent(number, ishell)
         return evaluate_function(order, population, exp, points, nderiv, axis=None)
 
-    # def compute_proatom_dens_slow(self, number, populations, points, nderiv=0, axis=0):
-    #     """Compute pro-atom density on points for an atom."""
-    #     orders = self.get_order(number)
-    #     exps = self.get_exponent(number)
-    #     return evaluate_function(orders, populations, exps, points, nderiv, axis=axis)
-
-    def compute_proatom_dens(self, number, populations, points, nderiv=0):
-        """Compute pro-atom density on points for an atom."""
-        y = d = 0.0
-        for i in range(self.get_nshell(number)):
-            res = self.compute_proshell_dens(number, i, populations[i], points, nderiv)
-            if nderiv == 0:
-                y += res
-            elif nderiv == 1:
-                y += res[0]
-                d += res[1]
-            else:
-                raise NotImplementedError
-
-        if nderiv == 0:
-            return y
-        elif nderiv == 1:
-            return y, d
-        else:
-            raise RuntimeError("The argument `nderiv` should only be 0 or 1.")
-
     @classmethod
     def from_function_type(cls, func_type="gauss"):
         """Construct class from basis type."""
@@ -289,3 +318,61 @@ class BasisFuncHelper:
     def from_json(cls, filename):
         """Construct from a yaml file."""
         return cls.from_file(filename)
+
+
+class NumericBasisFuncHelper(BasisFuncHelper):
+    def __init__(self, splines_dict, initials):
+        super().__init__(initials)
+        self._splines_dict = splines_dict
+        # self._initials = initials
+
+    @property
+    def splines_dict(self):
+        """Return splines dict."""
+        return self._splines_dict
+
+    def get_nshell(self, number):
+        """Get number of basis functions based on the atomic number of an atom."""
+        return len(self.splines_dict[number])
+
+    def compute_proshell_dens(self, number, ishell, population, points, nderiv=0):
+        """Compute pro-shell density on points for an atom."""
+        y = population * self.splines_dict[number][ishell](points)
+        if nderiv == 0:
+            return y
+        elif nderiv == 1:
+            # Compute the first derivative
+            # deriv = np.gradient(y, points)  # Points provide spacing
+            deriv = np.zeros_like(y)
+            return y, deriv
+        else:
+            raise NotImplementedError
+
+    @classmethod
+    def from_file(cls, filename, nrad=150):
+        if str(filename).endswith(".yaml"):
+            extension = "yaml"
+        else:
+            extension = "json"
+        orders, exponents, initials = load_params(filename, extension=extension)
+        # check if initials values are valid.
+        for number, exps in exponents.items():
+            if number not in initials:
+                initials[number] = np.ones_like(exps) / len(exps)
+        exp_helper = ExpBasisFuncHelper(orders, exponents, initials)
+        oned = GaussChebyshev(nrad)
+        rgrid = BeckeRTransform(1e-4, 1.5).transform_1d_grid(oned)
+        splines_dict = {}
+        for number, exps in exp_helper.exponents.items():
+            if number not in splines_dict:
+                splines_dict[number] = {}
+            for ishell in range(len(exps)):
+                y = exp_helper.compute_proshell_dens(number, ishell, 1.0, rgrid.points, nderiv=0)
+                splines_dict[number][ishell] = CubicSpline(rgrid.points, y, True)
+        return cls(splines_dict, initials)
+
+    @classmethod
+    def from_function_type(cls, func_type="gauss_num", nrad=150):
+        """Construct class from basis type."""
+        filename = DATA_PATH.joinpath(f"{func_type}.json")
+        return cls.from_file(filename, nrad=nrad)

@@ -24,7 +24,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from horton_part.core.basis import BasisFuncHelper, evaluate_function, load_params
+from horton_part.core.basis import ExpBasisFuncHelper, evaluate_function, load_params
 from horton_part.utils import DATA_PATH
 
 
@@ -43,12 +43,12 @@ def test_basis_files(type):
 
 @pytest.fixture
 def gauss_helper():
-    return BasisFuncHelper.from_function_type("gauss")
+    return ExpBasisFuncHelper.from_function_type("gauss")
 
 
 @pytest.fixture()
 def slater_helper():
-    return BasisFuncHelper.from_function_type("slater")
+    return ExpBasisFuncHelper.from_function_type("slater")
 
 
 def test_load_params():
