@@ -33,7 +33,11 @@ from scipy.sparse import SparseEfficiencyWarning
 from .algo.cdiis import cdiis
 from .algo.diis import diis
 from .algo.quasi_newton import bfgs
-from .core.basis import ExpBasisFuncHelper, NumericBasisFuncHelper
+from .core.basis import (
+    AnalyticBasisFuncHelper,
+    ExpBasisFuncHelper,
+    NumericBasisFuncHelper,
+)
 from .core.logging import deflist
 from .gisa import GaussianISAWPart
 from .utils import (
@@ -1139,7 +1143,7 @@ def setup_bs_helper(part):
             else:
                 part.logger.info(f"Load basis functions from custom json file: {part.basis_func}")
                 part._bs_helper = ExpBasisFuncHelper.from_file(part.basis_func)
-        elif isinstance(part.basis_func, (ExpBasisFuncHelper, NumericBasisFuncHelper)):
+        elif isinstance(part.basis_func, (AnalyticBasisFuncHelper, NumericBasisFuncHelper)):
             part._bs_helper = part.basis_func
         else:
             raise NotImplementedError(

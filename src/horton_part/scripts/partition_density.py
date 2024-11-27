@@ -153,7 +153,7 @@ class PartDensProg(PartProg):
 
     def print_basis(self, part):
         """Print basis functions used in Partitioning methods."""
-        if not isinstance(part.bs_helper, ExpBasisFuncHelper):
+        if not hasattr(part, "bs_helper") or not isinstance(part.bs_helper, ExpBasisFuncHelper):
             return
 
         if part.name in ["gisa", "lisa", "glisa"]:

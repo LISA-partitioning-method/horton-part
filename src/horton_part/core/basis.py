@@ -31,8 +31,9 @@ from horton_part.utils import DATA_PATH
 
 __all__ = [
     "BasisFuncHelper",
-    "ExpBasisFuncHelper",
+    "AnalyticBasisFuncHelper",
     "NumericBasisFuncHelper",
+    "ExpBasisFuncHelper",
     "evaluate_function",
     "load_params",
 ]
@@ -231,7 +232,13 @@ class BasisFuncHelper:
             raise RuntimeError("The argument `nderiv` should only be 0 or 1.")
 
 
-class ExpBasisFuncHelper(BasisFuncHelper):
+class AnalyticBasisFuncHelper(BasisFuncHelper):
+    """Analytic basis function helper class."""
+
+    pass
+
+
+class ExpBasisFuncHelper(AnalyticBasisFuncHelper):
     """
     A helper class for handling basis functions in GISA and LISA methods.
 
@@ -321,6 +328,8 @@ class ExpBasisFuncHelper(BasisFuncHelper):
 
 
 class NumericBasisFuncHelper(BasisFuncHelper):
+    """Numerical basis function helper class."""
+
     def __init__(self, splines_dict, initials):
         super().__init__(initials)
         self._splines_dict = splines_dict
