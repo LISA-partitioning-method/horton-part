@@ -27,7 +27,8 @@ import pytest
 from grid.onedgrid import GaussChebyshev
 from grid.rtransform import BeckeRTransform
 
-from horton_part.lisa import solver_cvxopt, solver_diis, solver_sc, solver_trust_region
+from horton_part.alisa import solver_cvxopt, solver_diis, solver_sc, solver_trust_region
+from horton_part.utils import DENSITY_CUTOFF, NEGATIVE_CUTOFF, POPULATION_CUTOFF
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,9 @@ def check_rho(rho):
     ],
 )
 def test_optimization_methods(case, opt_propars):
-    density_cutoff = 1e-15
+    density_cutoff = DENSITY_CUTOFF
+    negative_cutoff = NEGATIVE_CUTOFF
+    population_cutoff = POPULATION_CUTOFF
     threshold = 1e-8
 
     populations, exponents = case
@@ -126,7 +129,9 @@ def test_optimization_methods(case, opt_propars):
         local_weights,
         threshold,
         logger,
-        density_cutoff,
+        density_cutoff=density_cutoff,
+        negative_cutoff=negative_cutoff,
+        population_cutoff=population_cutoff,
         **kwargs,
     )
 

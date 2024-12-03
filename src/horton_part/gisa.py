@@ -25,9 +25,7 @@ import warnings
 import numpy as np
 import qpsolvers
 
-from horton_part.core import iterstock
-
-from .core.basis import BasisFuncHelper
+from .core.basis import ExpBasisFuncHelper
 from .core.cache import just_once
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
@@ -52,17 +50,23 @@ def get_proatom_rho(part, iatom, propars=None):
         The index of atom `iatom`.
     propars: np.array
         The pro-atom parameters.
+    on_molgrid: bool
+        Whether evaluate values on the molecular grid.
 
     """
     if propars is None:
         propars = part.cache.load("propars")
-    rgrid = part.get_rgrid(iatom)
     propars = propars[part._ranges[iatom] : part._ranges[iatom + 1]]
-    return part.bs_helper.compute_proatom_dens(part.numbers[iatom], propars, rgrid.points, 1)
+    if part.on_molgrid:
+        points = part.radial_distances[iatom]
+    else:
+        rgrid = part.get_rgrid(iatom)
+        points = rgrid.points
+    return part.bs_helper.compute_proatom_dens(part.numbers[iatom], propars, points, 1)
 
 
 def init_propars(part):
-    iterstock.init_propars(part)
+    """Initial propars."""
     part._ranges = [0]
     part._nshells = []
     for iatom in range(part.natom):
@@ -72,12 +76,6 @@ def init_propars(part):
     ntotal = part._ranges[-1]
     propars = part.cache.load("propars", alloc=ntotal, tags="o")[0]
     propars[:] = 1.0
-    # print("Set initial value")
-    # print("-" * 80)
-    # print(part.pseudo_numbers)
-    # print(np.sum(part.pseudo_numbers))
-    # print(part.nelec)
-    # print("-" * 80)
     for iatom in range(part.natom):
         inits = part.bs_helper.get_initial(part.numbers[iatom])
         # Note: the zero initials are not activated in self-consistent method.
@@ -87,16 +85,19 @@ def init_propars(part):
         )
     propars[:] = propars / np.sum(propars) * part.nelec
     part.initial_propars_modified = propars.copy()
-    part._evaluate_basis_functions()
     return propars
 
 
-def evaluate_basis_functions(part):
+def evaluate_basis_functions(part, force_on_molgrid=False):
+    """Evaluate basis function on a 1D grid."""
     for iatom in range(part.natom):
-        rgrid = part.get_rgrid(iatom)
-        r = rgrid.points
+        if part.on_molgrid or force_on_molgrid:
+            r = part.radial_distances[iatom]
+        else:
+            rgrid = part.get_rgrid(iatom)
+            r = rgrid.points
         nshell = part._ranges[iatom + 1] - part._ranges[iatom]
-        bs_funcs = part.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
+        bs_funcs = part.cache.load(f"bs_funcs_{iatom}", alloc=(nshell, r.size))[0]
         bs_funcs[:, :] = np.array(
             [
                 part.bs_helper.compute_proshell_dens(part.numbers[iatom], ishell, 1.0, r)
@@ -126,6 +127,8 @@ class GaussianISAWPart(AbstractISAWPart):
         radius_cutoff=np.inf,
         solver="quadprog",
         solver_options=None,
+        grid_type=1,
+        **kwargs,
     ):
         """
         Initial function.
@@ -143,6 +146,7 @@ class GaussianISAWPart(AbstractISAWPart):
         self._solver = solver
         self._solver_options = solver_options or {}
         self._bs_helper = None
+        self._ranges = None
 
         super().__init__(
             coordinates,
@@ -157,13 +161,15 @@ class GaussianISAWPart(AbstractISAWPart):
             maxiter=maxiter,
             inner_threshold=inner_threshold,
             radius_cutoff=radius_cutoff,
+            grid_type=grid_type,
+            **kwargs,
         )
 
     @property
     def bs_helper(self):
         """A basis function helper."""
         if self._bs_helper is None:
-            self._bs_helper = BasisFuncHelper.from_function_type()
+            self._bs_helper = ExpBasisFuncHelper.from_function_type()
         return self._bs_helper
 
     def _init_log_scheme(self):
@@ -179,20 +185,28 @@ class GaussianISAWPart(AbstractISAWPart):
                 ("Maximum iterations", self._maxiter),
                 ("lmax", self._lmax),
                 ("Solver", self._solver),
+                ("Grid type", self.grid_type),
             ],
         )
         if callable(self._solver):
             warnings.warn("Customized solver is used, the argument `inner_threshold` is not used.")
-        # biblio.cite(
-        #     "verstraelen2012a",
-        #     "the use of Gaussian Iterative Stockholder partitioning",
-        # )
 
     def get_rgrid(self, index):
         """Load radial grid."""
-        return self.get_grid(index).rgrid
+        if self.only_use_molgrid:
+            self.logger.debug("rgird is not available when only_use_molgrid is `True`.")
+            raise NotImplementedError
+        else:
+            return self.get_grid(index).rgrid
 
-    def get_proatom_rho(self, iatom, propars=None):
+    def to_atomic_grid(self, index, data):
+        if self.only_use_molgrid:
+            self.logger.debug("atom grids are not available when only_use_molgrid is `True`.")
+            raise NotImplementedError
+        else:
+            return super().to_atomic_grid(index, data)
+
+    def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
@@ -201,19 +215,14 @@ class GaussianISAWPart(AbstractISAWPart):
         ----------
         iatom: int
             The index of atom `iatom`.
-        propars: np.array
+        propars: 1D np.array
             The pro-atom parameters.
 
         """
         return get_proatom_rho(self, iatom, propars)
-        # if propars is None:
-        #     propars = self.cache.load("propars")
-        # rgrid = self.get_rgrid(iatom)
-        # propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
-        # return self.bs_helper.compute_proatom_dens(self.numbers[iatom], propars, rgrid.points, 1)
 
     def eval_proatom(self, index, output, grid):
-        """Evaluate function on a local grid.
+        """Evaluate function on the molecular grid.
 
         The size of the local grid is specified by the radius of the sphere where the local grid is considered.
         For example, when the radius is `np.inf`, the grid corresponds to the whole molecular grid.
@@ -222,10 +231,10 @@ class GaussianISAWPart(AbstractISAWPart):
         ----------
         index: int
             The index of an atom in the molecule.
-        output: np.array
+        output: 1D np.array
             The size of `output` should be the same as the size of the local grid.
-        grid: np.array
-            The local grid.
+        grid: 2D np.array
+            The molecular grid.
 
         """
         propars = self.cache.load("propars")
@@ -235,48 +244,76 @@ class GaussianISAWPart(AbstractISAWPart):
         )
 
     def _init_propars(self):
-        return init_propars(self)
+        propars = init_propars(self)
+        self._evaluate_basis_functions()
+        return propars
 
     def _update_propars_atom(self, iatom):
-        # compute spherical average
-        atgrid = self.get_grid(iatom)
-        rgrid = atgrid.rgrid
-        dens = self.get_moldens(iatom)
-        at_weights = self.cache.load("at_weights", iatom)
-        spline = atgrid.spherical_average(at_weights * dens)
-        points = atgrid.rgrid.points
-        spherical_average = spline(points)
+        if self.on_molgrid:
+            return self._update_propars_atom_molgrids(iatom)
+        else:
+            return self._update_propars_atom_atgrids(iatom)
 
-        self.cache.dump(f"radial_points_{iatom}", points, tags="o")
-        self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
-        self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
-
+    def _update_propars_atom_molgrids(self, iatom):
+        at_weights = self.cache.load(f"at_weights_{iatom}")
+        dens = self._moldens
+        rhoa = at_weights * dens
         # assign as new propars
         propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
-        bs_funcs = self.cache.load("bs_funcs", iatom)
-
-        # use truncated grids if local_grid_radius != np.inf
-        r_mask = points <= self.radius_cutoff
-        points = points[r_mask]
-        rho = spherical_average[r_mask]
-        weights = rgrid.weights[r_mask]
-        bs_funcs = bs_funcs[:, r_mask]
-        weights = 4 * np.pi * points**2 * weights
+        bs_funcs = self.cache.load(f"bs_funcs_{iatom}")
 
         alphas = self.bs_helper.get_exponent(self.numbers[iatom])
-        # weights of radial grid, without 4 * pi * r**2
         propars[:] = self._opt_propars(
             bs_funcs,
-            rho,
+            rhoa,
             propars.copy(),
-            points,
-            weights,
+            self.grid.points,
+            self.grid.weights,
             alphas,
             self._inner_threshold,
         )
 
         # compute the new charge
-        pseudo_population = np.einsum("i,i", weights, rho)
+        pseudo_population = self.grid.integrate(rhoa)
+        charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+        charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+
+    def _update_propars_atom_atgrids(self, iatom):
+        # compute spherical average
+        atgrid = self.get_grid(iatom)
+        rgrid = atgrid.rgrid
+        dens = self.get_moldens(iatom)
+        at_weights = self.cache.load(f"at_weights_{iatom}")
+        spline = atgrid.spherical_average(at_weights * dens)
+        points = atgrid.rgrid.points
+        rho_sph = spline(points)
+
+        self.cache.dump(f"radial_points_{iatom}", points, tags="o")
+        self.cache.dump(f"spherical_average_{iatom}", rho_sph, tags="o")
+        self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
+
+        # assign as new propars
+        propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
+        bs_funcs = self.cache.load(f"bs_funcs_{iatom}")
+        r_weights = 4 * np.pi * points**2 * rgrid.weights
+        if isinstance(self.bs_helper, ExpBasisFuncHelper):
+            alphas = self.bs_helper.get_exponent(self.numbers[iatom])
+        else:
+            alphas = None
+        # weights of radial grid, without 4 * pi * r**2
+        propars[:] = self._opt_propars(
+            bs_funcs,
+            rho_sph,
+            propars.copy(),
+            points,
+            r_weights,
+            alphas,
+            self._inner_threshold,
+        )
+
+        # compute the new charge
+        pseudo_population = np.einsum("i,i", r_weights, rho_sph)
+        # self.logger.info(f"pseudo_population: {pseudo_population} of atom {iatom+1}")
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
@@ -305,17 +342,7 @@ class GaussianISAWPart(AbstractISAWPart):
 
     @just_once
     def _evaluate_basis_functions(self):
-        for iatom in range(self.natom):
-            rgrid = self.get_rgrid(iatom)
-            r = rgrid.points
-            nshell = self._ranges[iatom + 1] - self._ranges[iatom]
-            bs_funcs = self.cache.load("bs_funcs", iatom, alloc=(nshell, r.size))[0]
-            bs_funcs[:, :] = np.array(
-                [
-                    self.bs_helper.compute_proshell_dens(self.numbers[iatom], ishell, 1.0, r)
-                    for ishell in range(nshell)
-                ]
-            )
+        evaluate_basis_functions(self)
 
 
 def opt_propars_qp_interface(

@@ -17,7 +17,6 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>
 #
 # --
-import argparse
 import os
 import sys
 
@@ -37,6 +36,12 @@ np.set_printoptions(precision=14, suppress=True, linewidth=np.inf)
 np.random.seed(44)
 
 __all__ = ["prepare_input", "PartGenProg"]
+
+"""
+This file contains code derived from the `Denspart` package, which is designed for generating molecular densities
+using Horton3 interface. For more details about the `Denspart` package, including its features and API, see:
+https://github.com/theochem/denspart.
+"""
 
 
 def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgrids, logger):
@@ -202,11 +207,12 @@ class PartGenProg(PartProg):
     """Part-Gen Program"""
 
     def __init__(self, width=100):
-        super().__init__("part-gen", width)
+        description = """Generate molecular density with HORTON3."""
+        super().__init__("part-gen", width, description=description)
 
-    def single_launch(self, args: argparse.Namespace, fn_in, fn_out, fn_log, **kwargs):
-        self.setup_logger(args, fn_log)
-        self.print_settings(args, fn_in, fn_out, fn_log)
+    def single_launch(self, settings, fn_in, fn_out, fn_log, **kwargs):
+        self.setup_logger(settings, fn_log)
+        self.print_settings(settings, fn_in, fn_out, fn_log)
         iodata = load_one(fn_in)
         self.print_header("Molecular information")
         self.print_coordinates(iodata.atnums, iodata.atcoords)
@@ -214,11 +220,11 @@ class PartGenProg(PartProg):
 
         grid, data = prepare_input(
             iodata,
-            args.nrad,
-            args.nang,
-            args.chunk_size,
-            args.gradient,
-            args.orbitals,
+            settings["nrad"],
+            settings["nang"],
+            settings["chunk_size"],
+            settings["gradient"],
+            settings["orbitals"],
             True,
             self.logger,
         )
@@ -249,98 +255,6 @@ class PartGenProg(PartProg):
             os.makedirs(path)
         np.savez_compressed(fn_out, **data)
         return 0
-
-    def build_parser(self):
-        description = """Generate molecular density with HORTON3."""
-        parser = argparse.ArgumentParser(prog=self.program_name, description=description)
-
-        parser.add_argument(
-            "--inputs",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The outputs file from quantum chemistry package, e.g., the checkpoint file from Gaussian program.",
-        )
-        parser.add_argument(
-            "--outputs",
-            help="The NPZ file in which the grid and the density will be stored.",
-            nargs="+",
-            type=str,
-            default="mol_density.npz",
-        )
-        # parser.add_argument(
-        #     "--verbose",
-        #     type=int,
-        #     default=3,
-        #     help="The level for printing outputs information. [default=%(default)s]",
-        # )
-        parser.add_argument(
-            "--log_level",
-            default="WARNING",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            help="Set the logging level (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--log_files",
-            type=str,
-            nargs="+",
-            default=None,
-            help="The log file.",
-        )
-        # for grid
-        parser.add_argument(
-            "-r",
-            "--nrad",
-            type=int,
-            default=150,
-            help="Number of radial grid points. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "-a",
-            "--nang",
-            type=int,
-            default=194,
-            help="Number of angular grid points. [default=%(default)s]",
-        )
-        parser.add_argument(
-            "-c",
-            "--chunk-size",
-            type=int,
-            default=10000,
-            help="Number points on which the density is computed in one pass. "
-            "[default=%(default)s]",
-        )
-        # parser.add_argument(
-        #     "-s",
-        #     "--store-atomic-grids",
-        #     default=True,
-        #     action="store_true",
-        #     dest="store_atgrids",
-        #     help="Store atomic integration grids, which may be useful for post-processing. ",
-        # )
-        # for gbasis
-        parser.add_argument(
-            "-g",
-            "--gradient",
-            default=False,
-            action="store_true",
-            help="Also compute the gradient of the density (and the orbitals). ",
-        )
-        parser.add_argument(
-            "-o",
-            "--orbitals",
-            default=False,
-            action="store_true",
-            help="Also store the occupied and virtual orbtials. "
-            "For this to work, orbitals must be defined in the WFN file.",
-        )
-        parser.add_argument(
-            "--config_file",
-            type=str,
-            default=None,
-            help="Use configure file.",
-        )
-        return parser
 
 
 def main(args=None) -> int:

@@ -27,20 +27,55 @@ from scipy.special import gamma
 
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
-from .mbis import _get_nshell
-from .utils import check_pro_atom_parameters
+from .mbis import get_nshell, update_propars_atom
+from .utils import check_pro_atom_parameters_non_neg_pars
 
-__all__ = ["NLISWPart"]
+__all__ = [
+    "NLISWPart",
+    "get_initial_nlis_propars",
+    "get_nlis_nshell",
+    "opt_nlis_propars",
+]
 
 logger = logging.getLogger(__name__)
 
 
-def _get_nlis_nshell(number, nshell_dict):
-    return nshell_dict.get(number, _get_nshell(number))
+def get_nlis_nshell(number, nshell_dict):
+    """Get the number of shell of an element.
+
+    Parameters
+    ----------
+    number
+        The atomic number.
+    nshell_dict: dict
+        A dict for the number of shells for each element.
+
+    """
+    return nshell_dict.get(number, get_nshell(number))
 
 
-def _get_initial_nlis_propars(number, exp_n_dict, nshell_dict):
-    nbs = _get_nlis_nshell(number, nshell_dict)
+def get_initial_nlis_propars(number, exp_n_dict, nshell_dict, logger=None):
+    """Set up initial pro-atom parameters for the NLIS model.
+
+    Parameters
+    ----------
+    number : int
+        Atomic number, denoted by :math:`Z`, of the element for which to generate
+        initial pro-atom parameters.
+    exp_n_dict: dict
+        A dict of exponents for each (number, ishell).
+    nshell_dict: dict
+        A dict for the number of shells for each element.
+    logger : logging.Logger
+        Logger object for capturing logging information.
+
+    Returns
+    -------
+    np.ndarray
+        1D array of initial pro-atom parameters.
+
+    """
+    nbs = get_nlis_nshell(number, nshell_dict)
     propars = np.ones(3 * nbs, float)
     S0 = 2.0 * number
     if nbs > 1:
@@ -49,8 +84,11 @@ def _get_initial_nlis_propars(number, exp_n_dict, nshell_dict):
     else:
         alpha = 1.0
     for ibs in range(nbs):
+        # initial c_ak
         propars[3 * ibs] = number / nbs
+        # alpha
         propars[3 * ibs + 1] = S0 * alpha**ibs
+        # n
         if (number, ibs) in exp_n_dict:
             propars[3 * ibs + 2] = exp_n_dict[(number, ibs)]
         else:
@@ -58,15 +96,48 @@ def _get_initial_nlis_propars(number, exp_n_dict, nshell_dict):
     return propars
 
 
-def _opt_nlis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
+def opt_nlis_propars(
+    rhoa, propars, weights, radial_dist, threshold, density_cutoff=1e-15, logger=None
+):
+    r"""
+    Optimize pro-atom parameters for the MBIS model.
+
+    Parameters
+    ----------
+    rhoa : np.ndarray
+        Spherically averaged AIM density (1D) or AIM density (3D) of atom `a`.
+    propars : np.ndarray
+        Initial pro-atom parameters for optimization.
+    weights : np.ndarray
+        Integrand weights; if a spherically averaged density is used, includes :math:`4 \pi r^2`.
+    radial_dist : np.ndarray
+        Array of radial distances with respect to the coordinate of atom `a`.
+    threshold : float
+        Values of density below this threshold are treated as zero.
+    density_cutoff : float, optional
+        Density values below this cutoff are treated as zero (default is 1e-15).
+    logger : logging.Logger
+        Logger object for capturing logging information.
+
+    Returns
+    -------
+    np.ndarray
+        1D array of updated pro-atom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if the sum of pro-atom parameters does not equal the population of atom `a`.
+
+    """
     assert len(propars) % 3 == 0
     nshell = len(propars) // 3
-    r = rgrid.points
+    r = radial_dist
     terms = np.zeros((nshell, len(r)), float)
     oldpro = None
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
-    pop = rgrid.integrate(4 * np.pi * r**2, rho)
+    pop = np.einsum("p,p->", weights, rhoa)
     for irep in range(2000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
@@ -79,19 +150,15 @@ def _opt_nlis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
 
         # pro = terms.sum(axis=0)
         pro = np.sum(terms * propars[::3, None], axis=0)
-        sick = (rho < density_cutoff) | (pro < density_cutoff)
+        sick = (rhoa < density_cutoff) | (pro < density_cutoff)
         with np.errstate(all="ignore"):
             lnpro = np.log(pro)
-            ratio = rho / pro
-            lnratio = np.log(rho) - np.log(pro)
+            ratio = rhoa / pro
+            lnratio = np.log(rhoa) - np.log(pro)
         lnpro[sick] = 0.0
         ratio[sick] = 0.0
         lnratio[sick] = 0.0
 
-        # pro = np.clip(pro, 1e-100, np.inf)
-        # transform to partitions
-        # terms *= rho / pro
-        # terms *= ratio
         terms_ratio = terms * ratio
         # the partitions and the updated parameters
         for ishell in range(nshell):
@@ -99,8 +166,8 @@ def _opt_nlis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             S = propars[3 * ishell + 1]
             n = propars[3 * ishell + 2]
 
-            m0 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell] * N)
-            m1 = rgrid.integrate(4 * np.pi * r**2, terms_ratio[ishell], r**n)
+            m0 = np.einsum("p,p->", weights, terms_ratio[ishell] * N)
+            m1 = np.einsum("p,p,p->", weights, terms_ratio[ishell], r**n)
 
             propars[3 * ishell] = m0
             if np.isclose(m1, 0.0):
@@ -113,23 +180,17 @@ def _opt_nlis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             change = 1e100
         else:
             error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+            change = np.sqrt(np.einsum("p,p,p->", weights, error, error))
 
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
 
         if change < threshold:
             if not np.isclose(pop, np.sum(propars[0::3]), atol=1e-4):
-                RuntimeWarning("The sum of propars are not equal to the atomic pop.")
-            check_pro_atom_parameters(
-                propars,
-                pro_atom_density=pro,
-                check_monotonicity=True,
-                check_dens_negativity=True,
-                check_propars_negativity=True,
-            )
+                logger.warning("The sum of propars are not equal to the atomic pop.")
+            check_pro_atom_parameters_non_neg_pars(propars, pro_atom_density=pro, logger=logger)
             return propars
         oldpro = pro
-    # logger.warn("NLIS not converged!")
+    logger.warning("NLIS not converged, but still go ahead!")
     return propars
     # assert False
 
@@ -152,9 +213,10 @@ class NLISWPart(AbstractISAWPart):
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        radius_cutoff=np.inf,
         exp_n_dict=1.0,
         nshell_dict=None,
+        grid_type=1,
+        **kwargs,
     ):
         r"""
         Initial function.
@@ -182,7 +244,7 @@ class NLISWPart(AbstractISAWPart):
             threshold=threshold,
             maxiter=maxiter,
             inner_threshold=inner_threshold,
-            radius_cutoff=radius_cutoff,
+            grid_type=grid_type,
         )
 
     def _init_log_scheme(self):
@@ -203,9 +265,12 @@ class NLISWPart(AbstractISAWPart):
 
     def get_rgrid(self, iatom):
         """Get radial grid for `iatom` atom."""
-        return self.get_grid(iatom).rgrid
+        if self.only_use_molgrid:
+            raise NotImplementedError
+        else:
+            return self.get_grid(iatom).rgrid
 
-    def get_proatom_rho(self, iatom, propars=None):
+    def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
@@ -220,8 +285,11 @@ class NLISWPart(AbstractISAWPart):
         """
         if propars is None:
             propars = self.cache.load("propars")
-        rgrid = self.get_rgrid(iatom)
-        r = rgrid.points
+        if self.on_molgrid:
+            r = self.radial_distances[iatom]
+        else:
+            rgrid = self.get_rgrid(iatom)
+            r = rgrid.points
         y = np.zeros(len(r), float)
         d = np.zeros(len(r), float)
         my_propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
@@ -233,7 +301,7 @@ class NLISWPart(AbstractISAWPart):
         return y, d
 
     def eval_proatom(self, index, output, grid):
-        """Evaluate function on a local grid.
+        """Evaluate function on the molecular grid.
 
         The size of the local grid is specified by the radius of the sphere where the local grid is considered.
         For example, when the radius is `np.inf`, the grid corresponds to the whole molecular grid.
@@ -260,49 +328,26 @@ class NLISWPart(AbstractISAWPart):
         output[:] = y
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
-            nshell = _get_nlis_nshell(self.numbers[iatom], self._nshell_dict)
+            nshell = get_nlis_nshell(self.numbers[iatom], self._nshell_dict)
             self._ranges.append(self._ranges[-1] + 3 * nshell)
             self._nshells.append(nshell)
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = _get_initial_nlis_propars(
-                self.numbers[iatom], self._exp_n_dict, self._nshell_dict
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = get_initial_nlis_propars(
+                self.numbers[iatom],
+                self._exp_n_dict,
+                self._nshell_dict,
+                logger=self.logger,
             )
         return propars
 
     def _update_propars_atom(self, iatom):
-        # compute spherical average
-        atgrid = self.get_grid(iatom)
-        rgrid = atgrid.rgrid
-        dens = self.get_moldens(iatom)
-        at_weights = self.cache.load("at_weights", iatom)
-        spline = atgrid.spherical_average(at_weights * dens)
-        points = rgrid.points
-        spherical_average = spline(points)
-        # spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
-        self.cache.dump(f"radial_points_{iatom}", points, tags="o")
-        self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
-        self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
-
-        # assign as new propars
-        my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
-        my_propars[:] = _opt_nlis_propars(
-            spherical_average, my_propars.copy(), rgrid, self._inner_threshold
-        )
-
-        # avoid too large r
-        # r = np.clip(rgrid.points, 1e-100, 1e10)
-
-        # compute the new charge
-        # 4 * np.pi * rgrid.points ** 2 * spherical_average
-        pseudo_population = rgrid.integrate(4 * np.pi * points**2, spherical_average)
-        charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
-        charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+        update_propars_atom(self, iatom, solver=opt_nlis_propars)
 
     def _finalize_propars(self):
         AbstractISAWPart._finalize_propars(self)

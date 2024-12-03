@@ -47,11 +47,12 @@ class HirshfeldIWPart(AbstractISAWPart):
         moldens,
         proatomdb,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         threshold=1e-6,
         maxiter=500,
+        grid_type=1,
+        **kwargs,
     ):
         """
         **Arguments:** (that are not defined in ``WPart``)
@@ -83,11 +84,11 @@ class HirshfeldIWPart(AbstractISAWPart):
             moldens,
             # proatomdb,
             spindens,
-            local,
             lmax,
             logger,
             threshold,
             maxiter,
+            grid_type=grid_type,
         )
 
     def _init_log_scheme(self):
@@ -120,11 +121,11 @@ class HirshfeldIWPart(AbstractISAWPart):
         x = target_charge - icharge
         return icharge, x
 
-    def get_proatom_rho(self, index, charges=None):
-        icharge, x = self.get_interpolation_info(index, charges)
+    def get_proatom_rho(self, iatom, charges=None, **kwargs):
+        icharge, x = self.get_interpolation_info(iatom, charges)
         # check if icharge record should exist
-        pseudo_pop = self.pseudo_numbers[index] - icharge
-        number = self.numbers[index]
+        pseudo_pop = self.pseudo_numbers[iatom] - icharge
+        number = self.numbers[iatom]
         if pseudo_pop == 1 or x == 0.0:
             return self.proatomdb.get_rho(number, {icharge: 1 - x}, do_deriv=True)
         elif pseudo_pop > 1:
@@ -157,7 +158,7 @@ class HirshfeldIWPart(AbstractISAWPart):
         output += 1e-100
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
         self.cache.dump("propars", charges, tags="o")
         return charges

@@ -20,16 +20,22 @@
 # --
 
 
-from horton_part.mbis import _get_initial_mbis_propars, _get_nshell
+from horton_part.mbis import get_initial_mbis_propars, get_nshell
 
 
 def test_get_nshell():
-    assert _get_nshell(1) == 1
-    assert _get_nshell(2) == 1
-    assert _get_nshell(3) == 2
+    assert get_nshell(1) == 1
+    assert get_nshell(2) == 1
+    assert get_nshell(3) == 2
+    assert get_nshell(17) == 3
+    assert get_nshell(18) == 3
+    assert get_nshell(21) == 4
+    assert get_nshell(44) == 5
+    assert get_nshell(72) == 6
+    assert get_nshell(104) == 7
 
 
 def test_get_initial_mbis_propars():
-    assert (_get_initial_mbis_propars(1) == [1.0, 2.0]).all()
-    assert (_get_initial_mbis_propars(2) == [2.0, 4.0]).all()
-    assert (_get_initial_mbis_propars(3) == [2.0, 6.0, 1.0, 2.0]).all()
+    assert (get_initial_mbis_propars(1) == [1.0, 2.0]).all()
+    assert (get_initial_mbis_propars(2) == [2.0, 4.0]).all()
+    assert (get_initial_mbis_propars(3) == [2.0, 6.0, 1.0, 2.0]).all()

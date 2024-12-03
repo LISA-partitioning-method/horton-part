@@ -26,20 +26,43 @@ import numpy as np
 
 from .core.iterstock import AbstractISAWPart
 from .core.logging import deflist
-from .utils import check_pro_atom_parameters
+from .utils import check_pro_atom_parameters_non_neg_pars
 
-__all__ = ["MBISWPart", "_get_nshell", "_get_initial_mbis_propars"]
+__all__ = ["MBISWPart", "get_nshell", "get_initial_mbis_propars", "update_propars_atom"]
 
 logger = logging.getLogger(__name__)
 
 
-def _get_nshell(number):
+def get_nshell(number: int):
+    """Get the number of shell of an element.
+
+    Parameters
+    ----------
+    number
+        The atomic number.
+
+    """
     noble = np.array([2, 10, 18, 36, 54, 86, 118])
     return noble.searchsorted(number) + 1
 
 
-def _get_initial_mbis_propars(number):
-    nshell = _get_nshell(number)
+def get_initial_mbis_propars(number: int):
+    """Set up initial pro-atom parameters for the MBIS model.
+
+    Parameters
+    ----------
+    number : int
+        Atomic number, denoted by :math:`Z`, of the element for which to generate
+        initial pro-atom parameters.
+
+    Returns
+    -------
+    np.ndarray
+        A 1D numpy array containing the initial parameters for the MBIS model
+        corresponding to the specified atomic number.
+
+    """
+    nshell = get_nshell(number)
     propars = np.zeros(2 * nshell, float)
     S0 = 2.0 * number
     if nshell > 1:
@@ -55,15 +78,48 @@ def _get_initial_mbis_propars(number):
     return propars
 
 
-def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
+def opt_mbis_propars(
+    rho, propars, weights, radial_dist, threshold, density_cutoff=1e-15, logger=logger
+):
+    r"""
+    Optimize pro-atom parameters for the MBIS model.
+
+    Parameters
+    ----------
+    rho : np.ndarray
+        Spherically averaged AIM density (1D) or AIM density (3D) of atom `a`.
+    propars : np.ndarray
+        Initial pro-atom parameters for optimization.
+    weights : np.ndarray
+        Integrand weights; if a spherically averaged density is used, includes :math:`4 \pi r^2`.
+    radial_dist : np.ndarray
+        Array of radial distances with respect to the coordinate of atom `a`.
+    threshold : float
+        Values of density below this threshold are treated as zero.
+    density_cutoff : float, optional
+        Density values below this cutoff are treated as zero (default is 1e-15).
+    logger : logging.Logger
+        Logger object for capturing logging information.
+
+    Returns
+    -------
+    np.ndarray
+        1D array of updated pro-atom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if the sum of pro-atom parameters does not equal the population of atom `a`.
+
+    """
     assert len(propars) % 2 == 0
     nshell = len(propars) // 2
-    r = rgrid.points
+    r = radial_dist
     terms = np.zeros((nshell, len(r)), float)
     oldpro = None
     logger.debug("            Iter.    Change    ")
     logger.debug("            -----    ------    ")
-    pop = rgrid.integrate(4 * np.pi * r**2, rho)
+    pop = np.einsum("p,p->", weights, rho)
     for irep in range(2000):
         # compute the contributions to the pro-atom
         for ishell in range(nshell):
@@ -81,14 +137,11 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
         ratio[sick] = 0.0
         lnratio[sick] = 0.0
 
-        # pro = np.clip(pro, 1e-100, np.inf)
-        # transform to partitions
-        # terms *= rho / pro
         terms *= ratio
         # the partitions and the updated parameters
         for ishell in range(nshell):
-            m0 = rgrid.integrate(4 * np.pi * r**2, terms[ishell])
-            m1 = rgrid.integrate(4 * np.pi * r**2, terms[ishell], r)
+            m0 = np.einsum("p,p->", weights, terms[ishell])
+            m1 = np.einsum("p,p,p->", weights, terms[ishell], r)
             propars[2 * ishell] = m0
             propars[2 * ishell + 1] = 3 * m0 / m1
         # check for convergence
@@ -96,25 +149,58 @@ def _opt_mbis_propars(rho, propars, rgrid, threshold, density_cutoff=1e-15):
             change = 1e100
         else:
             error = oldpro - pro
-            change = np.sqrt(rgrid.integrate(4 * np.pi * r**2, error, error))
+            change = np.sqrt(np.einsum("p,p,p->", weights, error, error))
 
         logger.debug(f"            {irep+1:<4}    {change:.3e}")
 
         if change < threshold:
             if not np.isclose(pop, np.sum(propars[0::2]), atol=1e-4):
-                raise RuntimeWarning("The sum of propars are not equal to the atomic pop.")
-            check_pro_atom_parameters(
-                propars,
-                pro_atom_density=pro,
-                check_monotonicity=True,
-                check_dens_negativity=True,
-                check_propars_negativity=True,
-            )
+                logger.warning("The sum of propars are not equal to the atomic pop.")
+            check_pro_atom_parameters_non_neg_pars(propars, pro_atom_density=pro, logger=logger)
             return propars
         oldpro = pro
-    logger.warn("MBIS not converged!")
+    logger.warning("MBIS not converged, but still go ahead!")
     return propars
     # assert False
+
+
+def update_propars_atom(part, iatom, solver):
+    """Update pro-atom parameters."""
+    at_weights = part.cache.load(f"at_weights_{iatom}")
+    if part.on_molgrid:
+        rhoa = at_weights * part._moldens
+        weights = part.grid.weights
+        radial_dist = part.radial_distances[iatom]
+    else:
+        # compute spherical average
+        atgrid = part.get_grid(iatom)
+        rgrid = atgrid.rgrid
+        dens = part.get_moldens(iatom)
+        spline = atgrid.spherical_average(at_weights * dens)
+        radial_weights = rgrid.weights
+        radial_dist = rgrid.points
+        weights = 4 * np.pi * radial_dist**2 * radial_weights
+        # spherical average
+        rhoa = spline(radial_dist)
+        part.cache.dump(f"radial_points_{iatom}", radial_dist, tags="o")
+        part.cache.dump(f"spherical_average_{iatom}", rhoa, tags="o")
+        part.cache.dump(f"radial_weights_{iatom}", radial_weights, tags="o")
+
+    # assign as new propars
+    my_propars = part.cache.load("propars")[part._ranges[iatom] : part._ranges[iatom + 1]]
+    my_propars[:] = solver(
+        rhoa,
+        my_propars.copy(),
+        weights=weights,
+        radial_dist=radial_dist,
+        threshold=part._inner_threshold,
+        logger=part.logger,
+    )
+
+    # compute the new charge
+    pseudo_population = np.einsum("p,p->", weights, rhoa)
+    charges = part.cache.load("charges", alloc=part.natom, tags="o")[0]
+    charges[iatom] = part.pseudo_numbers[iatom] - pseudo_population
 
 
 class MBISWPart(AbstractISAWPart):
@@ -140,9 +226,12 @@ class MBISWPart(AbstractISAWPart):
 
     def get_rgrid(self, iatom):
         """Get radial grid for `iatom` atom."""
-        return self.get_grid(iatom).rgrid
+        if self.only_use_molgrid:
+            raise NotImplementedError
+        else:
+            return self.get_grid(iatom).rgrid
 
-    def get_proatom_rho(self, iatom, propars=None):
+    def get_proatom_rho(self, iatom: int, propars=None, **kwargs):
         """Get pro-atom density for atom `iatom`.
 
         If `propars` is `None`, the cache values are used; otherwise, the `propars` are used.
@@ -157,8 +246,10 @@ class MBISWPart(AbstractISAWPart):
         """
         if propars is None:
             propars = self.cache.load("propars")
-        rgrid = self.get_rgrid(iatom)
-        r = rgrid.points
+        if self.on_molgrid:
+            r = self.radial_distances[iatom]
+        else:
+            r = self.get_rgrid(iatom).points
         y = np.zeros(len(r), float)
         d = np.zeros(len(r), float)
         my_propars = propars[self._ranges[iatom] : self._ranges[iatom + 1]]
@@ -198,49 +289,60 @@ class MBISWPart(AbstractISAWPart):
         output[:] = y
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         self._nshells = []
         for iatom in range(self.natom):
-            nshell = _get_nshell(self.numbers[iatom])
+            nshell = get_nshell(self.numbers[iatom])
             self._ranges.append(self._ranges[-1] + 2 * nshell)
             self._nshells.append(nshell)
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = _get_initial_mbis_propars(
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = get_initial_mbis_propars(
                 self.numbers[iatom]
             )
         return propars
 
     def _update_propars_atom(self, iatom):
-        # compute spherical average
-        atgrid = self.get_grid(iatom)
-        rgrid = atgrid.rgrid
-        dens = self.get_moldens(iatom)
-        at_weights = self.cache.load("at_weights", iatom)
-        spline = atgrid.spherical_average(at_weights * dens)
-        points = rgrid.points
-        spherical_average = spline(points)
-        # spherical_average = np.clip(spline(rgrid.points), 1e-100, np.inf)
-        self.cache.dump(f"radial_points_{iatom}", points, tags="o")
-        self.cache.dump(f"spherical_average_{iatom}", spherical_average, tags="o")
-        self.cache.dump(f"radial_weights_{iatom}", rgrid.weights, tags="o")
+        update_propars_atom(self, iatom, solver=opt_mbis_propars)
+        # at_weights = self.cache.load(f"at_weights_{iatom}")
+        # if self.on_molgrid:
+        #     rhoa = at_weights * self._moldens
+        #     weights = self.grid.weights
+        #     radial_dist = self.radial_distances[iatom]
+        # else:
+        #     # compute spherical average
+        #     atgrid = self.get_grid(iatom)
+        #     rgrid = atgrid.rgrid
+        #     dens = self.get_moldens(iatom)
+        #     spline = atgrid.spherical_average(at_weights * dens)
+        #     radial_weights = rgrid.weights
+        #     radial_dist = rgrid.points
+        #     weights = 4 * np.pi * radial_dist**2 * radial_weights
+        #     # spherical average
+        #     rhoa = spline(radial_dist)
+        #     self.cache.dump(f"radial_points_{iatom}", radial_dist, tags="o")
+        #     self.cache.dump(f"spherical_average_{iatom}", rhoa, tags="o")
+        #     self.cache.dump(f"radial_weights_{iatom}", radial_weights, tags="o")
 
-        # assign as new propars
-        my_propars = self.cache.load("propars")[self._ranges[iatom] : self._ranges[iatom + 1]]
-        my_propars[:] = _opt_mbis_propars(
-            spherical_average, my_propars.copy(), rgrid, self._inner_threshold
-        )
+        # # assign as new propars
+        # my_propars = self.cache.load("propars")[
+        #     self._ranges[iatom] : self._ranges[iatom + 1]
+        # ]
+        # my_propars[:] = opt_mbis_propars(
+        #     rhoa,
+        #     my_propars.copy(),
+        #     weights=weights,
+        #     radial_dist=radial_dist,
+        #     threshold=self._inner_threshold,
+        #     logger=self.logger,
+        # )
 
-        # avoid too large r
-        # r = np.clip(rgrid.points, 1e-100, 1e10)
-
-        # compute the new charge
-        # 4 * np.pi * rgrid.points ** 2 * spherical_average
-        pseudo_population = rgrid.integrate(4 * np.pi * points**2, spherical_average)
-        charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
-        charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
+        # # compute the new charge
+        # pseudo_population = np.einsum("p,p->", weights, rhoa)
+        # charges = self.cache.load("charges", alloc=self.natom, tags="o")[0]
+        # charges[iatom] = self.pseudo_numbers[iatom] - pseudo_population
 
     def _finalize_propars(self):
         AbstractISAWPart._finalize_propars(self)

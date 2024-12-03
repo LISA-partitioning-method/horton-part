@@ -29,7 +29,7 @@ def deflist(logger: logging.Logger, l: list) -> None:
 
     Parameters
     ----------
-    logger:
+    logger: logging.Logger
         The logger.
     l : list
         A list of keyword and value pairs. A table will be printed where the first

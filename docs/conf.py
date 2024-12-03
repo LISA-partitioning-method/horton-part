@@ -21,9 +21,10 @@ sys.path.insert(0, os.path.abspath("../"))
 # -- Project information -----------------------------------------------------
 
 project = "Horton-Part"
-copyright = "2023, YingXing Cheng"
+copyright = "2024, YingXing Cheng"
 author = "YingXing Cheng"
 # version = __version__
+version = "latest"
 # release = __version__
 
 

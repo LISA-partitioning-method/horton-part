@@ -45,10 +45,10 @@ class BeckeWPart(WPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         k=3,
         logger=None,
+        grid_type=1,
     ):
         """
         **Optional arguments:** (that are not defined in ``WPart``)
@@ -65,9 +65,9 @@ class BeckeWPart(WPart):
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
+            grid_type=grid_type,
         )
 
     def _init_log_scheme(self):
@@ -109,7 +109,7 @@ class BeckeWPart(WPart):
         # Actual work
         for index in range(self.natom):
             grid = self.get_grid(index)
-            at_weights = self.cache.load("at_weights", index, alloc=grid.size)[0]
+            at_weights = self.cache.load(f"at_weights_{index}", alloc=grid.size)[0]
             at_weights[:] = bw_helper.compute_atom_weight(
                 grid.points, self.coordinates, self.numbers, index
             )

@@ -73,6 +73,10 @@ Functionality
 
     * Global Linear approximation of the ISA (gLISA) method
 
+    * Generalized Minimal Basis Iterative Stockholder (GMBIS)
+
+    * Non-linear approximation of the ISA (NLIS) method
+
 
 Citations
 =========
@@ -140,7 +144,7 @@ Modules
     ./notebooks/mbis.ipynb
     ./notebooks/lisa.ipynb
     ./notebooks/lisa_diis.ipynb
-    ./notebooks/lisa_g.ipynb
+    ./notebooks/glisa.ipynb
 
     ./notebooks/hirshfeld.ipynb
     ./notebooks/mulliken.ipynb

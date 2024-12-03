@@ -1,0 +1,131 @@
+is:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+
+gisa:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - solver
+    - solver_options
+    - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+
+mbis:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+
+lisa:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+    - func_file
+  class_args:
+    - basis_func
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - solver
+    - solver_options
+    - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+    - basis_type
+
+nlis:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - exp_n_dict
+    - nshell_dict
+    - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+
+gmbis:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+  class_args:
+    - maxiter
+    - threshold
+    - inner_threshold
+    - lmax
+    - exp_n_dict
+    - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+
+glisa:
+  io_infos:
+    - inputs
+    - outputs
+    - log_files
+    - log_level
+    - part_job_type
+    - func_file
+  class_args:
+    - basis_func
+    - maxiter
+    - threshold
+    - lmax
+    - solver
+    - solver_options
+    - grid_type
+    - density_cutoff
+    - population_cutoff
+    - negative_cutoff
+    - basis_type

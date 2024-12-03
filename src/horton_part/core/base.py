@@ -25,7 +25,7 @@ import logging
 import numpy as np
 from grid import AtomGrid
 
-from ..utils import typecheck_geo
+from ..utils import DENSITY_CUTOFF, NEGATIVE_CUTOFF, POPULATION_CUTOFF, typecheck_geo
 from .cache import Cache, JustOnceClass, just_once
 from .logging import deflist, setup_logger
 
@@ -36,7 +36,18 @@ class Part(JustOnceClass):
     name = None
 
     def __init__(
-        self, coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax, logger
+        self,
+        coordinates,
+        numbers,
+        pseudo_numbers,
+        grid,
+        moldens,
+        spindens,
+        local,
+        lmax,
+        logger,
+        *args,
+        **kwargs,
     ):
         """
         Parameters
@@ -98,6 +109,10 @@ class Part(JustOnceClass):
     def __getitem__(self, key):
         return self.cache.load(key)
 
+    def variables_stored_in_cache(self):
+        """The properties stored in cache obj."""
+        return list(self.cache.iterkeys())
+
     @property
     def natom(self):
         """The number of atoms in the molecule."""
@@ -105,7 +120,7 @@ class Part(JustOnceClass):
 
     @property
     def coordinates(self):
-        """Atomic coordinates."""
+        r"""ndarray(M, 3) : Center/Atomic coordinates."""
         return self._coordinates
 
     @property
@@ -187,7 +202,10 @@ class Part(JustOnceClass):
         np.ndarray
             The molecular electron density on the atomic grid.
         """
-        result = self.to_atomic_grid(index, self._moldens)
+        if index is None or not self.local:
+            result = self._moldens
+        else:
+            result = self.to_atomic_grid(index, self._moldens)
         if output is not None:
             output[:] = result
         return result
@@ -213,7 +231,10 @@ class Part(JustOnceClass):
         np.ndarray
             The spin density on the atomic grid.
         """
-        result = self.to_atomic_grid(index, self._spindens)
+        if index is None or not self.local:
+            result = self._spindens
+        else:
+            result = self.to_atomic_grid(index, self._spindens)
         if output is not None:
             output[:] = result
         return result
@@ -231,11 +252,15 @@ class Part(JustOnceClass):
         """Load atomic contribution of molecular properties."""
         raise NotImplementedError
 
+    def get_wcor(self, index):
+        """Load correction of weights."""
+        return 1.0
+
     def compute_pseudo_population(self, index):
         """Compute pseudo population"""
         grid = self.get_grid(index)
         dens = self.get_moldens(index)
-        at_weights = self.cache.load("at_weights", index)
+        at_weights = self.cache.load(f"at_weights_{index}")
         return grid.integrate(at_weights, dens)
 
     @just_once
@@ -245,7 +270,7 @@ class Part(JustOnceClass):
 
     do_partitioning.names = []
 
-    def update_at_weights(self):
+    def update_at_weights(self, *args, **kwargs):
         """Updates the at_weights arrays in the case (and all related arrays)"""
         raise NotImplementedError
 
@@ -258,20 +283,31 @@ class Part(JustOnceClass):
             pseudo_populations = self.cache.load("pseudo_populations", alloc=self.natom, tags="o")[
                 0
             ]
-            print("Computing atomic populations.")
-            for i in range(self.natom):
-                pseudo_populations[i] = self.compute_pseudo_population(i)
+            self.logger.info("Computing atomic populations.")
+            for index in range(self.natom):
+                # pseudo_populations[i] = self.compute_pseudo_population(index)
+                # Be consistent with do_spin_dens
+                grid = self.get_grid(index)
+                dens = self.get_moldens(index)
+                at_weights = self.cache.load(f"at_weights_{index}")
+                # weights correction
+                wcor = self.get_wcor(index)
+                # TODO: This is only for gLISA with grid_type == 1. We need to improve this.
+                if at_weights.shape == self._grid.weights.shape:
+                    at_weights = self.to_atomic_grid(index, at_weights)
+                pseudo_populations[index] = grid.integrate(at_weights, dens * wcor)
             populations[:] = pseudo_populations
             populations += self.numbers - self.pseudo_numbers
 
     @just_once
     def do_charges(self):
         """Compute atomic charges."""
+        # The charges are calculated in methods.
         charges, new = self._cache.load("charges", alloc=self.natom, tags="o")
         if new:
             self.do_populations()
             populations = self._cache.load("populations")
-            print("Computing atomic charges.")
+            self.logger.info("Computing atomic charges.")
             charges[:] = self.numbers - populations
 
     @just_once
@@ -280,15 +316,15 @@ class Part(JustOnceClass):
         if self._spindens is not None:
             spin_charges, new = self._cache.load("spin_charges", alloc=self.natom, tags="o")
             self.do_partitioning()
-            print("Computing atomic spin charges.")
+            self.logger.info("Computing atomic spin charges.")
             for index in range(self.natom):
                 grid = self.get_grid(index)
                 spindens = self.get_spindens(index)
-                at_weights = self.cache.load("at_weights", index)
+                at_weights = self.cache.load(f"at_weights_{index}")
                 # weights correction
-                # wcor = self.get_wcor(index)
-                # spin_charges[index] = grid.integrate(at_weights, spindens, wcor)
-                spin_charges[index] = grid.integrate(at_weights, spindens)
+                wcor = self.get_wcor(index)
+                spin_charges[index] = grid.integrate(at_weights, spindens * wcor)
+                # spin_charges[index] = grid.integrate(at_weights, spindens)
 
     @just_once
     def do_moments(self):
@@ -323,12 +359,14 @@ class Part(JustOnceClass):
                 grid = self.get_grid(i)
 
                 # 2) Compute the AIM
-                aim = self.get_moldens(i) * self.cache.load("at_weights", i)
+                at_weights = self.cache.load(f"at_weights_{i}")
+                # TODO: This is only for gLISA with grid_type == 1. We need to improve this.
+                if at_weights.shape == self._grid.weights.shape:
+                    at_weights = self.to_atomic_grid(i, at_weights)
+                aim = self.get_moldens(i) * at_weights
 
                 # 3) Compute weight corrections
-                # wcor = self.get_wcor(i)
-                # wcor = 1 if wcor is None else wcor
-                wcor = 1
+                wcor = self.get_wcor(i)
 
                 # 4) Compute Cartesian multipole moments
                 # The minus sign is present to account for the negative electron
@@ -383,9 +421,13 @@ class WPart(Part):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
+        grid_type=1,
+        density_cutoff=DENSITY_CUTOFF,
+        negative_cutoff=NEGATIVE_CUTOFF,
+        population_cutoff=POPULATION_CUTOFF,
+        **kwargs,
     ):
         """
         Parameters
@@ -410,6 +452,12 @@ class WPart(Part):
         lmax : int, optional
              The maximum angular momentum in multipole expansions.
         """
+        self._grid_type = grid_type
+        self._on_molgrid = None
+        self._only_use_molgrid = None
+        self.setup_grids()
+        local = not self._only_use_molgrid
+
         if local and grid.atgrids is None:
             raise ValueError(
                 "Atomic grids are discarded from molecular grid object, "
@@ -423,6 +471,141 @@ class WPart(Part):
             coordinates, numbers, pseudo_numbers, grid, moldens, spindens, local, lmax, logger
         )
 
+        # Attributes for iterative density partitioning methods.
+        self.history_propars = []
+        self.history_charges = []
+        self.history_entropies = []
+        self.history_changes = []
+        self.history_time_update_at_weights = []
+        self.history_time_update_propars = []
+
+        # attributes related to grids.
+        self._radial_distances = []
+
+        # Setup cutoff for numerical calculations.
+        self._density_cutoff = density_cutoff
+        self._population_cutoff = population_cutoff
+        self._negative_cutoff = negative_cutoff
+
+    def setup_grids(self):
+        """Setup grids used in partitioning.
+
+        # 1. atom_grids + mol_grid, use atoms for everything and mol_grid is only used for weights calculation
+        # 2. atom_grids + mol_grid, use mol_grid for everything but atom_grids are used applied contratins.
+        # 3. mol_grid, use mol_grid for everything, like in gLISA+.
+        """
+        assert self.grid_type in [1, 2, 3]
+        self._on_molgrid = True if self.grid_type in [2, 3] else False
+        self._only_use_molgrid = True if self.grid_type in [3] else False
+
+    @property
+    def grid_type(self):
+        """Get the type of grids used for partitioning density.
+
+        Returns
+        -------
+        str
+            The type of grids used in the partitioning process.
+        """
+        return self._grid_type
+
+    @property
+    def only_use_molgrid(self):
+        """
+        Check whether intermediate values are computed exclusively using molecular grids.
+
+        When set to `True`, all quantities are computed solely on the molecular grid.
+
+        Returns
+        -------
+        bool
+            True if intermediate values are computed only using the molecular grid, False otherwise.
+        """
+        return self._only_use_molgrid
+
+    @property
+    def on_molgrid(self):
+        """
+        Check whether quantities are computed on molecular grids.
+
+        These grids are used for evaluating various properties, including:
+
+        - AIM (Atoms-in-Molecule) weight functions: :math:`w_a(\\mathbf{r})`.
+        - Pro-atom density: :math:`\rho_a^0(\\mathbf{r})`.
+        - Pro-molecule density: :math:`\rho^0(\\mathbf{r})`.
+        - Mean-square deviation during computations.
+
+        Returns
+        -------
+        bool
+            True if quantities are computed on molecular grids, False otherwise.
+        """
+        return self._on_molgrid
+
+    @property
+    def radial_distances(self):
+        """
+        Get the radial distances of points from the atomic coordinates.
+
+        The radial distances are calculated as the L2 norm (Euclidean distance)
+        of the points relative to the atomic coordinates.
+
+        Notes
+        -----
+        Accessing this property triggers the calculation of radial distances
+        via the `calc_radial_distances` method.
+
+        Returns
+        -------
+        list
+            A list containing the radial distances of points for each atom.
+        """
+        self.calc_radial_distances()
+        return self._radial_distances
+
+    @property
+    def density_cutoff(self):
+        """
+        Get the density cutoff value.
+
+        Density values below this cutoff are considered to be invalid.
+
+        Returns
+        -------
+        float
+            The cutoff value for density.
+        """
+        return self._density_cutoff
+
+    @property
+    def population_cutoff(self):
+        """
+        Get the population cutoff criterion.
+
+        This represents the allowed difference between the sum of proatom parameters
+        and the reference population for determining accuracy of methods.
+
+        Returns
+        -------
+        float
+            The cutoff value for population differences.
+        """
+        return self._population_cutoff
+
+    @property
+    def negative_cutoff(self):
+        """
+        Get the negative cutoff value.
+
+        Values less than this threshold are treated as negative in computations.
+
+        Returns
+        -------
+        float
+            The negative cutoff value.
+        """
+        return self._negative_cutoff
+
     def _init_log_base(self):
         self.logger.info("Performing a density-based AIM analysis with a wavefunction as input.")
         deflist(
@@ -434,6 +617,7 @@ class WPart(Part):
         )
 
     def _init_subgrids(self):
+        # TODO: fix me, the subgrids are not necessary to be the atom grids.
         self._subgrids = self._grid.atgrids
 
     def to_atomic_grid(self, index, data):
@@ -442,6 +626,13 @@ class WPart(Part):
         else:
             begin, end = self.grid.indices[index], self.grid.indices[index + 1]
             return data[begin:end]
+
+    @just_once
+    def calc_radial_distances(self):
+        """Calculate radial distance w.r.t coordinates."""
+        for iatom in range(self.natom):
+            r = np.linalg.norm(self.grid.points - self.coordinates[iatom], axis=1)
+            self._radial_distances.append(r)
 
     @just_once
     def do_density_decomposition(self):
@@ -458,7 +649,10 @@ class WPart(Part):
                 moldens = self.get_moldens(index)
                 self.do_partitioning()
                 print("Computing density decomposition for atom %i" % index)
-                at_weights = self.cache.load("at_weights", index)
+                at_weights = self.cache.load(f"at_weights_{index}")
+                # TODO: This is only for gLISA with grid_type == 1. We need to improve this.
+                if at_weights.shape == self._grid.weights.shape:
+                    at_weights = self.to_atomic_grid(index, at_weights)
                 assert atgrid.l_max >= self.lmax
                 splines = atgrid.radial_component_splines(moldens * at_weights)
                 density_decomp = {"spline_%05i" % j: spl for j, spl in enumerate(splines)}

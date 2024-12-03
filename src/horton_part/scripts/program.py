@@ -25,6 +25,7 @@ import os
 import yaml
 
 from horton_part import PERIODIC_TABLE, __version__, setup_logger
+from horton_part.utils import DATA_PATH
 
 __all__ = ["PartProg", "load_settings_from_yaml_file"]
 
@@ -69,53 +70,70 @@ def load_settings_from_yaml_file(args, sub_cmd="part-gen", fn_key="config_file")
     """
     assert hasattr(args, fn_key)
     yaml_fn = getattr(args, fn_key)
-    if yaml_fn and os.path.exists(yaml_fn):
-        with open(yaml_fn) as f:
-            settings = yaml.safe_load(f)
-        if sub_cmd:
-            assert sub_cmd in settings
-            for k, v in settings[sub_cmd].items():
-                setattr(args, k, v)
-        else:
-            for k, v in settings.items():
-                setattr(args, k, v)
-    return args
+    assert os.path.exists(yaml_fn)
+    with open(yaml_fn) as f:
+        settings = yaml.safe_load(f)
+    return settings[sub_cmd] if sub_cmd in settings else settings
 
 
 class PartProg:
-    def __init__(self, program_name, width):
+    def __init__(self, program_name, width, description=None):
         self.width = width
         self.program_name = program_name
         self.logger = logging.getLogger(program_name)
+        self.default_settings = {}
+        self.description = description or f"The description of program {program_name}"
+
+    def _set_default(self, settings, yaml_file=None):
+        yaml_file = yaml_file or DATA_PATH / f"{self.program_name}.yaml"
+        with open(yaml_file) as file:
+            self.default_settings = yaml.safe_load(file)
+        for key, value in self.default_settings.items():
+            settings.setdefault(key, value)
+
+    def check_settings(self, settings):
+        assert "inputs" in settings and isinstance(settings["inputs"], list)
+        inputs = settings["inputs"]
+        settings.setdefault("outputs", [f"output_{i+1}.npz" for i in range(len(inputs))])
+        outputs = settings["outputs"]
+        settings.setdefault("log_files", [None] * len(inputs))
+        logs = settings["log_files"]
+        if len(inputs) == len(outputs) == len(logs):
+            return True
+        else:
+            return False
 
     def run(self, args=None) -> int:
         """Main entry."""
         parser = self.build_parser()
         args = parser.parse_args(args)
-        args = load_settings_from_yaml_file(args, self.program_name)
-        if args.inputs is None:
+        if not hasattr(args, "config_file"):
             parser.print_help()
             return 0
 
-        log_files = getattr(args, "log_files", None)
-        inputs = args.inputs
-        outputs = args.outputs
-        if not isinstance(inputs, list):
-            inputs = [inputs]
-            outputs = [outputs]
-        if log_files is None:
-            log_files = [None] * len(inputs)
-        assert len(inputs) == len(outputs) == len(log_files)
-        for index, (fn_in, fn_out, fn_log) in enumerate(zip(inputs, outputs, log_files)):
-            self.single_launch(args, fn_in, fn_out, fn_log, index=index)
+        settings = load_settings_from_yaml_file(args, self.program_name)
+        self._set_default(settings)
+
+        if not self.check_settings(settings):
+            raise RuntimeError(f"The settings for {self.program_name} is not fully correct.")
+
+        for ifile, (fn_in, fn_out, fn_log) in enumerate(
+            zip(settings["inputs"], settings["outputs"], settings["log_files"])
+        ):
+            if (
+                hasattr(args, "skip_exist_files")
+                and args.skip_exist_files
+                and os.path.exists(fn_out)
+            ):
+                if fn_log is None or os.path.exists(fn_log):
+                    print(f"Skip the calculations with input: {fn_in}")
+                    continue
+            self.single_launch(settings, fn_in, fn_out, fn_log, ifile=ifile)
         return 0
 
-    def setup_logger(self, args: argparse.Namespace, fn_log, **kwargs):
+    def setup_logger(self, settings: dict, fn_log, **kwargs):
         # Convert the log level string to a logging level
-        if not hasattr(args, "log_level"):
-            log_level = logging.INFO
-        else:
-            log_level = getattr(logging, args.log_level, logging.INFO)
+        log_level = getattr(logging, settings.get("log_level", "INFO"))
         setup_logger(self.logger, log_level, fn_log, **kwargs)
 
     def single_launch(self, *args, **kwargs):
@@ -124,14 +142,27 @@ class PartProg:
 
     def build_parser(self, *args, **kwargs):
         """Parse command-line arguments."""
-        raise NotImplementedError
+        # description = """Generate molecular density with HORTON3."""
+        description = self.description
+        parser = argparse.ArgumentParser(prog=self.program_name, description=description)
+        parser.add_argument(
+            "config_file",
+            type=str,
+            help="Use configure file.",
+        )
+        parser.add_argument(
+            "--skip_exist_files",
+            action="store_true",
+            help="Skip the calculation if the output files and log files exist",
+        )
+        return parser
 
-    def print_settings(self, args, fn_in, fn_out, fn_log, exclude_keys=None):
+    def print_settings(self, settings: dict, fn_in, fn_out, fn_log, exclude_keys=None):
         """Print setting for this program."""
         self.print_header(
             f"Settings for {self.program_name} program with Horton-Part {__version__}"
         )
-        for k, v in vars(args).items():
+        for k, v in settings.items():
             if exclude_keys and k in exclude_keys:
                 continue
             if k in ["inputs", "outputs", "log_files"]:

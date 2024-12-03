@@ -26,30 +26,23 @@ import numpy as np
 from .cache import just_once
 from .stockholder import AbstractStockholderWPart
 
-__all__ = ["AbstractISAWPart", "compute_change", "init_propars"]
+__all__ = ["AbstractISAWPart", "compute_change"]
 
 
-def compute_change(part, propars1, propars2):
+def compute_change(part, propars1, propars2, force_on_molgrid=False):
     """Compute the difference between an old and a new proatoms"""
     # Compute mean-square deviation
     msd = 0.0
     for index in range(part.natom):
-        rgrid = part.get_rgrid(index)
         rho1, deriv1 = part.get_proatom_rho(index, propars1)
         rho2, deriv2 = part.get_proatom_rho(index, propars2)
         delta = rho1 - rho2
-        msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
+        if part.on_molgrid or force_on_molgrid:
+            msd += part.grid.integrate(delta, delta)
+        else:
+            rgrid = part.get_rgrid(index)
+            msd += rgrid.integrate(4 * np.pi * rgrid.points**2, delta, delta)
     return np.sqrt(msd)
-
-
-def init_propars(part):
-    """Initial pro-atom parameters and cache lists."""
-    part.history_propars = []
-    part.history_charges = []
-    part.history_entropies = []
-    part.history_changes = []
-    part.history_time_update_at_weights = []
-    part.history_time_update_propars = []
 
 
 def finalize_propars(part):
@@ -76,14 +69,14 @@ class AbstractISAWPart(AbstractStockholderWPart):
         grid,
         moldens,
         spindens=None,
-        local=True,
         lmax=3,
         logger=None,
         # New parameters added
         threshold=1e-6,
         maxiter=500,
         inner_threshold=1e-8,
-        radius_cutoff=np.inf,
+        grid_type=1,
+        **kwargs,
     ):
         """
         Initial function.
@@ -102,57 +95,32 @@ class AbstractISAWPart(AbstractStockholderWPart):
              Reduce the CPU cost at the expense of more memory consumption.
         inner_threshold : float
             The threshold for inner local optimization problem.
-        radius_cutoff : float
-            The radius of the sphere where the local grids are considered.
 
         """
         self._threshold = threshold
         self._inner_threshold = inner_threshold if inner_threshold < threshold else threshold
         self._maxiter = maxiter
-        self._radius_cutoff = radius_cutoff
-        AbstractStockholderWPart.__init__(
-            self,
+        super().__init__(
             coordinates,
             numbers,
             pseudo_numbers,
             grid,
             moldens,
             spindens,
-            local,
             lmax,
             logger,
+            grid_type=grid_type,
+            **kwargs,
         )
-
-    @property
-    def radius_cutoff(self):
-        """
-        Get the radius of the local grid sphere.
-
-        This property returns the radius of the sphere within which local grids are considered.
-        The local grid radius is used in [global methods]. It's a key parameter in [some process].
-
-        Returns
-        -------
-        float
-            The radius of the local grid sphere.
-
-        Raises
-        ------
-        ValueError
-            If the local grid radius is not set or out of an expected range.
-        """
-        if self._radius_cutoff is None or self._radius_cutoff < 0:
-            raise ValueError("Local grid radius is not properly set.")
-        return self._radius_cutoff
 
     def compute_change(self, propars1, propars2):
         """Compute the difference between an old and a new proatoms"""
         # Compute mean-square deviation
-        return compute_change(self, propars1, propars2)
+        return compute_change(self, propars1, propars2, self.on_molgrid)
 
     def _init_propars(self):
         """Initial pro-atom parameters and cache lists."""
-        init_propars(self)
+        raise NotImplementedError
 
     def _update_entropy(self):
         if "promoldens" in self.cache:
@@ -191,7 +159,6 @@ class AbstractISAWPart(AbstractStockholderWPart):
     @just_once
     def do_partitioning(self):
         """Do partitioning"""
-        # self.initial_local_grids()
         # Perform one general check in the beginning to avoid recomputation
         new = any(("at_weights", i) not in self.cache for i in range(self.natom))
         new |= "niter" not in self.cache

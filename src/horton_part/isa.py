@@ -57,9 +57,12 @@ class ISAWPart(AbstractISAWPart):
         # biblio.cite("lillestolen2008", "the use of Iterative Stockholder partitioning")
 
     def get_rgrid(self, index):
-        return self.get_grid(index).rgrid
+        if self.only_use_molgrid:
+            raise NotImplementedError
+        else:
+            return self.get_grid(index).rgrid
 
-    def get_proatom_rho(self, index, propars=None):
+    def get_proatom_rho(self, iatom, propars=None, **kwargs):
         """
         Get pro-atom density using the ISA method.
 
@@ -68,7 +71,7 @@ class ISAWPart(AbstractISAWPart):
 
         Parameters
         ----------
-        index : int
+        iatom : int
             The index of an atom in a molecule. Must be a non-negative integer less than the number of atoms.
         propars : np.array, optional
             An array of pro-atom parameters. If None, parameters will be loaded from the cache.
@@ -82,10 +85,13 @@ class ISAWPart(AbstractISAWPart):
         """
         if propars is None:
             propars = self.cache.load("propars")
-        return propars[self._ranges[index] : self._ranges[index + 1]], None
+        if self.on_molgrid:
+            raise NotImplementedError
+        else:
+            return propars[self._ranges[iatom] : self._ranges[iatom + 1]], None
 
     def _init_propars(self):
-        AbstractISAWPart._init_propars(self)
+        # AbstractISAWPart._init_propars(self)
         self._ranges = [0]
         for index in range(self.natom):
             npoint = self.get_rgrid(index).size
@@ -97,7 +103,7 @@ class ISAWPart(AbstractISAWPart):
         # compute spherical average
         atgrid = self.get_grid(index)
         dens = self.get_moldens(index)
-        at_weights = self.cache.load("at_weights", index)
+        at_weights = self.cache.load(f"at_weights_{index}")
         # avoid too large r
         r = np.clip(atgrid.rgrid.points, 1e-100, 1e10)
         spline = atgrid.spherical_average(at_weights * dens)
