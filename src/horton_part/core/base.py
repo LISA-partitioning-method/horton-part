@@ -292,6 +292,9 @@ class Part(JustOnceClass):
                 at_weights = self.cache.load(f"at_weights_{index}")
                 # weights correction
                 wcor = self.get_wcor(index)
+                # TODO: This is only for gLISA with grid_type == 1. We need to improve this.
+                if at_weights.shape == self._grid.weights.shape:
+                    at_weights = self.to_atomic_grid(index, at_weights)
                 pseudo_populations[index] = grid.integrate(at_weights, dens * wcor)
             populations[:] = pseudo_populations
             populations += self.numbers - self.pseudo_numbers
@@ -356,7 +359,11 @@ class Part(JustOnceClass):
                 grid = self.get_grid(i)
 
                 # 2) Compute the AIM
-                aim = self.get_moldens(i) * self.cache.load(f"at_weights_{i}")
+                at_weights = self.cache.load(f"at_weights_{i}")
+                # TODO: This is only for gLISA with grid_type == 1. We need to improve this.
+                if at_weights.shape == self._grid.weights.shape:
+                    at_weights = self.to_atomic_grid(i, at_weights)
+                aim = self.get_moldens(i) * at_weights
 
                 # 3) Compute weight corrections
                 wcor = self.get_wcor(i)
@@ -643,6 +650,9 @@ class WPart(Part):
                 self.do_partitioning()
                 print("Computing density decomposition for atom %i" % index)
                 at_weights = self.cache.load(f"at_weights_{index}")
+                # TODO: This is only for gLISA with grid_type == 1. We need to improve this.
+                if at_weights.shape == self._grid.weights.shape:
+                    at_weights = self.to_atomic_grid(index, at_weights)
                 assert atgrid.l_max >= self.lmax
                 splines = atgrid.radial_component_splines(moldens * at_weights)
                 density_decomp = {"spline_%05i" % j: spl for j, spl in enumerate(splines)}
