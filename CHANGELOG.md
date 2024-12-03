@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6]  - 2024-12-03
+
+### Added
+- NLIS model and tests with `yaml` file.
+- GMBIS model and tests with `yaml` file
+- Different integral grids for partitioning are implemented.
+
+### Fixed
+- The `local_grids` setups are removed.
+- Docs are updated for new APIs.
+- Density cutoff and negative cutoff are added as explicit input arguments, becuase they are important for entropy evaluations.
+
 ## [1.1.5]  - 2024-10-02
 
 ### Fixed
