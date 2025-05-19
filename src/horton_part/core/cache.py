@@ -1,5 +1,5 @@
 # HORTON-PART: molecular density partition schemes based on HORTON package.
-# Copyright (C) 2023-2024 The HORTON-PART Development Team
+# Copyright (C) 2023-2025 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -19,9 +19,9 @@
 # --
 """Avoid recomputation of earlier results and reallocation of existing arrays
 
-   In principle, the ``JustOnceClass`` and the ``Cache`` can be used
-   independently, but in some cases it makes a lot of sense to combine them.
-   See for example the density partitioning code in ``horton.part``.
+In principle, the ``JustOnceClass`` and the ``Cache`` can be used
+independently, but in some cases it makes a lot of sense to combine them.
+See for example the density partitioning code in ``horton.part``.
 """
 
 import time

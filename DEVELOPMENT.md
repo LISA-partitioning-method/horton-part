@@ -4,7 +4,7 @@
 
 - Mark release in `CHANGELOG.md`
     - `git add CHANGELOG.md`
-    - `git commit -m "Parepare for release X.Y.Z"`
+    - `git commit -m "Prepare for release X.Y.Z"`
 - Modify version in `pyproject.toml` (skip this step if dynamic version is used)
 - Make a new commit and tag it with `vX.Y.Z`
     - `git tag -a vX.Y.Z -m "Version X.Y.Z"`

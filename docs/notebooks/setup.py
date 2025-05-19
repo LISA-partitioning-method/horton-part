@@ -19,13 +19,13 @@ def prepare_grid_and_dens(filename):
     rgrid = rtf.transform_1d_grid(uniform_grid)
     becke = BeckeWeights()
     grid = MolGrid.from_preset(
-        mol.atnums, mol.atcoords, rgrid, "fine", becke, rotate=False, store=True
+        mol.atnums, mol.atcoords, "fine", rgrid, becke, rotate=False, store=True
     )
 
     # Get the spin-summed density matrix
     one_rdm = mol.one_rdms.get("post_scf", mol.one_rdms.get("scf"))
-    basis, coord_types = from_iodata(mol)
-    basis_grid = evaluate_basis(basis, grid.points, coord_type=coord_types)
+    basis = from_iodata(mol)
+    basis_grid = evaluate_basis(basis, grid.points)
     rho = np.einsum("ab,bp,ap->p", one_rdm, basis_grid, basis_grid, optimize=True)
     nelec = grid.integrate(rho)
     print(f"The number of electrons: {nelec}")

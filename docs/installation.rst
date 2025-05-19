@@ -15,11 +15,17 @@ The latest code can be obtained from GitHub:
 Installing
 ==========
 
-To install `HORTON-PART` version `0.0.X`:
+To install the latest version of `HORTON-PART`.
 
 .. code-block:: bash
 
    pip install horton-part
+
+To install `HORTON-PART` version `0.0.X`:
+
+.. code-block:: bash
+
+   pip install horton-part==0.0.X
 
 To install the latest version from the repository:
 
@@ -60,8 +66,8 @@ Dependencies
 
 The following dependencies are required for `HORTON-PART` to build properly:
 
-- `quadprog>=0.1.11` : https://github.com/quadprog/quadprog
+- `quadprog>=0.1.13` : https://github.com/quadprog/quadprog
 - `cvxopt>=1.3.1` : https://github.com/cvxopt/cvxopt
-- `qc-grid` : https://github.com/theochem/grid
+- `qc-grid>=0.0.9` : https://github.com/theochem/grid
 - `qc-iodata` : https://github.com/theochem/iodata
-- `gbasis` : https://github.com/theochem/gbasis
+- `qc-gbasis>=0.1.0` : https://github.com/theochem/gbasis

@@ -1,5 +1,5 @@
 # HORTON-PART: molecular density partition schemes based on HORTON package.
-# Copyright (C) 2023-2024 The HORTON-PART Development Team
+# Copyright (C) 2023-2025 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -48,7 +48,7 @@ def check_water_hf_sto3g(scheme, expecting, needs_padb=True, check_spline=True, 
     uniform_grid = UniformInteger(120)
     rgrid = rtf.transform_1d_grid(uniform_grid)
     becke = BeckeWeights()
-    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
+    grid = MolGrid.from_size(nums, coords, 110, rgrid, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
     points_sorted, new_sort = reorder_rows(grid.points, points, return_order=True)
     dens_sorted = dens[new_sort]
@@ -114,7 +114,7 @@ def check_msa_hf_lan(scheme, expecting, needs_padb=True, **kwargs):
     uniform_grid = UniformInteger(120)
     rgrid = rtf.transform_1d_grid(uniform_grid)
     becke = BeckeWeights()
-    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
+    grid = MolGrid.from_size(nums, coords, 110, rgrid, becke, rotate=False, store=True)
     # check the grid points against stored points on which density is evaluated
     points_sorted, new_sort = reorder_rows(grid.points, points, return_order=True)
     dens_sorted = dens[new_sort]

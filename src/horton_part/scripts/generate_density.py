@@ -1,5 +1,5 @@
 # HORTON-PART: molecular density partition schemes based on HORTON package.
-# Copyright (C) 2023-2024 The HORTON-PART Development Team
+# Copyright (C) 2023-2025 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -108,7 +108,7 @@ def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids, logger):
     becke._radii[54] = 3.5
     oned = GaussChebyshev(nrad)
     rgrid = BeckeRTransform(1e-4, 1.5).transform_1d_grid(oned)
-    grid = MolGrid.from_size(atnums, atcoords, rgrid, nang, becke, store=store_atgrids, rotate=0)
+    grid = MolGrid.from_size(atnums, atcoords, nang, rgrid, becke, store=store_atgrids, rotate=0)
     assert np.isfinite(grid.points).all()
     assert np.isfinite(grid.weights).all()
     assert (grid.weights >= 0).all()
@@ -146,7 +146,8 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size, logger):
             )
         coeffs, occs = iodata.mo.coeffs, iodata.mo.occs
         one_rdm = np.dot(coeffs * occs, coeffs.T)
-    basis, coord_types = from_iodata(iodata)
+    # basis, coord_types = from_iodata(iodata)
+    basis = from_iodata(iodata)
 
     # Prepare result dictionary.
     result = {"density": np.zeros(len(points))}
@@ -171,12 +172,12 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size, logger):
         logger.info(f"Computing stuff: {istart} ... {iend} / {len(points)}")
         # Basis functions are computed upfront for efficiency.
         logger.info("  basis")
-        basis_grid = evaluate_basis(basis, points[istart:iend], coord_type=coord_types)
+        basis_grid = evaluate_basis(basis, points[istart:iend])
         if gradient:
             logger.info("  basis_gradient")
             basis_gradient_grid = np.array(
                 [
-                    evaluate_deriv_basis(basis, points[istart:iend], orders, coord_type=coord_types)
+                    evaluate_deriv_basis(basis, points[istart:iend], orders)
                     for orders in np.identity(3, dtype=int)
                 ]
             )

@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "macos-latest"]
-        py: ["3.10"]
+        py: ["3.10", '3.11', '3.12', '3.13']
 
     steps:
       - uses: "actions/checkout@v3"
@@ -27,7 +27,8 @@ jobs:
       - name: Install dependencies for testing
         run: |
           pip install --upgrade pip
-          pip install "pytest<8.0" pytest-md pytest-emoji pytest-skip-slow
+          # pip install "pytest<8.0" pytest-md pytest-emoji pytest-skip-slow
+          pip install pytest pytest-md pytest-emoji pytest-skip-slow
       - name: Install development version
         run: |
           pip install -e .

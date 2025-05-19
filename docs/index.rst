@@ -83,29 +83,40 @@ Citations
 
 Please use the following citations in any publication using ``horton-part`` library:
 
-[1] Cheng, Y.; Cancès, E.; Ehrlacher, V.; Misquitta, A. J.; Stamm, B.
+[1] Cheng, Y.; Stamm, B.
+**Approximations of the Iterative Stockholder Analysis scheme using exponential basis functions.**
+`arXiv 2024, 2412.05079 <https://doi.org/10.48550/arXiv.2412.05079>`_
+
+[2] Cheng, Y.; Cancès, E.; Ehrlacher, V.; Misquitta, A. J.; Stamm, B.
 **Multi-center decomposition of molecular densities: A numerical perspective.**
-`arXiv 2024, 2405.08455 <https://doi.org/10.48550/arXiv.2405.08455>`_
+*J. Chem. Phys.* **2025**, *162*, 074101.
+`https://doi.org/10.1063/5.0245287 <https://doi.org/10.1063/5.0245287>`_
 
-[2] Benda, R.; Cancès, E.; Ehrlacher, V.; Stamm, B.
+[3] Benda, R.; Cancès, E.; Ehrlacher, V.; Stamm, B.
 **Multi-center decomposition of molecular densities: A mathematical perspective.**
-`J. Chem. Phys. 2022, 156, 164107 <https://doi.org/10.1063/5.0076630>`_
+*J. Chem. Phys.* **2022**, *156*, 164107.
+`https://doi.org/10.1063/5.0076630 <https://doi.org/10.1063/5.0076630>`_
 
-[3] Chan, M.; Verstraelen, T.; Tehrani, A.; Richer, M.; Yang, X. D.; Kim, T. D.; Vöhringer-Martinez, E.; Heidar-Zadeh, F.; Ayers, P. W.
+[4] Chan, M.; Verstraelen, T.; Tehrani, A.; Richer, M.; Yang, X. D.; Kim, T. D.; Vöhringer-Martinez, E.; Heidar-Zadeh, F.; Ayers, P. W.
 **The tale of HORTON: Lessons learned in a decade of scientific software development.**
-`J. Chem. Phys. 2024, 160, 162501 <https://doi.org/10.1063/5.0196638>`_
+*J. Chem. Phys.* **2024**, *160*, 162501.
+`https://doi.org/10.1063/5.0196638 <https://doi.org/10.1063/5.0196638>`_
 
-[4] Tehrani, A.; Yang, X. D.; Martínez-González, M.; Pujal, L.; Hernández-Esparza, R.; Chan, M.; Vöhringer-Martinez, E.; Verstraelen, T.; Ayers, P. W.; Heidar-Zadeh, F.
+[5] Tehrani, A.; Yang, X. D.; Martínez-González, M.; Pujal, L.; Hernández-Esparza, R.; Chan, M.; Vöhringer-Martinez, E.; Verstraelen, T.; Ayers, P. W.; Heidar-Zadeh, F.
 **Grid: A Python library for molecular integration, interpolation, differentiation, and more.**
-`J. Chem. Phys. 2024, 160, 172503 <https://doi.org/10.1063/5.0202240>`_
+*J. Chem. Phys.* **2024**, *160*, 172503.
+`https://doi.org/10.1063/5.0202240 <https://doi.org/10.1063/5.0202240>`_
 
-[5] Kim, T. D.; Pujal, L.; Richer, M.; van Zyl, M.; Martínez-González, M.; Tehrani, A.; Chuiko, V.; Sánchez-Díaz, G.; Sanchez, W.; Adams, W.; Huang, X.; Kelly, B. D.; Vöhringer-Martinez, E.; Verstraelen, T.; Heidar-Zadeh, F.; Ayers, P. W.
+[6] Kim, T. D.; Pujal, L.; Richer, M.; van Zyl, M.; Martínez-González, M.; Tehrani, A.; Chuiko, V.; Sánchez-Díaz, G.; Sanchez, W.; Adams, W.; Huang, X.; Kelly, B. D.; Vöhringer-Martinez, E.; Verstraelen, T.; Heidar-Zadeh, F.; Ayers, P. W.
 **GBasis: A Python library for evaluating functions, functionals, and integrals expressed with Gaussian basis functions.**
-`J. Chem. Phys. 2024, 161, 042503 <https://doi.org/10.1063/5.0216776>`_
+*J. Chem. Phys.* **2024**, *161*, 042503.
+`https://doi.org/10.1063/5.0216776 <https://doi.org/10.1063/5.0216776>`_
 
-[6] Verstraelen, T.; Adams, W.; Pujal, L.; Tehrani, A.; Kelly, B. D.; Macaya, L.; Meng, F.; Richer, M.; Hernández-Esparza, R.; Yang, X. D.; Chan, M.; Kim, T. D.; Cools-Ceuppens, M.; Chuiko, V.; Vöhringer-Martinez, E.; Ayers, P. W.; Heidar-Zadeh, F.
+[7] Verstraelen, T.; Adams, W.; Pujal, L.; Tehrani, A.; Kelly, B. D.; Macaya, L.; Meng, F.; Richer, M.; Hernández-Esparza, R.; Yang, X. D.; Chan, M.; Kim, T. D.; Cools-Ceuppens, M.; Chuiko, V.; Vöhringer-Martinez, E.; Ayers, P. W.; Heidar-Zadeh, F.
 **IOData: A python library for reading, writing, and converting computational chemistry file formats and generating input files.**
-`J. Comput. Chem. 2021, 42, 458–464 <https://doi.org/10.1002/jcc.26468>`_
+*J. Comput. Chem.* **2021**, *42*, 458–464.
+`https://doi.org/10.1002/jcc.26468 <https://doi.org/10.1002/jcc.26468>`_
+
 
 
 Modules

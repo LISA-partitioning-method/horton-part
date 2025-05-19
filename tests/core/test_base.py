@@ -1,5 +1,5 @@
 # HORTON-PART: molecular density partition schemes based on HORTON package.
-# Copyright (C) 2023-2024 The HORTON-PART Development Team
+# Copyright (C) 2023-2025 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART
 #
@@ -36,7 +36,7 @@ def test_base_exceptions():
     rtf = ExpRTransform(1e-3, 1e1, 100 - 1)
     rgrid = rtf.transform_1d_grid(uniform_grid)
     becke = BeckeWeights()
-    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False)
+    grid = MolGrid.from_size(nums, coords, 110, rgrid, becke, rotate=False)
     # check the grid points against stored points on which density is evaluated
     points_reordered, order = reorder_rows(points, grid.points, return_order=True)
     dens = dens[order]
@@ -46,7 +46,7 @@ def test_base_exceptions():
         # the default setting is local=true, which is not compatible with store=False.
         WPart(coords, nums, pseudo_nums, grid, dens)
 
-    grid = MolGrid.from_size(nums, coords, rgrid, 110, becke, rotate=False, store=True)
+    grid = MolGrid.from_size(nums, coords, 110, rgrid, becke, rotate=False, store=True)
     with raises(NotImplementedError):
         # It should not be possible to create instances of the base class.
         WPart(coords, nums, pseudo_nums, grid, dens)

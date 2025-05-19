@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "horton-part"
 authors = [
-  { name="YingXing Cheng", email="yingxing.cheng@ugent.be" },
+  { name="YingXing Cheng", email="yxcheng2buaa@gmail.com" },
 ]
 maintainers = [
-    {name='YingXing Cheng', email='yingxing.cheng@ugent.be'}]
+    {name='YingXing Cheng', email='yxcheng2buaa@gmail.com'}]
 keywords = ['partition schemes', 'atom-in-moleucle']
 description = "Molecular partitioning schemes used in computational chemistry"
 readme = "README.md"
@@ -25,17 +25,19 @@ classifiers = [
     "Operating System :: POSIX",
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "numpy",
-    "scipy<=1.10.1",
-    "quadprog==0.1.11",
-    "cvxopt==1.3.1",
+    "quadprog>=0.1.13",
+    "cvxopt>=1.3.1",
     "qpsolvers",
-    "qc-grid@git+https://github.com/yingxingcheng/grid",
-    "qc-iodata@git+https://github.com/yingxingcheng/iodata",
-    "gbasis@git+https://github.com/yingxingcheng/gbasis",
+    "qc-grid>=0.0.9",
+    "qc-iodata",
+    "qc-gbasis>=0.1.0",
     "importlib_resources",
     "pyyaml",
 ]
@@ -46,9 +48,9 @@ dev = ["pre-commit"]
 tests = ['pytest', 'pytest-skip-slow']
 
 [project.urls]
-Homepage = 'https://github.com/yingxingcheng/horton-part'
-Repository = 'https://github.com/yingxingcheng/horton-part'
-Changelog = "https://github.com/yingxingcheng/horton-part/CHANGELOG.md"
+Homepage = 'https://lisa-partitioning-method.github.io/horton-part/'
+Repository = 'https://github.com/LISA-partitioning-method/horton-part'
+Changelog = "https://github.com/LISA-partitioning-method/horton-part/CHANGELOG.md"
 
 [project.scripts]
 part = "horton_part.__main__:main"
