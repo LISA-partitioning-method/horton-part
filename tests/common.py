@@ -42,7 +42,7 @@ __all__ = [
 
 def get_fn(fn):
     cur_pth = os.path.split(__file__)[0]
-    return f"{cur_pth}/cached/{fn}"
+    return os.path.join(cur_pth, "cached", fn)
 
 
 def load_molecule_npz(filename, spin_dens=False):
