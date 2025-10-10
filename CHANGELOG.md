@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [1.1.8]  - 2025-10-10
+
+### Fixed
+- Made tests pass on the Windows platform.
+- Minor docstring fixes.
+- Fixed a type-checking issue.
+
 ## [1.1.7]  - 2025-05-19
 
 ### Fixed
