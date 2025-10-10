@@ -64,6 +64,8 @@ def prepare_input(iodata, nrad, nang, chunk_size, gradient, orbitals, store_atgr
         When True, also the occupied and virtual orbitals are computed.
     store_atgrids
         When True, the atomic grids are also stored.
+    logger : logging.Logger
+        Logger for status messages.
 
     Returns
     -------
@@ -90,6 +92,8 @@ def _setup_grid(atnums, atcoords, nrad, nang, store_atgrids, logger):
         Atomic coordinates.
     store_atgrids
         When True, the atomic grids are also stored.
+    logger : logging.Logger
+        Logger for status messages.
 
     Returns
     -------
@@ -131,6 +135,8 @@ def _compute_stuff(iodata, points, gradient, orbitals, chunk_size, logger):
         When True, also the gradient of the density is computed.
     orbitals
         When True, also the occupied and virtual orbitals are computed.
+    logger : logging.Logger
+        Logger for status messages.
 
     Returns
     -------

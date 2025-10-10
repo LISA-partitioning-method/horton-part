@@ -35,33 +35,38 @@ __all__ = ["prepare_input_cube", "PartCubeProg", "_setup_cube_grid"]
 
 
 def prepare_input_cube(iodata, chunk_size, gradient, orbitals, logger, grid=None):
-    """Prepare input for denspart with HORTON3 modules.
+    """Prepare input data for denspart using HORTON3 modules.
+
+    This function sets up a cubic molecular grid if none is provided, evaluates
+    the electron density (and optionally its gradient and orbitals) on the grid
+    points in chunks, and returns both the grid and the computed data.
 
     Parameters
     ----------
-    iodata
-        An instance with IOData containing the necessary data to compute the
-        electron density on the grid.
-    nrad
-        Number of radial grid points.
-    nang
-        Number of angular grid points.
-    chunk_size
-        Number of points on which the density is evaluated in one pass.
-    gradient
-        When True, also the gradient of the density is computed.
-    orbitals
-        When True, also the occupied and virtual orbitals are computed.
-    store_atgrids
-        When True, the atomic grids are also stored.
+    iodata : IOData
+        An instance of ``IOData`` containing the necessary molecular data
+        (atomic numbers, coordinates, wavefunctions, etc.) required to compute
+        the electron density on the grid.
+    chunk_size : int
+        Number of grid points to evaluate in one pass. Controls memory usage.
+    gradient : bool
+        If True, compute the gradient of the electron density on the grid.
+    orbitals : bool
+        If True, compute both occupied and virtual orbitals on the grid.
+    logger : logging.Logger
+        Logger for status messages.
+    grid : MolGrid, optional
+        A molecular integration grid. If None, a cubic grid is generated
+        automatically from the molecular geometry.
 
     Returns
     -------
-    grid
-        A molecular integration grid.
-    data
-        Qauntities evaluated on the grid, includeing the density.
-
+    grid : MolGrid
+        The molecular integration grid used for the calculations.
+    data : dict
+        Quantities evaluated on the grid. Always includes the electron
+        density; may also include its gradient and orbital values depending
+        on the input flags.
     """
     if grid is None:
         grid = _setup_cube_grid(iodata.atnums, iodata.atcoords, logger)
@@ -71,21 +76,41 @@ def prepare_input_cube(iodata, chunk_size, gradient, orbitals, logger, grid=None
 
 # pylint: disable=protected-access
 def _setup_cube_grid(atnums, atcoords, logger, spacing=0.2, extension=5.0):
-    """Set up a simple molecular integration grid for a given molecular geometry.
+    """Set up a uniform cubic molecular integration grid.
+
+    This function constructs a uniform 3D grid surrounding the molecule,
+    suitable for evaluating molecular densities or other scalar fields on
+    a regular grid (e.g., for generating cube files). The grid extends
+    beyond the molecular geometry by a user-defined margin and uses a fixed
+    grid spacing.
 
     Parameters
     ----------
-    atnums: np.ndarray(N,)
-        Atomic numbers
-    atcoords: np.ndarray(N, 3)
-        Atomic coordinates.
+    atnums : np.ndarray of shape (N,)
+        Atomic numbers of the atoms in the molecule.
+    atcoords : np.ndarray of shape (N, 3)
+        Cartesian coordinates of the atoms in Bohr.
+    logger : logging.Logger
+        Logger instance for reporting progress and status messages.
+    spacing : float, optional
+        Distance between adjacent grid points in each dimension.
+        Default is 0.2.
+    extension : float, optional
+        Additional padding distance added to all sides of the molecular
+        bounding box to define the grid volume. Default is 5.0.
 
     Returns
     -------
-    grid
-        A molecular integration grid, instance (of a subclass of)
-        grid.basegrid.Grid.
+    grid : UniformGrid
+        A uniform 3D molecular integration grid (instance of
+        ``grid.cubic.UniformGrid``), including the grid points and integration
+        weights.
 
+    Notes
+    -----
+    - Grid points with zero weight are currently not removed (see TODO).
+    - The resulting grid is not rotated (``rotate=False``) and is aligned
+      with the Cartesian axes.
     """
     logger.info("Setting up grid")
     grid = UniformGrid.from_molecule(
@@ -99,14 +124,41 @@ def _setup_cube_grid(atnums, atcoords, logger, spacing=0.2, extension=5.0):
 
 
 def to_cube(fname, atnums, atcorenums, atcoords, grid: UniformGrid, data):
-    r"""Write the data evaluated on grid points into a cube file.
+    r"""Write scalar data defined on a uniform 3D grid to a Gaussian cube file.
+
+    The cube file format is commonly used to visualize scalar fields such as
+    electron densities or molecular orbitals. This function writes both the
+    header information (atoms, grid, and cell vectors) and the grid data in
+    the standard cube format.
 
     Parameters
     ----------
     fname : str
-        Cube file name with \*.cube extension.
-    data : np.ndarray, shape=(npoints,)
-        An array containing the evaluated scalar property on the grid points.
+        Output file name. Must end with the ``.cube`` extension.
+    atnums : array_like of int, shape (N,)
+        Atomic numbers of the atoms in the system.
+    atcorenums : array_like of float, shape (N,)
+        Effective nuclear charges (usually the number of core electrons).
+        These are written in the second column of the atom block in the cube file.
+    atcoords : array_like of float, shape (N, 3)
+        Cartesian coordinates of the atoms.
+    grid : UniformGrid
+        A uniform 3D grid defining the origin, shape, and axes.
+    data : np.ndarray, shape (npoints,)
+        A 1D array containing the scalar property evaluated at each grid point.
+
+    Raises
+    ------
+    ValueError
+        If ``fname`` does not end with ``.cube`` or if the size of ``data`` does
+        not match the number of grid points.
+
+    Notes
+    -----
+    - Data are written in chunks of six values per line, as required by the
+      standard cube file format.
+    - The function writes a simple header identifying the file as generated by
+      HORTON-PART.
     """
     if not fname.endswith(".cube"):
         raise ValueError("Argument fname should be a cube file with `*.cube` extension!")
