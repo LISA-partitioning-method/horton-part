@@ -20,6 +20,7 @@
 
 
 import os
+import platform
 import shutil
 import tempfile
 from contextlib import contextmanager
@@ -40,6 +41,16 @@ __all__ = [
 ]
 
 
+def sanitize_filename(file_path):
+    """
+    Replace colon (:) in the file path with an underscore (_) if the OS is Windows.
+    """
+    if platform.system() == "Windows":
+        # Replace colon with underscore only on Windows
+        return file_path.replace(":", "_")
+    return file_path  # On Linux, return path as-is
+
+
 def get_fn(fn):
     cur_pth = os.path.split(__file__)[0]
     return os.path.join(cur_pth, "cached", fn)
@@ -48,6 +59,10 @@ def get_fn(fn):
 def load_molecule_npz(filename, spin_dens=False):
     # get file path
     filepath = get_fn(filename)
+
+    # Sanitize the file path based on the operating system
+    filepath = sanitize_filename(filepath)
+
     # load npz file
     with np.load(filepath, mmap_mode=None) as npz:
         dens = npz["dens"]
