@@ -160,8 +160,11 @@ def typecheck_geo(
         if need_numbers:
             raise TypeError("Numbers can not be None.")
     else:
-        if numbers.shape != (natom,) or not issubclass(numbers.dtype.type, np.int64):
-            raise TypeError("The argument numbers must be a vector with length natom.")
+        if numbers.shape != (natom,):
+            raise TypeError("The argument `numbers` must be a vector with length natom.")
+
+        if not issubclass(numbers.dtype.type, np.integer):
+            raise TypeError("The type of argument `numbers` must be an integer type.")
 
     # Typecheck pseudo_numbers
     if pseudo_numbers is None:
