@@ -57,11 +57,10 @@ def get_fn(fn):
 
 
 def load_molecule_npz(filename, spin_dens=False):
+    # Sanitize the file path based on the operating system
+    filename = sanitize_filename(filename)
     # get file path
     filepath = get_fn(filename)
-
-    # Sanitize the file path based on the operating system
-    filepath = sanitize_filename(filepath)
 
     # load npz file
     with np.load(filepath, mmap_mode=None) as npz:
