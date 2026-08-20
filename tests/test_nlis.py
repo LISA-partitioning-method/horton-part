@@ -51,7 +51,9 @@ def test_get_nlis_nshell(nshell):
 @pytest.mark.parametrize("nshell", [4])
 def test_get_initial_nlis_propars(nshell):
     nshell_dict = load_example_nshell_dict(nshell)
-    values_h = get_initial_nlis_propars(1, load_example_exp_n_dict(1, nshell), nshell_dict)
+    values_h = get_initial_nlis_propars(
+        1, load_example_exp_n_dict(1, nshell), nshell_dict
+    )
     assert values_h == pytest.approx(
         [
             1 / nshell,
@@ -68,3 +70,30 @@ def test_get_initial_nlis_propars(nshell):
             2.0,
         ]
     )
+
+
+def test_get_initial_nlis_propars_with_explicit_exponents():
+    nshell = 4
+    nshell_dict = load_example_nshell_dict(nshell)
+    exponents = [100.0, 10.0, 1.0, 0.1]
+    values = get_initial_nlis_propars(
+        1,
+        load_example_exp_n_dict(1, nshell),
+        nshell_dict,
+        initial_exponents_dict={1: exponents},
+    )
+    assert values[1::3] == pytest.approx(exponents)
+    with pytest.raises(ValueError, match="Expected 4"):
+        get_initial_nlis_propars(
+            1,
+            load_example_exp_n_dict(1, nshell),
+            nshell_dict,
+            initial_exponents_dict={1: exponents[:-1]},
+        )
+    with pytest.raises(ValueError, match="finite and positive"):
+        get_initial_nlis_propars(
+            1,
+            load_example_exp_n_dict(1, nshell),
+            nshell_dict,
+            initial_exponents_dict={1: [100.0, 10.0, 1.0, 0.0]},
+        )

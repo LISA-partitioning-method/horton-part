@@ -19,7 +19,6 @@
 # --
 """Non-Linear approximation of Iterative Stockholder (NLIS) partitioning"""
 
-
 import logging
 
 import numpy as np
@@ -54,7 +53,9 @@ def get_nlis_nshell(number, nshell_dict):
     return nshell_dict.get(number, get_nshell(number))
 
 
-def get_initial_nlis_propars(number, exp_n_dict, nshell_dict, logger=None):
+def get_initial_nlis_propars(
+    number, exp_n_dict, nshell_dict, logger=None, initial_exponents_dict=None
+):
     """Set up initial pro-atom parameters for the NLIS model.
 
     Parameters
@@ -68,6 +69,9 @@ def get_initial_nlis_propars(number, exp_n_dict, nshell_dict, logger=None):
         A dict for the number of shells for each element.
     logger : logging.Logger
         Logger object for capturing logging information.
+    initial_exponents_dict: dict, optional
+        Explicit positive initial density exponents for each element. The list length must
+        match the configured number of NLIS functions.
 
     Returns
     -------
@@ -77,17 +81,34 @@ def get_initial_nlis_propars(number, exp_n_dict, nshell_dict, logger=None):
     """
     nbs = get_nlis_nshell(number, nshell_dict)
     propars = np.ones(3 * nbs, float)
-    S0 = 2.0 * number
-    if nbs > 1:
-        S1 = 0.5
-        alpha = (S1 / S0) ** (1.0 / (nbs - 1))
+    initial_exponents_dict = initial_exponents_dict or {}
+    initial_exponents = initial_exponents_dict.get(number)
+    if initial_exponents is not None:
+        initial_exponents = np.asarray(initial_exponents, dtype=float)
+        if initial_exponents.shape != (nbs,):
+            raise ValueError(
+                f"Expected {nbs} initial NLIS exponents for Z={number}, "
+                f"got {initial_exponents.size}."
+            )
+        if not np.all(np.isfinite(initial_exponents)) or np.any(
+            initial_exponents <= 0.0
+        ):
+            raise ValueError(
+                f"Initial NLIS exponents for Z={number} must be finite and positive."
+            )
     else:
-        alpha = 1.0
+        S0 = 2.0 * number
+        if nbs > 1:
+            S1 = 0.5
+            alpha = (S1 / S0) ** (1.0 / (nbs - 1))
+        else:
+            alpha = 1.0
+        initial_exponents = np.asarray([S0 * alpha**ibs for ibs in range(nbs)])
     for ibs in range(nbs):
         # initial c_ak
         propars[3 * ibs] = number / nbs
         # alpha
-        propars[3 * ibs + 1] = S0 * alpha**ibs
+        propars[3 * ibs + 1] = initial_exponents[ibs]
         # n
         if (number, ibs) in exp_n_dict:
             propars[3 * ibs + 2] = exp_n_dict[(number, ibs)]
@@ -187,7 +208,9 @@ def opt_nlis_propars(
         if change < threshold:
             if not np.isclose(pop, np.sum(propars[0::3]), atol=1e-4):
                 logger.warning("The sum of propars are not equal to the atomic pop.")
-            check_pro_atom_parameters_non_neg_pars(propars, pro_atom_density=pro, logger=logger)
+            check_pro_atom_parameters_non_neg_pars(
+                propars, pro_atom_density=pro, logger=logger
+            )
             return propars
         oldpro = pro
     logger.warning("NLIS not converged, but still go ahead!")
@@ -215,6 +238,7 @@ class NLISWPart(AbstractISAWPart):
         inner_threshold=1e-8,
         exp_n_dict=1.0,
         nshell_dict=None,
+        initial_exponents_dict=None,
         grid_type=1,
         **kwargs,
     ):
@@ -227,10 +251,17 @@ class NLISWPart(AbstractISAWPart):
         ----------
         exp_n_dict : dict
             The power of radial distance :math:`r` in exponential function :math:`exp^{-\alpha r^n}`.
+        nshell_dict : dict, optional
+            Number of NLIS functions for each atomic number.
+        initial_exponents_dict : dict, optional
+            Explicit positive starting exponents for each atomic number. Each list must have
+            the length configured by ``nshell_dict``. Elements omitted from this mapping use
+            the original geometric initialization.
 
         """
         self._exp_n_dict = exp_n_dict
         self._nshell_dict = nshell_dict or {}
+        self._initial_exponents_dict = initial_exponents_dict or {}
 
         super().__init__(
             coordinates,
@@ -338,11 +369,14 @@ class NLISWPart(AbstractISAWPart):
         ntotal = self._ranges[-1]
         propars = self.cache.load("propars", alloc=ntotal, tags="o")[0]
         for iatom in range(self.natom):
-            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = get_initial_nlis_propars(
-                self.numbers[iatom],
-                self._exp_n_dict,
-                self._nshell_dict,
-                logger=self.logger,
+            propars[self._ranges[iatom] : self._ranges[iatom + 1]] = (
+                get_initial_nlis_propars(
+                    self.numbers[iatom],
+                    self._exp_n_dict,
+                    self._nshell_dict,
+                    logger=self.logger,
+                    initial_exponents_dict=self._initial_exponents_dict,
+                )
             )
         return propars
 

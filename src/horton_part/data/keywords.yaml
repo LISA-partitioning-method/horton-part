@@ -86,6 +86,7 @@ nlis:
     - lmax
     - exp_n_dict
     - nshell_dict
+    - initial_exponents_dict
     - grid_type
     - density_cutoff
     - population_cutoff
