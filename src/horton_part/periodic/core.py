@@ -36,6 +36,8 @@ class PeriodicPartitionResult:
     charges: np.ndarray
     populations: np.ndarray
     grid_populations: np.ndarray
+    model_charges: np.ndarray
+    model_populations: np.ndarray
     parameters: tuple
     parameter_labels: tuple
     promolecule: np.ndarray
@@ -52,6 +54,8 @@ class PeriodicPartitionResult:
             "charges": self.charges,
             "populations": self.populations,
             "grid_populations": self.grid_populations,
+            "model_charges": self.model_charges,
+            "model_populations": self.model_populations,
             "promolecule": self.promolecule,
             "iterations": np.array(self.iterations),
             "converged": np.array(self.converged),
@@ -97,7 +101,7 @@ class LinearProAtom:
     def parameter_labels(self):
         return np.array(
             [
-                f"charge_{shape.charge:+d}" if hasattr(shape, "charge") else f"basis_{index}"
+                (f"charge_{shape.charge:+d}" if hasattr(shape, "charge") else f"basis_{index}")
                 for index, shape in enumerate(self.shapes)
             ]
         )
@@ -491,7 +495,6 @@ class PeriodicStockholder:
                     True,
                     history,
                     return_weights,
-                    use_model_populations=True,
                 )
         raise RuntimeError(f"Periodic Hirshfeld-I did not converge in {maxiter} iterations.")
 
@@ -526,7 +529,6 @@ class PeriodicStockholder:
                     True,
                     history,
                     return_weights,
-                    use_model_populations=True,
                 )
             previous = current
         raise RuntimeError(f"Periodic {method} did not converge in {maxiter} iterations.")
@@ -615,7 +617,6 @@ class PeriodicStockholder:
             True,
             history,
             return_weights,
-            use_model_populations=True,
         )
 
     def _finalize(
@@ -626,17 +627,14 @@ class PeriodicStockholder:
         converged,
         history,
         return_weights,
-        use_model_populations=False,
     ):
         grid_populations, _ = self.stockholder_populations(promolecule)
-        populations = (
-            np.array([model.population for model in self.models])
-            if use_model_populations
-            else grid_populations
-        )
-        charges = self.pseudo_numbers - populations
+        model_populations = np.array([model.population for model in self.models])
+        populations = grid_populations
+        charges = self.pseudo_numbers - grid_populations
+        model_charges = self.pseudo_numbers - model_populations
         aim_weights = None
-        reconstruction_error = 0.0
+        reconstruction_error = np.nan
         if return_weights:
             aim_weights = np.zeros((len(self.models), len(self.density)))
             valid = promolecule > 1.0e-15
@@ -668,6 +666,8 @@ class PeriodicStockholder:
             charges=charges,
             populations=populations,
             grid_populations=grid_populations,
+            model_charges=model_charges,
+            model_populations=model_populations,
             parameters=tuple(model.parameters for model in self.models),
             parameter_labels=tuple(model.parameter_labels for model in self.models),
             promolecule=promolecule,

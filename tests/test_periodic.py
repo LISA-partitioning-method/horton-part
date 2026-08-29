@@ -9,16 +9,22 @@ import numpy as np
 import pytest
 from grid import PeriodicGrid
 
-from horton_part.periodic import load_lisa_basis, load_spline_proatoms, partition_periodic
+from horton_part.periodic import (
+    load_lisa_basis,
+    load_spline_proatoms,
+    partition_periodic,
+)
 from horton_part.periodic.basis import ExponentialShape
 from horton_part.scripts.partition_periodic import main as periodic_main
 
 
-def _uniform_periodic_grid(length=8.0, npoint=20):
-    axis = (np.arange(npoint) + 0.5) * length / npoint
-    points = np.stack(np.meshgrid(axis, axis, axis, indexing="ij"), axis=-1).reshape(-1, 3)
-    weights = np.full(len(points), length**3 / len(points))
-    return PeriodicGrid(points, weights, np.eye(3) * length, wrap=True)
+def _uniform_periodic_grid(length=8.0, npoint=20, cellvecs=None):
+    cellvecs = np.eye(3) * length if cellvecs is None else np.asarray(cellvecs, dtype=float)
+    axis = (np.arange(npoint) + 0.5) / npoint
+    fractional = np.stack(np.meshgrid(axis, axis, axis, indexing="ij"), axis=-1).reshape(-1, 3)
+    points = fractional @ cellvecs
+    weights = np.full(len(points), abs(np.linalg.det(cellvecs)) / len(points))
+    return PeriodicGrid(points, weights, cellvecs, wrap=True)
 
 
 def _periodic_density(grid, center, shape, cutoff=1.0e-10):
@@ -158,6 +164,47 @@ def test_mbis_one_atom_periodic_density():
     assert result.reconstruction_error < 1.0e-12
 
 
+def test_fixed_partition_distinguishes_integrated_and_model_charges():
+    basis = _spline_basis()
+    neutral = next(state for state in load_spline_proatoms(basis)[1] if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=20)
+    center = np.array([0.12, 6.0, 6.0])
+    density = 0.8 * _periodic_density(grid, center, neutral)
+    result = partition_periodic(
+        "hirshfeld",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+    )
+    expected_population = np.dot(grid.weights, density)
+    assert result.charges[0] == pytest.approx(1.0 - expected_population)
+    assert result.populations[0] == pytest.approx(expected_population)
+    assert result.model_charges[0] == pytest.approx(0.0)
+    assert result.model_populations[0] == pytest.approx(1.0)
+
+
+def test_partition_is_invariant_to_lattice_translation_in_skewed_cell():
+    cellvecs = np.array([[8.0, 0.0, 0.0], [1.5, 7.0, 0.0], [0.7, 0.9, 6.5]])
+    grid = _uniform_periodic_grid(npoint=12, cellvecs=cellvecs)
+    basis = _spline_basis()
+    neutral = next(state for state in load_spline_proatoms(basis)[1] if state.charge == 0)
+    coordinates = np.array([[0.08, 2.0, 2.5], [4.1, 4.5, 3.0]])
+    density = sum(_periodic_density(grid, center, neutral) for center in coordinates)
+    reference = partition_periodic(
+        "hirshfeld", coordinates, np.ones(2, dtype=int), grid, density, basis=basis
+    )
+    translated = coordinates.copy()
+    translated[0] += cellvecs[0] - cellvecs[1]
+    shifted = partition_periodic(
+        "hirshfeld", translated, np.ones(2, dtype=int), grid, density, basis=basis
+    )
+    assert shifted.charges == pytest.approx(reference.charges, abs=1.0e-12)
+    assert shifted.promolecule == pytest.approx(reference.promolecule, abs=1.0e-12)
+    assert shifted.aim_weights == pytest.approx(reference.aim_weights, abs=1.0e-12)
+
+
 def test_spline_hirshfeld_i_and_avh_use_shared_states():
     basis = _spline_basis()
     states = load_spline_proatoms(basis)[1]
@@ -217,6 +264,7 @@ def test_periodic_command_line_roundtrip(tmp_path):
         weights=grid.weights,
         density=density,
         cellvecs=np.eye(3) * 8.0,
+        grid_sizes=np.array([len(grid.points)]),
     )
     basis_file = tmp_path / "basis.json"
     basis_file.write_text('{"1": [[2.0], [1.0], [1.0]]}', encoding="utf8")
@@ -240,3 +288,37 @@ def test_periodic_command_line_roundtrip(tmp_path):
         assert result["method"] == "lisa"
         assert result["parameter_labels"].tolist() == ["basis_0"]
         assert result["charges"][0] == pytest.approx(0.0, abs=2.0e-7)
+        assert result["model_charges"][0] == pytest.approx(0.0, abs=2.0e-7)
+        assert result["grid_sizes"].tolist() == [len(grid.points)]
+        assert np.isnan(result["reconstruction_error"])
+
+
+def test_periodic_command_line_rejects_invalid_grid_blocks(tmp_path):
+    grid = _uniform_periodic_grid(npoint=4)
+    input_file = tmp_path / "density.npz"
+    np.savez(
+        input_file,
+        atcoords=np.zeros((1, 3)),
+        atnums=np.ones(1, dtype=int),
+        points=grid.points,
+        weights=grid.weights,
+        density=np.ones(len(grid.points)),
+        cellvecs=np.eye(3) * 8.0,
+        grid_sizes=np.array([len(grid.points) - 1]),
+    )
+    with pytest.raises(ValueError, match="Grid sizes must be positive block lengths"):
+        periodic_main([str(input_file), str(tmp_path / "partition.npz")])
+
+    noninteger_file = tmp_path / "noninteger-density.npz"
+    np.savez(
+        noninteger_file,
+        atcoords=np.zeros((1, 3)),
+        atnums=np.ones(1, dtype=int),
+        points=grid.points,
+        weights=grid.weights,
+        density=np.ones(len(grid.points)),
+        cellvecs=np.eye(3) * 8.0,
+        grid_sizes=np.array([float(len(grid.points))]),
+    )
+    with pytest.raises(ValueError, match="Grid sizes must use an integer dtype"):
+        periodic_main([str(noninteger_file), str(tmp_path / "partition.npz")])

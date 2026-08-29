@@ -68,10 +68,11 @@ This package implements partitioning schemes described in three papers: [a mathe
 
 ### Periodic real-space grids
 
-The `with-periodic-grid` implementation provides a shared `qc-grid` engine for
+The periodic API provides a shared `qc-grid` engine for
 Hirshfeld, Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. It accumulates translated local
-grid images and can return both atomic charges and full AIM weights. Existing
-DensPart-style NPZ density files can be used directly:
+grid images and can return both atomic charges and full AIM weights. All-electron
+DensPart-style NPZ files, including uniform and PAW augmentation grid blocks, can
+be used directly:
 
 ```bash
 part-periodic density.npz mbis.npz --method mbis
