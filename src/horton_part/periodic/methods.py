@@ -25,6 +25,11 @@ __all__ = [
 
 def _select_avh_states(states, variant, number):
     variant = variant.upper()
+    if variant == "SUPPLIED":
+        selected = tuple(state for state in states if state.electrons > 0)
+        if not selected:
+            raise ValueError(f"The supplied AVH basis has no populated states for Z={number}.")
+        return selected
     if variant == "A":
         required = set(range(-3, int(number)))
         available = {state.charge for state in states if state.electrons > 0}
@@ -52,7 +57,7 @@ def _select_avh_states(states, variant, number):
         return selected
     if variant == "M":
         return tuple(state for state in states if state.charge == 0 and state.electrons > 0)
-    raise ValueError("AVH variant must be 'A', 'B', or 'M'.")
+    raise ValueError("AVH variant must be 'A', 'B', 'M', or 'supplied'.")
 
 
 def partition_periodic(
@@ -82,9 +87,10 @@ def partition_periodic(
         "avh-a": "avh",
         "avh-b": "avh",
         "avh-m": "avh",
+        "avh-supplied": "avh",
     }
-    if canonical in ("avh-a", "avh-b", "avh-m"):
-        avh_variant = canonical[-1]
+    if canonical.startswith("avh-"):
+        avh_variant = canonical.removeprefix("avh-")
     canonical = aliases.get(canonical, canonical)
     numbers = np.asarray(numbers, dtype=int)
     pseudo_numbers = numbers.astype(float) if pseudo_numbers is None else pseudo_numbers

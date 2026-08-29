@@ -5,7 +5,9 @@ HORTON-Part can partition densities on arbitrary ``qc-grid``
 ``PeriodicGrid`` objects. Periodic images are evaluated through local translated
 grids, so atoms near a cell face contribute correctly at the opposite face without
 replicating the full unit cell. The initial periodic API supports Hirshfeld,
-Hirshfeld-I, MBIS, LISA, and AVH-A/B/M.
+Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. An explicitly named
+``avh-supplied`` mode is also available for reproducing calculations made
+with a user-defined subset of charged states.
 
 Command-line use
 ----------------
@@ -31,6 +33,8 @@ integrate to ``Z - charge``; valence-only spline libraries are not yet supported
        --basis pbe-periodic.json
    part-periodic density.npz avh.npz --method avh \
        --basis pbe-periodic.json --avh-variant B
+   part-periodic density.npz avh-supplied.npz --method avh \
+       --basis custom-states.json --avh-variant supplied
 
 The radial-spline file used by Hirshfeld, Hirshfeld-I, and AVH must follow
 ``denspart-spline-proatom-basis-v1``. LISA accepts the bundled HORTON-Part basis,
@@ -115,3 +119,9 @@ AVH validates the state set before optimization. AVH-A requires every charge fro
 ``-3`` through ``Z-1``; AVH-B requires ``0`` through ``Z-1`` and includes the
 monoanion only when it is marked as bound. This prevents a short Hirshfeld-I state
 library from being mistaken for a complete AVH basis.
+
+``avh-supplied`` deliberately skips the A/B/M completeness contract and optimizes
+every populated state present in the input basis. Its result is labelled
+``avh-supplied`` rather than AVH-A or AVH-B. This mode is intended for transparent
+reproduction of legacy or deliberately truncated state libraries, not as an alias
+for a formal AVH variant.

@@ -76,8 +76,11 @@ def _build_parser():
     parser.add_argument(
         "--avh-variant",
         default="B",
-        choices=("A", "B", "M", "a", "b", "m"),
-        help="AVH state selection: all, physically bound, or minimal neutral (default: B).",
+        choices=("A", "B", "M", "a", "b", "m", "supplied"),
+        help=(
+            "AVH state selection: all, physically bound, minimal neutral, or exactly the "
+            "populated states supplied in the basis (default: B)."
+        ),
     )
     parser.add_argument("--threshold", type=float, default=1.0e-7)
     parser.add_argument("--inner-threshold", type=float, default=1.0e-9)

@@ -354,6 +354,20 @@ def test_spline_hirshfeld_i_and_avh_use_shared_states():
     assert hirshfeld_i.charges[0] == pytest.approx(avh.charges[0], abs=1.0e-7)
     # The synthetic monoanion is marked unbound, so AVH-B retains only neutral H.
     assert len(avh.parameters[0]) == 1
+    supplied = partition_periodic(
+        "avh-supplied",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+        threshold=1.0e-8,
+        maxiter=20,
+    )
+    assert supplied.converged
+    assert supplied.method == "avh-supplied"
+    # Supplied-state mode retains the unbound monoanion but excludes the empty cation endpoint.
+    assert len(supplied.parameters[0]) == 2
     with pytest.raises(ValueError, match="AVH-A for Z=1 is missing required states"):
         partition_periodic(
             "avh-a",
