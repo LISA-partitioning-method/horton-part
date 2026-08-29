@@ -58,8 +58,9 @@ Python API
    print(result.charges)
 
 ``partition_periodic`` also accepts ``basis``, ``pseudo_numbers``, iteration
-thresholds, and the AVH variant. The returned ``aim_weights`` array has shape
-``(natom, npoint)`` and sums to one wherever the promolecular density is nonzero.
+thresholds, and the AVH variant. When requested, the returned ``aim_weights`` array
+has shape ``(natom, npoint)`` and sums to one wherever the promolecular density is
+nonzero. Dense per-atom arrays are not constructed when ``return_weights=False``.
 
 Real-material parity validation
 -------------------------------
@@ -86,11 +87,12 @@ Method scope
 
 Hirshfeld uses the neutral spline state without optimization. Hirshfeld-I mixes
 adjacent integer-charge states, including an implicit zero-density fully stripped
-endpoint. LISA and AVH optimize nonnegative mixing coefficients; AVH-A retains all
-available charged states, AVH-B retains physically bound states, and AVH-M retains
-only the neutral state. MBIS globally optimizes its minimal Slater shells on cached
-shell-local grids, expanding a grid only when its optimized shell becomes more diffuse.
-Orbital-matrix
+endpoint. Its active integer-charge spline states are cached on demand, and only their
+mixing coefficients change during iteration. LISA and AVH optimize nonnegative mixing
+coefficients directly from cached local basis blocks; AVH-A retains all available
+charged states, AVH-B retains physically bound states, and AVH-M retains only the
+neutral state. MBIS globally optimizes its minimal Slater shells on cached shell-local
+grids, expanding a grid only when its optimized shell becomes more diffuse. Orbital-matrix
 methods such as Mulliken partitioning are outside the real-space grid API.
 
 AVH validates the state set before optimization. AVH-A requires every charge from

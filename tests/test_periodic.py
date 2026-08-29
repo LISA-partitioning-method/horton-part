@@ -10,6 +10,8 @@ import pytest
 from grid import PeriodicGrid
 
 from horton_part.periodic import (
+    InterpolatedProAtom,
+    LinearProAtom,
     MBISProAtom,
     PeriodicStockholder,
     load_lisa_basis,
@@ -204,6 +206,77 @@ def test_mbis_local_grids_are_cached_and_expand_only_when_needed():
     assert engine._expand_mbis_shells()
     assert engine._mbis_shells()[0][3] is not first_localgrid
     assert not engine._expand_mbis_shells()
+
+
+def test_linear_basis_is_cached_as_local_blocks():
+    states = load_spline_proatoms(_spline_basis())[1]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=20.0, npoint=20)
+    center = np.array([10.0, 10.0, 10.0])
+    density = _periodic_density(grid, center, neutral)
+    engine = PeriodicStockholder(
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        [LinearProAtom((neutral,), (1.0,), 1.0)],
+    )
+    blocks = engine._linear_blocks(0)
+    assert engine._linear_blocks(0) is blocks
+    assert len(blocks) == 1
+    assert blocks[0].values.shape == blocks[0].indices.shape
+    assert blocks[0].weighted_values.shape == blocks[0].indices.shape
+    assert len(np.unique(blocks[0].indices)) == len(blocks[0].indices)
+    assert blocks[0].values.size < density.size
+
+
+def test_hirshfeld_i_charge_states_use_cached_local_blocks():
+    states = load_spline_proatoms(_spline_basis())[1]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=20.0, npoint=20)
+    center = np.array([10.0, 10.0, 10.0])
+    density = _periodic_density(grid, center, neutral)
+    model = InterpolatedProAtom(1, states)
+    engine = PeriodicStockholder(center[None, :], np.array([1]), grid, density, [model])
+    model.charge = -0.25
+    promolecule = engine.promolecule()
+    blocks = engine._interpolated_basis_cache[0]
+    block_ids = {charge: id(block) for charge, block in blocks.items()}
+
+    localgrid = engine._localgrid(0)
+    values, _ = engine._evaluate_local(0, localgrid)
+    expected = np.zeros_like(density)
+    np.add.at(expected, localgrid.indices, values)
+    engine.promolecule()
+    assert engine._interpolated_basis_cache[0] is blocks
+    assert {charge: id(block) for charge, block in blocks.items()} == block_ids
+    assert set(blocks) == {-1, 0}
+    assert promolecule == pytest.approx(expected, abs=1.0e-10)
+
+
+def test_dense_proatoms_are_only_built_for_requested_weights(monkeypatch):
+    states = load_spline_proatoms(_spline_basis())[1]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=16)
+    center = np.array([6.0, 6.0, 6.0])
+    density = _periodic_density(grid, center, neutral)
+    engine = PeriodicStockholder(
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        [LinearProAtom((neutral,), (1.0,), 1.0)],
+    )
+
+    def fail_if_materialized(_iatom):
+        raise AssertionError("dense pro-atom materialized")
+
+    monkeypatch.setattr(engine, "_dense_proatom", fail_if_materialized)
+    result = engine.run_fixed("hirshfeld", return_weights=False)
+    assert result.aim_weights is None
+    assert np.isnan(result.reconstruction_error)
+    with pytest.raises(AssertionError, match="dense pro-atom materialized"):
+        engine.run_fixed("hirshfeld", return_weights=True)
 
 
 def test_fixed_partition_distinguishes_integrated_and_model_charges():

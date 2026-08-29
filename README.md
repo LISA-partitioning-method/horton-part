@@ -70,9 +70,10 @@ This package implements partitioning schemes described in three papers: [a mathe
 
 The periodic API provides a shared `qc-grid` engine for
 Hirshfeld, Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. It accumulates translated local
-grid images and can return both atomic charges and full AIM weights. Periodic MBIS
-optimizes all Slater shells globally while reusing shell-local grids, expanding a grid
-only when its optimized shell becomes more diffuse. All-electron
+grid images and can return both atomic charges and full AIM weights. Fixed LISA,
+Hirshfeld, and AVH basis functions and active Hirshfeld-I charge states are cached only
+on their local grids. Periodic MBIS similarly reuses shell-local grids, expanding a
+grid only when its optimized shell becomes more diffuse. All-electron
 DensPart-style NPZ files, including uniform and PAW augmentation grid blocks, can
 be used directly:
 

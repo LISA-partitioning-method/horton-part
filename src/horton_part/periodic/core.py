@@ -28,6 +28,15 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _LocalBasisBlock:
+    """Values of one radial basis function on a periodic local grid."""
+
+    indices: np.ndarray
+    values: np.ndarray
+    weighted_values: np.ndarray
+
+
 @dataclass
 class PeriodicPartitionResult:
     """Results returned by a periodic stockholder calculation."""
@@ -351,6 +360,7 @@ class PeriodicStockholder:
         self.models = tuple(models)
         self.density_cutoff = float(density_cutoff)
         self._linear_basis_cache = {}
+        self._interpolated_basis_cache = {}
         self._mbis_shell_cache = None
         self._validate()
 
@@ -405,26 +415,94 @@ class PeriodicStockholder:
         radii = np.linalg.norm(localgrid.points - self.coordinates[iatom], axis=1)
         return self.models[iatom].evaluate(radii), radii
 
-    def _linear_basis(self, iatom):
-        """Evaluate fixed linear shapes as periodic sums on the primitive-cell grid."""
+    @staticmethod
+    def _accumulate_block(target, block, scale=1.0):
+        """Add a scaled local basis block to a primitive-cell array."""
+        target[block.indices] += scale * block.values
+
+    @staticmethod
+    def _integrate_block(block, factor):
+        """Integrate a local basis block times a primitive-cell factor."""
+        return np.dot(block.weighted_values, factor[block.indices])
+
+    def _make_block(self, localgrid, values):
+        """Collapse periodic images into one sparse primitive-cell basis block."""
+        indices, inverse = np.unique(localgrid.indices, return_inverse=True)
+        collapsed = np.zeros(len(indices))
+        np.add.at(collapsed, inverse, values)
+        return _LocalBasisBlock(
+            indices,
+            collapsed,
+            self.grid.weights[indices] * collapsed,
+        )
+
+    def _linear_blocks(self, iatom):
+        """Evaluate and cache fixed linear shapes only on their local grids."""
         if iatom not in self._linear_basis_cache:
             model = self.models[iatom]
             if not isinstance(model, LinearProAtom):
                 raise TypeError("Periodic linear bases are only defined for LinearProAtom models.")
-            basis = np.zeros((len(model.shapes), len(self.density)))
-            for ibasis, (shape, scale) in enumerate(
-                zip(model.shapes, model.activation_scales, strict=True)
-            ):
+            blocks = []
+            for shape, scale in zip(model.shapes, model.activation_scales, strict=True):
                 radius = shape.cutoff(self.density_cutoff, scale)
                 localgrid = self.grid.get_localgrid(self.coordinates[iatom], radius)
                 radii = np.linalg.norm(localgrid.points - self.coordinates[iatom], axis=1)
-                np.add.at(basis[ibasis], localgrid.indices, shape.evaluate(radii))
-            self._linear_basis_cache[iatom] = basis
+                blocks.append(self._make_block(localgrid, shape.evaluate(radii)))
+            self._linear_basis_cache[iatom] = tuple(blocks)
         return self._linear_basis_cache[iatom]
+
+    def _linear_basis(self, iatom):
+        """Materialize fixed linear shapes on the primitive-cell grid."""
+        basis = np.zeros((len(self._linear_blocks(iatom)), len(self.density)))
+        for values, block in zip(basis, self._linear_blocks(iatom), strict=True):
+            self._accumulate_block(values, block)
+        return basis
 
     def _linear_proatom(self, iatom):
         model = self.models[iatom]
-        return model.coefficients @ self._linear_basis(iatom)
+        proatom = np.zeros_like(self.density)
+        for coefficient, block in zip(
+            model.coefficients,
+            self._linear_blocks(iatom),
+            strict=True,
+        ):
+            self._accumulate_block(proatom, block, coefficient)
+        return proatom
+
+    def _interpolated_block(self, iatom, charge):
+        """Evaluate and cache one active Hirshfeld-I charge state on a local grid."""
+        model = self.models[iatom]
+        if not isinstance(model, InterpolatedProAtom):
+            raise TypeError(
+                "Periodic interpolated bases are only defined for InterpolatedProAtom models."
+            )
+        blocks = self._interpolated_basis_cache.setdefault(iatom, {})
+        state = model.states.get(charge)
+        if state is None or state.electrons <= 0.0:
+            return None
+        if charge not in blocks:
+            radius = state.cutoff(self.density_cutoff, state.electrons)
+            localgrid = self.grid.get_localgrid(self.coordinates[iatom], radius)
+            radii = np.linalg.norm(localgrid.points - self.coordinates[iatom], axis=1)
+            blocks[charge] = self._make_block(
+                localgrid,
+                state.electrons * state.evaluate(radii),
+            )
+        return blocks[charge]
+
+    def _interpolated_terms(self, iatom):
+        """Return active Hirshfeld-I local blocks and their mixing coefficients."""
+        model = self.models[iatom]
+        lower, upper, fraction = model.interpolation_info()
+        terms = []
+        lower_block = self._interpolated_block(iatom, lower)
+        if lower_block is not None:
+            terms.append((1.0 - fraction, lower_block))
+        if upper != lower:
+            upper_block = self._interpolated_block(iatom, upper)
+            if upper_block is not None:
+                terms.append((fraction, upper_block))
+        return terms
 
     def _mbis_shells(self):
         """Return fixed local grids and radii for all MBIS shells."""
@@ -461,22 +539,55 @@ class PeriodicStockholder:
         self._mbis_shell_cache = tuple(shells)
         return expanded
 
-    def _mbis_proatoms(self):
-        """Evaluate MBIS pro-atoms using the fixed per-shell local grids."""
-        proatoms = np.zeros((len(self.models), len(self.density)))
+    def _mbis_promolecule(self):
+        """Evaluate the MBIS promolecule directly from shell-local grids."""
+        promolecule = np.zeros_like(self.density)
         for iatom, ishell, _, localgrid, radii in self._mbis_shells():
             population, exponent = self.models[iatom].propars.reshape(-1, 2)[ishell]
             values = self.models[iatom].evaluate_shell(population, exponent, radii)
-            np.add.at(proatoms[iatom], localgrid.indices, values)
-        return proatoms
+            np.add.at(promolecule, localgrid.indices, values)
+        return promolecule
+
+    def _dense_proatom(self, iatom):
+        """Materialize one pro-atom; used only when full AIM weights are requested."""
+        proatom = np.zeros_like(self.density)
+        model = self.models[iatom]
+        if isinstance(model, LinearProAtom):
+            for coefficient, block in zip(
+                model.coefficients,
+                self._linear_blocks(iatom),
+                strict=True,
+            ):
+                self._accumulate_block(proatom, block, coefficient)
+        elif isinstance(model, InterpolatedProAtom):
+            for coefficient, block in self._interpolated_terms(iatom):
+                self._accumulate_block(proatom, block, coefficient)
+        elif isinstance(model, MBISProAtom):
+            for shell_iatom, ishell, _, localgrid, radii in self._mbis_shells():
+                if shell_iatom != iatom:
+                    continue
+                population, exponent = model.propars.reshape(-1, 2)[ishell]
+                values = model.evaluate_shell(population, exponent, radii)
+                np.add.at(proatom, localgrid.indices, values)
+        else:
+            raise TypeError(f"Unsupported periodic pro-atom model: {type(model).__name__}.")
+        return proatom
 
     def promolecule(self, include_inactive=False):
         if all(isinstance(model, MBISProAtom) for model in self.models):
-            return self._mbis_proatoms().sum(axis=0)
+            return self._mbis_promolecule()
         result = np.zeros_like(self.density)
-        for iatom in range(len(self.models)):
-            if isinstance(self.models[iatom], LinearProAtom):
-                result += self._linear_proatom(iatom)
+        for iatom, model in enumerate(self.models):
+            if isinstance(model, LinearProAtom):
+                for coefficient, block in zip(
+                    model.coefficients,
+                    self._linear_blocks(iatom),
+                    strict=True,
+                ):
+                    self._accumulate_block(result, block, coefficient)
+            elif isinstance(model, InterpolatedProAtom):
+                for coefficient, block in self._interpolated_terms(iatom):
+                    self._accumulate_block(result, block, coefficient)
             else:
                 localgrid = self._localgrid(iatom, include_inactive)
                 values, _ = self._evaluate_local(iatom, localgrid)
@@ -491,12 +602,31 @@ class PeriodicStockholder:
             out=np.zeros_like(self.density),
             where=valid,
         )
-        if all(isinstance(model, MBISProAtom) for model in self.models):
-            return np.einsum("ap,p,p->a", self._mbis_proatoms(), ratio, self.grid.weights), ratio
         populations = np.zeros(len(self.models))
-        for iatom in range(len(self.models)):
-            if isinstance(self.models[iatom], LinearProAtom):
-                populations[iatom] = np.dot(self.grid.weights, self._linear_proatom(iatom) * ratio)
+        if all(isinstance(model, MBISProAtom) for model in self.models):
+            for iatom, ishell, _, localgrid, radii in self._mbis_shells():
+                population, exponent = self.models[iatom].propars.reshape(-1, 2)[ishell]
+                values = self.models[iatom].evaluate_shell(population, exponent, radii)
+                populations[iatom] += np.dot(
+                    localgrid.weights * values,
+                    ratio[localgrid.indices],
+                )
+            return populations, ratio
+        for iatom, model in enumerate(self.models):
+            if isinstance(model, LinearProAtom):
+                populations[iatom] = sum(
+                    coefficient * self._integrate_block(block, ratio)
+                    for coefficient, block in zip(
+                        model.coefficients,
+                        self._linear_blocks(iatom),
+                        strict=True,
+                    )
+                )
+            elif isinstance(model, InterpolatedProAtom):
+                populations[iatom] = sum(
+                    coefficient * self._integrate_block(block, ratio)
+                    for coefficient, block in self._interpolated_terms(iatom)
+                )
             else:
                 localgrid = self._localgrid(iatom)
                 proatom, _ = self._evaluate_local(iatom, localgrid)
@@ -614,15 +744,17 @@ class PeriodicStockholder:
             raise ValueError("The threshold and maximum iteration count must be positive.")
         if not all(isinstance(model, LinearProAtom) for model in self.models):
             raise TypeError("Global linear optimization requires LinearProAtom models.")
-        basis = np.concatenate(
-            [self._linear_basis(iatom) for iatom in range(len(self.models))], axis=0
+        basis_blocks = tuple(
+            block for iatom in range(len(self.models)) for block in self._linear_blocks(iatom)
         )
         initial = np.concatenate([model.coefficients for model in self.models])
         population = float(np.dot(self.grid.weights, self.density))
         numerical_cutoff = min(self.density_cutoff, 1.0e-15)
 
         def objective(coefficients):
-            promolecule = coefficients @ basis
+            promolecule = np.zeros_like(self.density)
+            for coefficient, block in zip(coefficients, basis_blocks, strict=True):
+                self._accumulate_block(promolecule, block, coefficient)
             valid = (self.density > numerical_cutoff) & (promolecule > numerical_cutoff)
             ratio = np.divide(
                 self.density,
@@ -635,7 +767,9 @@ class PeriodicStockholder:
                 np.log(self.density[valid]) - np.log(promolecule[valid]),
             )
             value = kld - population + coefficients.sum()
-            gradient = 1.0 - basis @ (self.grid.weights * ratio)
+            gradient = 1.0 - np.array(
+                [self._integrate_block(block, ratio) for block in basis_blocks]
+            )
             return value, gradient
 
         if method.startswith("avh-"):
@@ -799,38 +933,14 @@ class PeriodicStockholder:
         if return_weights:
             aim_weights = np.zeros((len(self.models), len(self.density)))
             valid = promolecule > 1.0e-15
-            mbis_proatoms = (
-                self._mbis_proatoms()
-                if all(isinstance(model, MBISProAtom) for model in self.models)
-                else None
-            )
             for iatom in range(len(self.models)):
-                if mbis_proatoms is not None:
-                    proatom = mbis_proatoms[iatom]
-                    aim_weights[iatom] = np.divide(
-                        proatom,
-                        promolecule,
-                        out=np.zeros_like(proatom),
-                        where=valid,
-                    )
-                elif isinstance(self.models[iatom], LinearProAtom):
-                    proatom = self._linear_proatom(iatom)
-                    aim_weights[iatom] = np.divide(
-                        proatom,
-                        promolecule,
-                        out=np.zeros_like(proatom),
-                        where=valid,
-                    )
-                else:
-                    localgrid = self._localgrid(iatom)
-                    proatom, _ = self._evaluate_local(iatom, localgrid)
-                    values = np.divide(
-                        proatom,
-                        promolecule[localgrid.indices],
-                        out=np.zeros_like(proatom),
-                        where=valid[localgrid.indices],
-                    )
-                    np.add.at(aim_weights[iatom], localgrid.indices, values)
+                proatom = self._dense_proatom(iatom)
+                aim_weights[iatom] = np.divide(
+                    proatom,
+                    promolecule,
+                    out=np.zeros_like(proatom),
+                    where=valid,
+                )
             if np.any(valid):
                 reconstruction_error = float(
                     np.max(np.abs(aim_weights[:, valid].sum(axis=0) - 1.0))
