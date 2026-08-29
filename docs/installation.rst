@@ -31,7 +31,7 @@ To install the latest version from the repository:
 
 .. code-block:: bash
 
-   git clone https://github.com/yingxingcheng/horton-part.git
+   git clone https://github.com/LISA-partitioning-method/horton-part.git
    cd horton-part
    pip install .
 

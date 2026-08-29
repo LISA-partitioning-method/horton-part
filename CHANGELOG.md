@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [1.1.9]  - 2026-08-29
+
+### Added
+- Allowed explicit initial exponents for each element in NLIS calculations.
+
+### Fixed
+- Declared NumPy and SciPy as direct dependencies and restricted SciPy to versions compatible
+  with the latest released `qc-grid` package.
+- Corrected source-distribution entries and repository links in package documentation.
+- Aligned the license file and package metadata with HORTON's GPLv3-or-later license.
+- Updated GitHub Actions to supported Node.js-based releases.
+
 ## [1.1.8]  - 2025-10-10
 
 ### Fixed

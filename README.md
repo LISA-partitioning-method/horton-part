@@ -41,7 +41,7 @@ and Paul W. Ayers (3).
 - (3) The Ayers Group, McMaster University, Hamilton, Ontario, Canada.
 - (4) General Chemistry (ALGC), Free University of Brussels, Brussels, Belgium.
 
-The `Horton-Part` source code is hosted on GitHub and is released under the GNU General Public License v3.0.
+The `Horton-Part` source code is hosted on GitHub and is released under the GNU General Public License v3.0 or later.
 Please report any issues you encounter while using the `Horton-Part` library on [GitHub Issues](https://github.com/LISA-partitioning-method/horton-part/issues/new).
 For further information and inquiries, please contact us at yxcheng2buaa@gmail.com.
 
@@ -88,7 +88,7 @@ schema, Python API, output fields, and method-specific basis requirements.
 ![GPLv3 License](https://img.shields.io/badge/license-GPLv3-blue.svg)
 
 
-`horton-part` is distributed under GPL License version 3 (GPLv3).
+`horton-part` is distributed under the GNU General Public License version 3 or later.
 
 ## Dependencies
 
@@ -119,7 +119,7 @@ pip install horton-part==0.0.x
 To install latest `horton-part`:
 
 ```bash
-git clone http://github.com/yingxingcheng/horton-part
+git clone https://github.com/LISA-partitioning-method/horton-part.git
 cd horton-part
 pip install .
 ```
