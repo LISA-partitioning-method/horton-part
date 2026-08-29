@@ -6,7 +6,7 @@
 Welcome to Horton-Part's documentation!
 =======================================
 
-`HORTON-PART <https://github.com/yingxingcheng/horton-part>`_ is a computational chemistry package that supports different partition schemes.
+`HORTON-PART <https://github.com/LISA-partitioning-method/horton-part>`_ is a computational chemistry package that supports different partition schemes.
 It is based on the sub-module ``part`` of ``HORTON2``, which is written and maintained by Toon Verstraelen (2).
 In ``HORTON3``, all sub-modules have been rewritten using the pure Python programming language to support Python 3+.
 See more details on this `website <http://theochem.github.com/horton/>`_.
@@ -17,7 +17,7 @@ Additionally, ``denspart`` only supports the ``MBIS`` partitioning scheme.
 Another ``part`` module has been rewritten in pure Python programming language by Farnaz Heidar-Zadeh (2).
 However, the integration grid implemented in this module still uses the old 'grid' from Horton2.
 `HORTON-PART <https://github.com/yingxingcheng/horton-part>`_ with version ``0.0.X`` is based on this module.
-Starting from version ``1.X.X``, `HORTON-PART <https://github.com/yingxingcheng/horton-part>`_ only supports the new integration `qc-grid <https://github.com/theochem/grid>`_.
+Starting from version ``1.X.X``, `HORTON-PART <https://github.com/LISA-partitioning-method/horton-part>`_ only supports the new integration `qc-grid <https://github.com/theochem/grid>`_.
 The molecular density can be prepared using ``IOData`` (https://github.com/theochem/iodata) and ``GBasis`` (https://github.com/theochem/gbasis) packages.
 
 This version contains contributions from
@@ -39,9 +39,9 @@ and Paul W. Ayers (3)
 - (3) The Ayers Group, McMaster University, Hamilton, Ontario, Canada.
 - (4) General Chemistry (ALGC), Free University of Brussels, Brussels, Belgium.
 
-The ``Horton-Part`` source code is hosted on GitHub and is released under the GNU General Public License v3.0.
+The ``Horton-Part`` source code is hosted on GitHub and is released under the GNU General Public License v3.0 or later.
 Please report any issues you encounter while using ``Horton-Part`` library on
-`GitHub Issues <https://github.com/yingxingcheng/horton-part/issues/new>`_.
+`GitHub Issues <https://github.com/LISA-partitioning-method/horton-part/issues/new>`_.
 For further information and inquiries please contact us at yxcheng2buaa@gmail.com.
 
 
