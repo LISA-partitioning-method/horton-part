@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the latest released `qc-grid` package.
 - Corrected source-distribution entries and repository links in package documentation.
 - Aligned the license file and package metadata with HORTON's GPLv3-or-later license.
+- Updated GitHub Actions to supported Node.js-based releases.
 
 ## [1.1.8]  - 2025-10-10
 
