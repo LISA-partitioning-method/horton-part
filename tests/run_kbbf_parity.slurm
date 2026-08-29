@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=horton-gap
+#SBATCH --job-name=horton-kbbf
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -22,10 +22,11 @@ repo_dir=$(cd -- "$repo_dir" && pwd)
 python=${HORTON_PART_TEST_PYTHON:-python}
 
 required=(
-    HORTON_PART_GAP_ROOT
-    HORTON_PART_GAP_LISA_BASIS
-    HORTON_PART_GAP_SPLINE_ALL_BASIS
-    HORTON_PART_GAP_SPLINE_BOUND_BASIS
+    HORTON_PART_KBBF_ROOT
+    HORTON_PART_KBBF_MBIS_REFERENCE
+    HORTON_PART_KBBF_LISA_BASIS
+    HORTON_PART_KBBF_SPLINE_ALL_BASIS
+    HORTON_PART_KBBF_SPLINE_BOUND_BASIS
 )
 for variable in "${required[@]}"; do
     [[ -n "${!variable:-}" ]] || {
@@ -36,8 +37,8 @@ done
 
 cd "$repo_dir"
 export PYTHONPATH="${repo_dir}/src${PYTHONPATH:+:${PYTHONPATH}}"
-pytest_options=(-v)
+pytest_options=(-v --durations=0)
 if "$python" -m pytest --help | grep -q -- "--slow"; then
     pytest_options+=(--slow)
 fi
-"$python" -m pytest "${pytest_options[@]}" "$@" tests/test_periodic_gap.py
+"$python" -m pytest "${pytest_options[@]}" "$@" tests/test_periodic_kbbf.py

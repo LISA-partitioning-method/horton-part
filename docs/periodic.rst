@@ -79,8 +79,24 @@ Configure the paths to an all-electron GaP archive and its basis libraries, then
 The test integrates the independently archived DensPart weights rather than comparing
 printed pro-atom populations. This distinction is important when finite-grid or radial
 cutoff errors make the two charge definitions differ slightly. Method-specific tolerances
-are at most ``1e-4`` electrons to accommodate optimizer stopping-point differences across
-SciPy versions; deterministic spline cases use tighter tolerances.
+are at most ``5e-4`` electrons to accommodate optimizer stopping-point differences across
+SciPy versions; deterministic spline cases use tighter tolerances. The widest tolerance is
+for KBBF LISA, whose 145-parameter objective is particularly flat near the minimum.
+
+The corresponding nine-atom KBBF test exercises both the memory-saving local-only path
+and full AIM-weight reconstruction:
+
+.. code-block:: bash
+
+   export HORTON_PART_KBBF_ROOT=/path/to/kbbf/partition/archive
+   export HORTON_PART_KBBF_MBIS_REFERENCE=/path/to/kbbf/mbis.npz
+   export HORTON_PART_KBBF_LISA_BASIS=/path/to/lisa.json
+   export HORTON_PART_KBBF_SPLINE_ALL_BASIS=/path/to/spline-all.json
+   export HORTON_PART_KBBF_SPLINE_BOUND_BASIS=/path/to/spline-bound.json
+   sbatch tests/run_kbbf_parity.slurm
+
+These real-material tests are optional because neither the density archives nor the
+independently generated reference weights are distributed with HORTON-PART.
 
 Method scope
 ------------
