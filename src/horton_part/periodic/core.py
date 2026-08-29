@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.optimize import SR1, Bounds, LinearConstraint, minimize
+from scipy.optimize import Bounds, LinearConstraint, SR1, minimize
 
 from ..core.basis import evaluate_function
 from ..mbis import get_initial_mbis_propars, opt_mbis_propars
@@ -273,8 +273,34 @@ class MBISProAtom:
     def evaluate(self, radii):
         result = np.zeros_like(radii, dtype=float)
         for population, exponent in self.propars.reshape(-1, 2):
-            result += evaluate_function(1.0, population, exponent, np.asarray(radii))
+            result += self.evaluate_shell(population, exponent, radii)
         return result
+
+    @staticmethod
+    def evaluate_shell(population, exponent, radii):
+        """Evaluate one normalized Slater shell."""
+        return evaluate_function(1.0, population, exponent, np.asarray(radii))
+
+    @staticmethod
+    def shell_derivatives(population, exponent, radii):
+        """Return derivatives of one shell with respect to population and exponent."""
+        radii = np.asarray(radii)
+        exponential = np.exp(-exponent * radii)
+        population_derivative = exponent**3 * exponential / (8.0 * np.pi)
+        exponent_derivative = (
+            population * exponent**2 * (3.0 - exponent * radii) * exponential / (8.0 * np.pi)
+        )
+        return population_derivative, exponent_derivative
+
+    @staticmethod
+    def shell_cutoff(population, exponent, density_cutoff):
+        """Return the fixed local-grid radius for one shell."""
+        if density_cutoff <= 0.0:
+            return np.inf
+        value_at_origin = population * exponent**3 / (8.0 * np.pi)
+        if value_at_origin <= density_cutoff:
+            return 0.0
+        return np.log(value_at_origin / density_cutoff) / exponent
 
     def cutoff(self, density_cutoff, include_inactive=False):
         radii = []
@@ -325,6 +351,7 @@ class PeriodicStockholder:
         self.models = tuple(models)
         self.density_cutoff = float(density_cutoff)
         self._linear_basis_cache = {}
+        self._mbis_shell_cache = None
         self._validate()
 
     def _validate(self):
@@ -399,7 +426,53 @@ class PeriodicStockholder:
         model = self.models[iatom]
         return model.coefficients @ self._linear_basis(iatom)
 
+    def _mbis_shells(self):
+        """Return fixed local grids and radii for all MBIS shells."""
+        if self._mbis_shell_cache is None:
+            shells = []
+            for iatom, model in enumerate(self.models):
+                if not isinstance(model, MBISProAtom):
+                    continue
+                for ishell, (population, exponent) in enumerate(model.propars.reshape(-1, 2)):
+                    radius = model.shell_cutoff(population, exponent, self.density_cutoff)
+                    localgrid = self.grid.get_localgrid(self.coordinates[iatom], radius)
+                    radii = np.linalg.norm(localgrid.points - self.coordinates[iatom], axis=1)
+                    shells.append((iatom, ishell, radius, localgrid, radii))
+            self._mbis_shell_cache = tuple(shells)
+        return self._mbis_shell_cache
+
+    def _expand_mbis_shells(self):
+        """Expand cached shell grids when optimized functions extend beyond them."""
+        expanded = False
+        shells = []
+        for iatom, ishell, radius, localgrid, radii in self._mbis_shells():
+            population, exponent = self.models[iatom].propars.reshape(-1, 2)[ishell]
+            required = self.models[iatom].shell_cutoff(
+                population,
+                exponent,
+                self.density_cutoff,
+            )
+            if required > radius * (1.0 + 1.0e-8):
+                radius = required
+                localgrid = self.grid.get_localgrid(self.coordinates[iatom], radius)
+                radii = np.linalg.norm(localgrid.points - self.coordinates[iatom], axis=1)
+                expanded = True
+            shells.append((iatom, ishell, radius, localgrid, radii))
+        self._mbis_shell_cache = tuple(shells)
+        return expanded
+
+    def _mbis_proatoms(self):
+        """Evaluate MBIS pro-atoms using the fixed per-shell local grids."""
+        proatoms = np.zeros((len(self.models), len(self.density)))
+        for iatom, ishell, _, localgrid, radii in self._mbis_shells():
+            population, exponent = self.models[iatom].propars.reshape(-1, 2)[ishell]
+            values = self.models[iatom].evaluate_shell(population, exponent, radii)
+            np.add.at(proatoms[iatom], localgrid.indices, values)
+        return proatoms
+
     def promolecule(self, include_inactive=False):
+        if all(isinstance(model, MBISProAtom) for model in self.models):
+            return self._mbis_proatoms().sum(axis=0)
         result = np.zeros_like(self.density)
         for iatom in range(len(self.models)):
             if isinstance(self.models[iatom], LinearProAtom):
@@ -418,6 +491,8 @@ class PeriodicStockholder:
             out=np.zeros_like(self.density),
             where=valid,
         )
+        if all(isinstance(model, MBISProAtom) for model in self.models):
+            return np.einsum("ap,p,p->a", self._mbis_proatoms(), ratio, self.grid.weights), ratio
         populations = np.zeros(len(self.models))
         for iatom in range(len(self.models)):
             if isinstance(self.models[iatom], LinearProAtom):
@@ -619,6 +694,92 @@ class PeriodicStockholder:
             return_weights,
         )
 
+    def run_variational_mbis(self, threshold, maxiter, return_weights=True):
+        """Optimize all MBIS shells globally on fixed per-shell local grids."""
+        if threshold <= 0.0 or maxiter <= 0:
+            raise ValueError("The threshold and maximum iteration count must be positive.")
+        if not all(isinstance(model, MBISProAtom) for model in self.models):
+            raise TypeError("Global MBIS optimization requires MBISProAtom models.")
+
+        original_initial = np.concatenate([model.propars for model in self.models])
+        population = float(np.dot(self.grid.weights, self.density))
+        total_iterations = 0
+        for _ in range(10):
+            initial = np.concatenate([model.propars for model in self.models])
+            shell_data = self._mbis_shells()
+
+            def objective(parameters):
+                promolecule = np.zeros_like(self.density)
+                for iparam, (_, _, _, localgrid, radii) in enumerate(shell_data):
+                    shell_population, exponent = parameters[2 * iparam : 2 * iparam + 2]
+                    values = MBISProAtom.evaluate_shell(shell_population, exponent, radii)
+                    np.add.at(promolecule, localgrid.indices, values)
+
+                valid = (self.density > 1.0e-15) & (promolecule > 1.0e-15)
+                ratio = np.divide(
+                    self.density,
+                    promolecule,
+                    out=np.zeros_like(self.density),
+                    where=valid,
+                )
+                kld = np.dot(
+                    self.grid.weights[valid] * self.density[valid],
+                    np.log(self.density[valid]) - np.log(promolecule[valid]),
+                )
+                value = kld - population + parameters[::2].sum()
+                gradient = np.zeros_like(parameters)
+                for iparam, (_, _, _, localgrid, radii) in enumerate(shell_data):
+                    shell_population, exponent = parameters[2 * iparam : 2 * iparam + 2]
+                    derivatives = MBISProAtom.shell_derivatives(shell_population, exponent, radii)
+                    weighted_ratio = localgrid.weights * ratio[localgrid.indices]
+                    gradient[2 * iparam] = 1.0 - np.dot(weighted_ratio, derivatives[0])
+                    gradient[2 * iparam + 1] = -np.dot(weighted_ratio, derivatives[1])
+                return value, gradient
+
+            lower = np.tile((5.0e-5, 0.1), len(shell_data))
+            upper = np.tile((100.0, 1000.0), len(shell_data))
+            result = minimize(
+                objective,
+                initial,
+                method="trust-constr",
+                jac=True,
+                hess=SR1(),
+                bounds=Bounds(lower, upper, keep_feasible=True),
+                options={"gtol": threshold, "maxiter": maxiter},
+            )
+            total_iterations += int(result.nit)
+            if not result.success:
+                raise RuntimeError(f"Periodic MBIS optimization failed: {result.message}")
+
+            offset = 0
+            for model in self.models:
+                count = len(model.propars)
+                model.propars[:] = result.x[offset : offset + count]
+                offset += count
+            if not self._expand_mbis_shells():
+                break
+        else:
+            raise RuntimeError("Periodic MBIS local grids did not stabilize after 10 expansions.")
+
+        offset = 0
+        initial_populations = []
+        for model in self.models:
+            count = len(model.propars)
+            initial_populations.append(original_initial[offset : offset + count : 2].sum())
+            offset += count
+        history = [
+            self.pseudo_numbers - np.asarray(initial_populations),
+            self.pseudo_numbers - np.array([model.population for model in self.models]),
+        ]
+        return self._finalize(
+            "mbis",
+            self.promolecule(),
+            total_iterations,
+            True,
+            history,
+            return_weights,
+        )
+
     def _finalize(
         self,
         method,
@@ -638,8 +799,21 @@ class PeriodicStockholder:
         if return_weights:
             aim_weights = np.zeros((len(self.models), len(self.density)))
             valid = promolecule > 1.0e-15
+            mbis_proatoms = (
+                self._mbis_proatoms()
+                if all(isinstance(model, MBISProAtom) for model in self.models)
+                else None
+            )
             for iatom in range(len(self.models)):
-                if isinstance(self.models[iatom], LinearProAtom):
+                if mbis_proatoms is not None:
+                    proatom = mbis_proatoms[iatom]
+                    aim_weights[iatom] = np.divide(
+                        proatom,
+                        promolecule,
+                        out=np.zeros_like(proatom),
+                        where=valid,
+                    )
+                elif isinstance(self.models[iatom], LinearProAtom):
                     proatom = self._linear_proatom(iatom)
                     aim_weights[iatom] = np.divide(
                         proatom,

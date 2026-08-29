@@ -88,7 +88,9 @@ Hirshfeld uses the neutral spline state without optimization. Hirshfeld-I mixes
 adjacent integer-charge states, including an implicit zero-density fully stripped
 endpoint. LISA and AVH optimize nonnegative mixing coefficients; AVH-A retains all
 available charged states, AVH-B retains physically bound states, and AVH-M retains
-only the neutral state. MBIS optimizes its minimal Slater shells. Orbital-matrix
+only the neutral state. MBIS globally optimizes its minimal Slater shells on cached
+shell-local grids, expanding a grid only when its optimized shell becomes more diffuse.
+Orbital-matrix
 methods such as Mulliken partitioning are outside the real-space grid API.
 
 AVH validates the state set before optimization. AVH-A requires every charge from

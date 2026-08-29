@@ -148,6 +148,8 @@ def partition_periodic(
             maxiter,
             return_weights,
         )
+    if canonical == "mbis":
+        return engine.run_variational_mbis(threshold, maxiter, return_weights)
     return engine.run_iterative(
         canonical,
         threshold,

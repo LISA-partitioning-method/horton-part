@@ -10,6 +10,8 @@ import pytest
 from grid import PeriodicGrid
 
 from horton_part.periodic import (
+    MBISProAtom,
+    PeriodicStockholder,
     load_lisa_basis,
     load_spline_proatoms,
     partition_periodic,
@@ -162,6 +164,46 @@ def test_mbis_one_atom_periodic_density():
     assert result.converged
     assert result.charges[0] == pytest.approx(0.0, abs=5.0e-4)
     assert result.reconstruction_error < 1.0e-12
+
+
+def test_mbis_shell_derivatives_match_finite_differences():
+    radii = np.linspace(0.0, 8.0, 101)
+    population = 1.3
+    exponent = 0.8
+    derivatives = MBISProAtom.shell_derivatives(population, exponent, radii)
+    steps = (1.0e-6, 1.0e-6)
+    for index, step in enumerate(steps):
+        lower = [population, exponent]
+        upper = [population, exponent]
+        lower[index] -= step
+        upper[index] += step
+        finite_difference = (
+            MBISProAtom.evaluate_shell(*upper, radii) - MBISProAtom.evaluate_shell(*lower, radii)
+        ) / (2.0 * step)
+        assert derivatives[index] == pytest.approx(finite_difference, rel=2.0e-9, abs=1.0e-11)
+
+
+def test_mbis_local_grids_are_cached_and_expand_only_when_needed():
+    grid = _uniform_periodic_grid(npoint=12)
+    center = np.array([4.0, 4.0, 4.0])
+    density = _periodic_density(grid, center, ExponentialShape(1.0, 2.0))
+    engine = PeriodicStockholder(
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        [MBISProAtom(1)],
+    )
+    shells = engine._mbis_shells()
+    first_localgrid = shells[0][3]
+    promolecule = engine.promolecule()
+    engine.stockholder_populations(promolecule)
+    assert engine._mbis_shells() is shells
+    assert engine._mbis_shells()[0][3] is first_localgrid
+    engine.models[0].propars[1] = 1.0
+    assert engine._expand_mbis_shells()
+    assert engine._mbis_shells()[0][3] is not first_localgrid
+    assert not engine._expand_mbis_shells()
 
 
 def test_fixed_partition_distinguishes_integrated_and_model_charges():
