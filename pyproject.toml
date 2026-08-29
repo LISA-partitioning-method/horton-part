@@ -32,6 +32,8 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
+    "numpy",
+    "scipy",
     "quadprog>=0.1.13",
     "cvxopt>=1.3.1",
     "qpsolvers",
@@ -56,6 +58,7 @@ Changelog = "https://github.com/LISA-partitioning-method/horton-part/CHANGELOG.m
 part = "horton_part.__main__:main"
 part-gen = "horton_part.scripts.generate_density:main"
 part-dens = "horton_part.scripts.partition_density:main"
+part-periodic = "horton_part.scripts.partition_periodic:main"
 part-cube = "horton_part.scripts.generate_cube:main"
 
 [tool.ruff]

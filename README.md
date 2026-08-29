@@ -66,6 +66,23 @@ This package implements partitioning schemes described in three papers: [a mathe
 - Generalized Minimal Basis Iterative Stockholder (GMBIS)
 - Non-linear approximation of the ISA (NLIS) method
 
+### Periodic real-space grids
+
+The `with-periodic-grid` implementation provides a shared `qc-grid` engine for
+Hirshfeld, Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. It accumulates translated local
+grid images and can return both atomic charges and full AIM weights. Existing
+DensPart-style NPZ density files can be used directly:
+
+```bash
+part-periodic density.npz mbis.npz --method mbis
+part-periodic density.npz hi.npz --method hirshfeld-i --basis pbe-periodic.json
+```
+
+Hirshfeld, Hirshfeld-I, and AVH use a
+`denspart-spline-proatom-basis-v1` library; LISA accepts either the bundled basis
+or a custom LISA JSON file. See [the periodic guide](docs/periodic.rst) for the input
+schema, Python API, output fields, and method-specific basis requirements.
+
 ## License
 
 ![GPLv3 License](https://img.shields.io/badge/license-GPLv3-blue.svg)

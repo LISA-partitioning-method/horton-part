@@ -135,6 +135,7 @@ Modules
     :caption: User Documentation
 
     ./installation.rst
+    ./periodic.rst
 
 
 

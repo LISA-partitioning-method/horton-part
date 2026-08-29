@@ -33,6 +33,7 @@ from .isa import *
 from .mbis import *
 from .mulliken import *
 from .nlis import *
+from .periodic import *
 from .utils import *
 
 try:
