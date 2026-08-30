@@ -75,6 +75,32 @@ def test_load_params():
     os.remove(tmpfile_path)
 
 
+@pytest.mark.parametrize("basis_format", ["aim-lisa-basis-v1", "denspart-lisa-basis-v1"])
+def test_load_package_neutral_lisa_params(tmp_path, basis_format):
+    basis_file = tmp_path / "lisa.json"
+    basis_file.write_text(
+        json.dumps(
+            {
+                "format": basis_format,
+                "metadata": {"purpose": "test"},
+                "elements": {
+                    "1": {
+                        "orders": [2.0, 2.0],
+                        "exponents": [1.5, 0.5],
+                        "initials": [0.75, 0.25],
+                    }
+                },
+            }
+        )
+    )
+
+    orders, exponents, initials = load_params(basis_file)
+
+    assert orders[1] == pytest.approx([2.0, 2.0])
+    assert exponents[1] == pytest.approx([1.5, 0.5])
+    assert initials[1] == pytest.approx([0.75, 0.25])
+
+
 def test_load_params_yaml():
     # Sample data to be written to the temporary JSON file
     sample_data = {

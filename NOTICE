@@ -1,0 +1,21 @@
+Third-party source-code acknowledgements
+========================================
+
+DensPart
+--------
+
+The following HORTON-Part files contain code adapted from DensPart:
+
+- ``src/horton_part/adapters/gpaw.py``
+- ``src/horton_part/adapters/_spherical_harmonics.py``
+- ``src/horton_part/scripts/generate_density.py``
+
+The GPAW adapter and spherical-harmonic helper were adapted from the ``lisa``
+branch of DensPart at commit ``ce0d986``. DensPart is available from
+https://github.com/theochem/denspart.
+
+Copyright (C) 2011-2020 The DensPart Development Team.
+
+DensPart and the adapted files are distributed under the GNU General Public
+License, version 3 or (at your option) any later version. The original copyright
+and license notices are retained in the adapted source files.

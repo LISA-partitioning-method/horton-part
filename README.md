@@ -81,7 +81,8 @@ be used directly:
 part-from-gpaw calculation.gpw density.npz  # run in a legacy GPAW environment
 part-periodic density.npz mbis.npz --method mbis
 part-periodic density.npz mbis-sc.npz --method mbis --solver sc
-part-periodic density.npz hi.npz --method hirshfeld-i --basis pbe-periodic.json
+part-periodic density.npz hi.npz --method hirshfeld-i \
+  --basis pbe-6311pgdp-sapporo-dkh3tzp-dkh2.json
 ```
 
 GPAW remains optional and is not installed with HORTON-Part. The converter runs
@@ -92,10 +93,13 @@ Periodic LISA, AVH, and MBIS provide both the default SciPy optimizer and a
 finite-system-style self-consistent route selected with `--solver sc`. The result
 archive records the solver used; performance should be benchmarked for each system.
 
-Hirshfeld, Hirshfeld-I, and AVH use a
-`denspart-spline-proatom-basis-v1` library; LISA accepts either the bundled basis
-or a custom LISA JSON file. See [the periodic guide](docs/periodic.rst) for the input
-schema, Python API, output fields, and method-specific basis requirements.
+Hirshfeld, Hirshfeld-I, and AVH use a shared
+`aim-proatom-spline-v1` library; finite and periodic LISA both accept
+`aim-lisa-basis-v1` in addition to the bundled basis. See
+[the periodic guide](docs/periodic.rst) for the input
+schema, Python API, output fields, and method-specific basis requirements. Executable
+examples are provided in the [periodic quick start](docs/notebooks/periodic_quick_start.ipynb)
+and [five-method comparison](docs/notebooks/periodic_methods.ipynb) notebooks.
 
 ## License
 
@@ -103,6 +107,7 @@ schema, Python API, output fields, and method-specific basis requirements.
 
 
 `horton-part` is distributed under the GNU General Public License version 3 or later.
+Third-party source-code acknowledgements are listed in [`NOTICE`](NOTICE).
 
 ## Dependencies
 

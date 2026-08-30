@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   density archives from legacy GPAW restart files without adding GPAW as a dependency.
 - Added finite-system-style self-consistent coefficient updates for periodic LISA,
   AVH, and MBIS, selectable with `part-periodic --solver sc`.
+- Added executable periodic quick-start and five-method comparison notebooks that
+  require neither GPAW nor external calculation data.
+- Added package-neutral AIM basis schemas for finite and periodic LISA and
+  ``ProAtomDB.from_spline_file`` so one radial-spline library can serve finite and periodic
+  stockholder calculations.
 
 ### Fixed
 - Corrected spin-density block assembly in the GPAW converter.

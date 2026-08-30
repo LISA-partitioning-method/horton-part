@@ -9,6 +9,11 @@ Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. An explicitly named
 ``avh-supplied`` mode is also available for reproducing calculations made
 with a user-defined subset of charged states.
 
+Start with the executable :doc:`periodic quick-start notebook
+<notebooks/periodic_quick_start>`, then use the :doc:`five-method comparison
+<notebooks/periodic_methods>` to review basis requirements and numerical checks.
+Both examples construct a small synthetic cell and require neither GPAW nor external data.
+
 Generating an input archive from GPAW
 -------------------------------------
 
@@ -50,9 +55,9 @@ integrate to ``Z - charge``; valence-only spline libraries are not yet supported
 
    part-periodic density.npz mbis.npz --method mbis
    part-periodic density.npz hi.npz --method hirshfeld-i \
-       --basis pbe-periodic.json
+       --basis pbe-6311pgdp-sapporo-dkh3tzp-dkh2.json
    part-periodic density.npz avh.npz --method avh \
-       --basis pbe-periodic.json --avh-variant B
+       --basis pbe-6311pgdp-sapporo-dkh3tzp-dkh2.json --avh-variant B
    part-periodic density.npz avh-supplied.npz --method avh \
        --basis custom-states.json --avh-variant supplied
 
@@ -76,9 +81,22 @@ The output ``solver`` field records the selected route. Plain Hirshfeld has no
 optimized coefficients, while Hirshfeld-I already uses its own charge-interpolation
 fixed-point cycle; therefore ``--solver`` does not apply to those methods.
 
-The radial-spline file used by Hirshfeld, Hirshfeld-I, and AVH must follow
-``denspart-spline-proatom-basis-v1``. LISA accepts the bundled HORTON-Part basis,
-the legacy three-array mapping, or ``denspart-lisa-basis-v1``.
+The radial-spline file used by Hirshfeld, Hirshfeld-I, and AVH follows the shared
+``aim-proatom-spline-v1`` schema. LISA accepts the bundled HORTON-Part basis,
+the legacy three-array mapping, or ``aim-lisa-basis-v1``. The former ``denspart-*``
+schema identifiers remain readable for compatibility.
+
+The package-neutral LISA file is accepted by both finite and periodic LISA. Likewise,
+the spline file can initialize finite Hirshfeld/Hirshfeld-I and all periodic spline
+methods, so a published atomic library does not need consumer-specific conversion.
+
+The same spline file can construct a finite-system reference database:
+
+.. code-block:: python
+
+   from horton_part import ProAtomDB
+
+   proatomdb = ProAtomDB.from_spline_file("pbe-6311pgdp-molecular.json")
 
 The output stores charges, populations, pro-atom parameters, the promolecular
 density, convergence history, and charge-conservation diagnostics. ``charges`` and

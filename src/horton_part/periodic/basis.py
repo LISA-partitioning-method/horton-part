@@ -24,6 +24,11 @@ __all__ = [
     "load_spline_proatoms",
 ]
 
+LISA_BASIS_FORMATS = frozenset({"aim-lisa-basis-v1", "denspart-lisa-basis-v1"})
+SPLINE_PROATOM_FORMATS = frozenset(
+    {"aim-proatom-spline-v1", "denspart-spline-proatom-basis-v1"}
+)
+
 
 def _load_mapping(source):
     """Return a JSON-compatible mapping loaded from ``source``."""
@@ -73,13 +78,21 @@ class RadialSplineState:
     charge: int
     electrons: int
     radii: np.ndarray
+    radial_weights: np.ndarray
     density: np.ndarray
+    energy_hartree: float | None = None
     bound_to_electron_loss: bool | None = None
 
     def __post_init__(self):
         radii = np.asarray(self.radii, dtype=float)
+        radial_weights = np.asarray(self.radial_weights, dtype=float)
         density = np.asarray(self.density, dtype=float)
-        if radii.ndim != 1 or len(radii) < 2 or density.shape != radii.shape:
+        if (
+            radii.ndim != 1
+            or len(radii) < 2
+            or radial_weights.shape != radii.shape
+            or density.shape != radii.shape
+        ):
             raise ValueError("Spline radii and densities must be matching one-dimensional arrays.")
         if radii[0] < 0.0 or not np.all(np.diff(radii) > 0.0):
             raise ValueError("Spline radii must be nonnegative and strictly increasing.")
@@ -100,6 +113,7 @@ class RadialSplineState:
             extrapolate=False,
         )
         object.__setattr__(self, "radii", radii)
+        object.__setattr__(self, "radial_weights", radial_weights)
         object.__setattr__(self, "density", density)
         object.__setattr__(self, "_spline", spline)
 
@@ -125,7 +139,7 @@ class RadialSplineState:
 def load_lisa_basis(source):
     """Load legacy HORTON-Part or versioned LISA exponential basis data."""
     raw = _load_mapping(source)
-    if raw.get("format") == "denspart-lisa-basis-v1":
+    if raw.get("format") in LISA_BASIS_FORMATS:
         raw = raw.get("elements", {})
     result = {}
     for raw_number, element in raw.items():
@@ -161,8 +175,9 @@ def load_lisa_basis(source):
 def load_spline_proatoms(source, population_tolerance=1.0e-6):
     """Load electron-normalized isolated atomic densities as unit radial shapes."""
     raw = _load_mapping(source)
-    if raw.get("format") != "denspart-spline-proatom-basis-v1":
-        raise ValueError("Expected a denspart-spline-proatom-basis-v1 mapping.")
+    if raw.get("format") not in SPLINE_PROATOM_FORMATS:
+        names = " or ".join(sorted(SPLINE_PROATOM_FORMATS))
+        raise ValueError(f"Expected an {names} mapping.")
     elements = raw.get("elements")
     if not isinstance(elements, Mapping) or not elements:
         raise ValueError("The spline pro-atom basis contains no elements.")
@@ -198,7 +213,9 @@ def load_spline_proatoms(source, population_tolerance=1.0e-6):
                     charge=charge,
                     electrons=electrons,
                     radii=radii.copy(),
+                    radial_weights=radial_weights.copy(),
                     density=density / electrons if electrons else np.zeros_like(density),
+                    energy_hartree=raw_state.get("energy_hartree"),
                     bound_to_electron_loss=raw_state.get("bound_to_electron_loss"),
                 )
             )

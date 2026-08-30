@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from grid import PeriodicGrid
 
+from horton_part import ProAtomDB
 from horton_part.periodic import (
     InterpolatedProAtom,
     LinearProAtom,
@@ -62,7 +63,7 @@ def _spline_basis():
             }
         )
     return {
-        "format": "denspart-spline-proatom-basis-v1",
+        "format": "aim-proatom-spline-v1",
         "metadata": {},
         "elements": {
             "1": {
@@ -78,7 +79,7 @@ def _spline_basis():
 def test_load_lisa_basis_formats():
     legacy = {"1": [[1.0, 2.0], [2.0, 0.5], [0.4, 0.6]]}
     versioned = {
-        "format": "denspart-lisa-basis-v1",
+        "format": "aim-lisa-basis-v1",
         "elements": {"1": {"orders": [1.0, 2.0], "exponents": [2.0, 0.5], "initials": [0.4, 0.6]}},
     }
     legacy_shapes, legacy_initials = load_lisa_basis(legacy)[1]
@@ -87,6 +88,22 @@ def test_load_lisa_basis_formats():
         (shape.order, shape.exponent) for shape in versioned_shapes
     ]
     assert np.array_equal(legacy_initials, versioned_initials)
+    versioned["format"] = "denspart-lisa-basis-v1"
+    assert 1 in load_lisa_basis(versioned)
+
+
+def test_shared_spline_basis_builds_finite_database():
+    basis = _spline_basis()
+    database = ProAtomDB.from_spline_file(basis)
+    assert database.get_numbers() == [1]
+    assert database.get_charges(1) == [1, 0, -1]
+    assert database.get_record(1, -1).safe is False
+    for charge in database.get_charges(1):
+        record = database.get_record(1, charge)
+        population = 4.0 * np.pi * np.dot(
+            record.rgrid.weights * record.rgrid.points**2, record.rho
+        )
+        assert population == pytest.approx(1 - charge, abs=1.0e-6)
 
 
 def test_lisa_periodic_image_and_weight_reconstruction():

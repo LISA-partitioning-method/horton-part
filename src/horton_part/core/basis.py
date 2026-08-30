@@ -49,7 +49,7 @@ def load_params(filename, extension="json"):
     Parameters
     ----------
     filename : str
-        The path to the file containing the parameters in JSON or YAML format.
+        The path to a legacy three-array mapping or an ``aim-lisa-basis-v1`` JSON/YAML file.
     extension : str, optional
         The format of the file, either 'json' or 'yaml'. Default is 'json'.
 
@@ -69,15 +69,24 @@ def load_params(filename, extension="json"):
         with open(filename) as file:
             data = yaml.safe_load(file)
 
+    basis_format = data.get("format") if isinstance(data, dict) else None
+    if basis_format in {"aim-lisa-basis-v1", "denspart-lisa-basis-v1"}:
+        data = data.get("elements", {})
+
     # Initialize the dictionaries to store orders, exponents, and initial values
     orders, exps, inits = {}, {}, {}
 
     # Process the data and fill the dictionaries
     for number, values in data.items():
         number = int(number)  # Convert the atomic number to an integer
-        orders[number] = np.asarray(values[0])
-        exps[number] = np.asarray(values[1])
-        inits[number] = np.asarray(values[2])
+        if isinstance(values, dict):
+            orders[number] = np.asarray(values["orders"])
+            exps[number] = np.asarray(values["exponents"])
+            inits[number] = np.asarray(values["initials"])
+        else:
+            orders[number] = np.asarray(values[0])
+            exps[number] = np.asarray(values[1])
+            inits[number] = np.asarray(values[2])
 
     return orders, exps, inits
 
