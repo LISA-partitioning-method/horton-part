@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [1.2.0] - 2026-08-31
+
+### Added
+- Added periodic uniform-grid partitioning for MBIS, LISA, Hirshfeld, Hirshfeld-I, and AVH,
+  with a shared Python API and the `part-periodic` command-line interface.
+- Added sparse local-grid evaluation for periodic pro-atoms and optional self-consistent
+  coefficient updates for periodic MBIS, LISA, and AVH.
+- Added the optional `part-from-gpaw` converter for creating complete periodic density archives
+  from legacy GPAW restart files without making GPAW a package dependency.
+- Added support for explicit AVH state sets and package-neutral basis schemas shared by finite
+  and periodic calculations.
+- Added periodic quick-start and five-method comparison notebooks, documentation, and parity
+  tests for representative crystals.
+
+### Fixed
+- Corrected spin-density block assembly in the GPAW converter.
+
 ## [1.1.9]  - 2026-08-29
 
 ### Added
@@ -33,22 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make it released on PyPI and support Python>=3.10.
 - Update README.
 - Update header.
-
-## [Unreleased]
-
-### Added
-- Added the optional `part-from-gpaw` converter for creating complete periodic
-  density archives from legacy GPAW restart files without adding GPAW as a dependency.
-- Added finite-system-style self-consistent coefficient updates for periodic LISA,
-  AVH, and MBIS, selectable with `part-periodic --solver sc`.
-- Added executable periodic quick-start and five-method comparison notebooks that
-  require neither GPAW nor external calculation data.
-- Added package-neutral AIM basis schemas for finite and periodic LISA and
-  ``ProAtomDB.from_spline_file`` so one radial-spline library can serve finite and periodic
-  stockholder calculations.
-
-### Fixed
-- Corrected spin-density block assembly in the GPAW converter.
 
 ## [1.1.6]  - 2024-12-03
 
