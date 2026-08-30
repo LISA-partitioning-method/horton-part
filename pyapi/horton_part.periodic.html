@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>horton_part.periodic package &mdash; Horton-Part  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/override.css?v=064c4a14" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=9eb32ce0"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="horton_part.periodic.basis module" href="horton_part.periodic.basis.html" />
+    <link rel="prev" title="horton_part.core.stockholder module" href="horton_part.core.stockholder.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Horton-Part
+          </a>
+              <div class="version">
+                latest
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#downloading-the-code">Downloading the Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#installing">Installing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#running-tests">Running Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#building-the-documentation">Building the Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../periodic.html">Periodic real-space partitioning</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#generating-an-input-archive-from-gpaw">Generating an input archive from GPAW</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#command-line-use">Command-line use</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#python-api">Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#real-material-parity-validation">Real-material parity validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#method-scope">Method scope</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Quick Start</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/quick_start.html">From Command Line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/periodic_quick_start.html">Periodic real-space partitioning: quick start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Construct-a-periodic-grid-and-density">Construct a periodic grid and density</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Run-MBIS">Run MBIS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Inspect-and-save-the-result">Inspect and save the result</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Production-inputs">Production inputs</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/setup.html">Prepare Molecular Density and Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/isa.html">Iterative Stockholder Analysis (ISA) method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/gisa.html">Gaussian Iterative Stockholder Analysis (GISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Quadprog-Solver">Quadprog Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#Using-API">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#Customized-Implementation">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#CVXOPT-Solver">CVXOPT Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#id1">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#id2">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#ECOS-Sovler">ECOS Sovler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#OSQP-Solver">OSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Customized-SLSQP-Solver">Customized SLSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Customized-Least-Square-Sovler">Customized Least-Square Sovler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/mbis.html">Minimum Basis Iterative Stockholder (MBIS) scheme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/lisa.html">Alternating Linear approximation of the ISA (aLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Direct-Inversion-in-Iterative-Space-(DIIS)">Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Newton-Method">Newton Method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Customized-Methods">Customized Methods</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/lisa_diis.html">New Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/glisa.html">Global Linear approximation of the ISA (gLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/glisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/glisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Direct-Inversion-of-Iterative-Space-(DIIS)">Direct Inversion of Iterative Space (DIIS)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/hirshfeld.html">(Iterative) Hirshfeld method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Hirshfeld-method">Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Iterative-Hirshfeld-method">Iterative Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Export-AIM-density-to-a-cube-file">Export AIM density to a cube file</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/mulliken.html">Mulliken method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/periodic_methods.html">Comparing periodic stockholder methods</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Basis-requirements">Basis requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Check-every-partition">Check every partition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Optional-self-consistent-solver">Optional self-consistent solver</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">horton_part</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="horton_part.html">horton_part package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="horton_part.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="horton_part.adapters.html">horton_part.adapters package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.algo.html">horton_part.algo package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.core.html">horton_part.core package</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">horton_part.periodic package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.scripts.html">horton_part.scripts package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.html#submodules">Submodules</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.alisa.html">horton_part.alisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.becke.html">horton_part.becke module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.gisa.html">horton_part.gisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.glisa.html">horton_part.glisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.gmbis.html">horton_part.gmbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.hirshfeld.html">horton_part.hirshfeld module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.hirshfeld_i.html">horton_part.hirshfeld_i module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.isa.html">horton_part.isa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.mbis.html">horton_part.mbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.mulliken.html">horton_part.mulliken module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.nlis.html">horton_part.nlis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.utils.html">horton_part.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.html#module-horton_part">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Horton-Part</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">horton_part</a></li>
+          <li class="breadcrumb-item"><a href="horton_part.html">horton_part package</a></li>
+      <li class="breadcrumb-item active">horton_part.periodic package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/pyapi/horton_part.periodic.rst" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="horton-part-periodic-package">
+<h1>horton_part.periodic package<a class="headerlink" href="#horton-part-periodic-package" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="horton_part.periodic.basis.html">horton_part.periodic.basis module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.ExponentialShape"><code class="docutils literal notranslate"><span class="pre">ExponentialShape</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.ExponentialShape.__init__"><code class="docutils literal notranslate"><span class="pre">ExponentialShape.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.ExponentialShape.cutoff"><code class="docutils literal notranslate"><span class="pre">ExponentialShape.cutoff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.ExponentialShape.evaluate"><code class="docutils literal notranslate"><span class="pre">ExponentialShape.evaluate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.ExponentialShape.exponent"><code class="docutils literal notranslate"><span class="pre">ExponentialShape.exponent</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.ExponentialShape.order"><code class="docutils literal notranslate"><span class="pre">ExponentialShape.order</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState"><code class="docutils literal notranslate"><span class="pre">RadialSplineState</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.__init__"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.bound_to_electron_loss"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.bound_to_electron_loss</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.charge"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.charge</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.cutoff"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.cutoff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.density"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.density</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.electrons"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.electrons</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.energy_hartree"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.energy_hartree</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.evaluate"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.evaluate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.radial_weights"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.radial_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.RadialSplineState.radii"><code class="docutils literal notranslate"><span class="pre">RadialSplineState.radii</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.load_lisa_basis"><code class="docutils literal notranslate"><span class="pre">load_lisa_basis()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.basis.html#horton_part.periodic.basis.load_spline_proatoms"><code class="docutils literal notranslate"><span class="pre">load_spline_proatoms()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="horton_part.periodic.core.html">horton_part.periodic.core module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.__init__"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.cutoff"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.cutoff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.evaluate"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.evaluate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.interpolation_info"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.interpolation_info()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.parameter_labels"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.parameter_labels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.parameters"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.parameters</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.InterpolatedProAtom.population"><code class="docutils literal notranslate"><span class="pre">InterpolatedProAtom.population</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom"><code class="docutils literal notranslate"><span class="pre">LinearProAtom</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.__init__"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.basis_values"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.basis_values()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.cutoff"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.cutoff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.evaluate"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.evaluate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.fit"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.fit()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.fit_basis"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.fit_basis()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.parameter_labels"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.parameter_labels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.parameters"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.parameters</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.LinearProAtom.population"><code class="docutils literal notranslate"><span class="pre">LinearProAtom.population</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom"><code class="docutils literal notranslate"><span class="pre">MBISProAtom</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.__init__"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.cutoff"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.cutoff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.evaluate"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.evaluate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.evaluate_shell"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.evaluate_shell()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.fit"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.fit()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.parameter_labels"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.parameter_labels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.parameters"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.parameters</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.population"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.population</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.shell_cutoff"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.shell_cutoff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.MBISProAtom.shell_derivatives"><code class="docutils literal notranslate"><span class="pre">MBISProAtom.shell_derivatives()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.aim_weights"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.aim_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.charges"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.converged"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.converged</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.grid_populations"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.grid_populations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.history"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.history</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.iterations"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.iterations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.method"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.method</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.model_charges"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.model_charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.model_populations"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.model_populations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.parameter_labels"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.parameter_labels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.parameters"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.parameters</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.populations"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.populations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.promolecule"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.promolecule</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.reconstruction_error"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.reconstruction_error</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.solver"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.solver</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicPartitionResult.to_dict"><code class="docutils literal notranslate"><span class="pre">PeriodicPartitionResult.to_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.promolecule"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.promolecule()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_fixed"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_fixed()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_hirshfeld_i"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_hirshfeld_i()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_iterative"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_iterative()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_self_consistent_linear"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_self_consistent_linear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_self_consistent_mbis"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_self_consistent_mbis()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_variational_linear"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_variational_linear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.run_variational_mbis"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.run_variational_mbis()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.core.html#horton_part.periodic.core.PeriodicStockholder.stockholder_populations"><code class="docutils literal notranslate"><span class="pre">PeriodicStockholder.stockholder_populations()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="horton_part.periodic.methods.html">horton_part.periodic.methods module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicAVHWPart"><code class="docutils literal notranslate"><span class="pre">PeriodicAVHWPart</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicAVHWPart.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicAVHWPart.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicAVHWPart.aim_weights"><code class="docutils literal notranslate"><span class="pre">PeriodicAVHWPart.aim_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicAVHWPart.charges"><code class="docutils literal notranslate"><span class="pre">PeriodicAVHWPart.charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicAVHWPart.do_partitioning"><code class="docutils literal notranslate"><span class="pre">PeriodicAVHWPart.do_partitioning()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicAVHWPart.name"><code class="docutils literal notranslate"><span class="pre">PeriodicAVHWPart.name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldIWPart"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldIWPart</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldIWPart.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldIWPart.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldIWPart.aim_weights"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldIWPart.aim_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldIWPart.charges"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldIWPart.charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldIWPart.do_partitioning"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldIWPart.do_partitioning()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldIWPart.name"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldIWPart.name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldWPart"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldWPart</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldWPart.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldWPart.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldWPart.aim_weights"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldWPart.aim_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldWPart.charges"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldWPart.charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldWPart.do_partitioning"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldWPart.do_partitioning()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicHirshfeldWPart.name"><code class="docutils literal notranslate"><span class="pre">PeriodicHirshfeldWPart.name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicLISAWPart"><code class="docutils literal notranslate"><span class="pre">PeriodicLISAWPart</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicLISAWPart.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicLISAWPart.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicLISAWPart.aim_weights"><code class="docutils literal notranslate"><span class="pre">PeriodicLISAWPart.aim_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicLISAWPart.charges"><code class="docutils literal notranslate"><span class="pre">PeriodicLISAWPart.charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicLISAWPart.do_partitioning"><code class="docutils literal notranslate"><span class="pre">PeriodicLISAWPart.do_partitioning()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicLISAWPart.name"><code class="docutils literal notranslate"><span class="pre">PeriodicLISAWPart.name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicMBISWPart"><code class="docutils literal notranslate"><span class="pre">PeriodicMBISWPart</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicMBISWPart.__init__"><code class="docutils literal notranslate"><span class="pre">PeriodicMBISWPart.__init__()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicMBISWPart.aim_weights"><code class="docutils literal notranslate"><span class="pre">PeriodicMBISWPart.aim_weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicMBISWPart.charges"><code class="docutils literal notranslate"><span class="pre">PeriodicMBISWPart.charges</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicMBISWPart.do_partitioning"><code class="docutils literal notranslate"><span class="pre">PeriodicMBISWPart.do_partitioning()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.PeriodicMBISWPart.name"><code class="docutils literal notranslate"><span class="pre">PeriodicMBISWPart.name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="horton_part.periodic.methods.html#horton_part.periodic.methods.partition_periodic"><code class="docutils literal notranslate"><span class="pre">partition_periodic()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="module-horton_part.periodic">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-horton_part.periodic" title="Link to this heading"></a></h2>
+<p>Periodic real-space density partitioning.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="horton_part.core.stockholder.html" class="btn btn-neutral float-left" title="horton_part.core.stockholder module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="horton_part.periodic.basis.html" class="btn btn-neutral float-right" title="horton_part.periodic.basis module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, YingXing Cheng.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

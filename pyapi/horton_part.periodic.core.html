@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>horton_part.periodic.core module &mdash; Horton-Part  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/override.css?v=064c4a14" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=9eb32ce0"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="horton_part.periodic.methods module" href="horton_part.periodic.methods.html" />
+    <link rel="prev" title="horton_part.periodic.basis module" href="horton_part.periodic.basis.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Horton-Part
+          </a>
+              <div class="version">
+                latest
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#downloading-the-code">Downloading the Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#installing">Installing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#running-tests">Running Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#building-the-documentation">Building the Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../periodic.html">Periodic real-space partitioning</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#generating-an-input-archive-from-gpaw">Generating an input archive from GPAW</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#command-line-use">Command-line use</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#python-api">Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#real-material-parity-validation">Real-material parity validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#method-scope">Method scope</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Quick Start</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/quick_start.html">From Command Line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/periodic_quick_start.html">Periodic real-space partitioning: quick start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Construct-a-periodic-grid-and-density">Construct a periodic grid and density</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Run-MBIS">Run MBIS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Inspect-and-save-the-result">Inspect and save the result</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Production-inputs">Production inputs</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/setup.html">Prepare Molecular Density and Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/isa.html">Iterative Stockholder Analysis (ISA) method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/gisa.html">Gaussian Iterative Stockholder Analysis (GISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Quadprog-Solver">Quadprog Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#Using-API">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#Customized-Implementation">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#CVXOPT-Solver">CVXOPT Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#id1">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#id2">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#ECOS-Sovler">ECOS Sovler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#OSQP-Solver">OSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Customized-SLSQP-Solver">Customized SLSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Customized-Least-Square-Sovler">Customized Least-Square Sovler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/mbis.html">Minimum Basis Iterative Stockholder (MBIS) scheme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/lisa.html">Alternating Linear approximation of the ISA (aLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Direct-Inversion-in-Iterative-Space-(DIIS)">Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Newton-Method">Newton Method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Customized-Methods">Customized Methods</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/lisa_diis.html">New Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/glisa.html">Global Linear approximation of the ISA (gLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/glisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/glisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Direct-Inversion-of-Iterative-Space-(DIIS)">Direct Inversion of Iterative Space (DIIS)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/hirshfeld.html">(Iterative) Hirshfeld method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Hirshfeld-method">Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Iterative-Hirshfeld-method">Iterative Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Export-AIM-density-to-a-cube-file">Export AIM density to a cube file</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/mulliken.html">Mulliken method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/periodic_methods.html">Comparing periodic stockholder methods</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Basis-requirements">Basis requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Check-every-partition">Check every partition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Optional-self-consistent-solver">Optional self-consistent solver</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">horton_part</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="horton_part.html">horton_part package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="horton_part.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="horton_part.adapters.html">horton_part.adapters package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.algo.html">horton_part.algo package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.core.html">horton_part.core package</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="horton_part.periodic.html">horton_part.periodic package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.scripts.html">horton_part.scripts package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.html#submodules">Submodules</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.alisa.html">horton_part.alisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.becke.html">horton_part.becke module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.gisa.html">horton_part.gisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.glisa.html">horton_part.glisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.gmbis.html">horton_part.gmbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.hirshfeld.html">horton_part.hirshfeld module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.hirshfeld_i.html">horton_part.hirshfeld_i module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.isa.html">horton_part.isa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.mbis.html">horton_part.mbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.mulliken.html">horton_part.mulliken module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.nlis.html">horton_part.nlis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.utils.html">horton_part.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.html#module-horton_part">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Horton-Part</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">horton_part</a></li>
+          <li class="breadcrumb-item"><a href="horton_part.html">horton_part package</a></li>
+          <li class="breadcrumb-item"><a href="horton_part.periodic.html">horton_part.periodic package</a></li>
+      <li class="breadcrumb-item active">horton_part.periodic.core module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/pyapi/horton_part.periodic.core.rst" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-horton_part.periodic.core">
+<span id="horton-part-periodic-core-module"></span><h1>horton_part.periodic.core module<a class="headerlink" href="#module-horton_part.periodic.core" title="Link to this heading"></a></h1>
+<p>Shared real-space engine for periodic stockholder partitioning.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">InterpolatedProAtom</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">number</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">states</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A Hirshfeld-I pro-atom interpolated between integer-charge states.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">number</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">states</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.cutoff">
+<span class="sig-name descname"><span class="pre">cutoff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_inactive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.cutoff" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.evaluate">
+<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">radii</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.evaluate" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.interpolation_info">
+<span class="sig-name descname"><span class="pre">interpolation_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">charge</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.interpolation_info" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.parameter_labels">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">parameter_labels</span></span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.parameter_labels" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.parameters">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">parameters</span></span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.parameters" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.InterpolatedProAtom.population">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">population</span></span><a class="headerlink" href="#horton_part.periodic.core.InterpolatedProAtom.population" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">LinearProAtom</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shapes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activation_scale</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A nonnegative linear expansion in normalized radial shapes.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shapes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activation_scale</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.basis_values">
+<span class="sig-name descname"><span class="pre">basis_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">radii</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.basis_values" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.cutoff">
+<span class="sig-name descname"><span class="pre">cutoff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_inactive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.cutoff" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.evaluate">
+<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">radii</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.evaluate" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radii</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.fit" title="Link to this definition"></a></dt>
+<dd><p>Fit nonnegative coefficients to an AIM density with a population constraint.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.fit_basis">
+<span class="sig-name descname"><span class="pre">fit_basis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.fit_basis" title="Link to this definition"></a></dt>
+<dd><p>Fit coefficients using fixed basis functions already evaluated on a grid.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.parameter_labels">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">parameter_labels</span></span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.parameter_labels" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.parameters">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">parameters</span></span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.parameters" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.LinearProAtom.population">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">population</span></span><a class="headerlink" href="#horton_part.periodic.core.LinearProAtom.population" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">MBISProAtom</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">number</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Minimal Slater-shell pro-atom used by periodic MBIS.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">number</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.cutoff">
+<span class="sig-name descname"><span class="pre">cutoff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_inactive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.cutoff" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.evaluate">
+<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">radii</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.evaluate" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.evaluate_shell">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">evaluate_shell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">population</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exponent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radii</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.evaluate_shell" title="Link to this definition"></a></dt>
+<dd><p>Evaluate one normalized Slater shell.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radii</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.fit" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.parameter_labels">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">parameter_labels</span></span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.parameter_labels" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.parameters">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">parameters</span></span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.parameters" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.population">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">population</span></span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.population" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.shell_cutoff">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shell_cutoff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">population</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exponent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.shell_cutoff" title="Link to this definition"></a></dt>
+<dd><p>Return the fixed local-grid radius for one shell.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.MBISProAtom.shell_derivatives">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shell_derivatives</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">population</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exponent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radii</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.MBISProAtom.shell_derivatives" title="Link to this definition"></a></dt>
+<dd><p>Return derivatives of one shell with respect to population and exponent.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">PeriodicPartitionResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">charges</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">populations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_populations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_charges</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_populations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">promolecule</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aim_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iterations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">converged</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">history</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reconstruction_error</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fixed'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Results returned by a periodic stockholder calculation.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">charges</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">populations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_populations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_charges</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_populations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">promolecule</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aim_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iterations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">converged</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">history</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reconstruction_error</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fixed'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.aim_weights">
+<span class="sig-name descname"><span class="pre">aim_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code><span class="pre">]</span></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.aim_weights" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.charges">
+<span class="sig-name descname"><span class="pre">charges</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.charges" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.converged">
+<span class="sig-name descname"><span class="pre">converged</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.converged" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.grid_populations">
+<span class="sig-name descname"><span class="pre">grid_populations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.grid_populations" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.history">
+<span class="sig-name descname"><span class="pre">history</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.history" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.iterations">
+<span class="sig-name descname"><span class="pre">iterations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.iterations" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.method">
+<span class="sig-name descname"><span class="pre">method</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.method" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.model_charges">
+<span class="sig-name descname"><span class="pre">model_charges</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.model_charges" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.model_populations">
+<span class="sig-name descname"><span class="pre">model_populations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.model_populations" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.parameter_labels">
+<span class="sig-name descname"><span class="pre">parameter_labels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.parameter_labels" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.parameters">
+<span class="sig-name descname"><span class="pre">parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.parameters" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.populations">
+<span class="sig-name descname"><span class="pre">populations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.populations" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.promolecule">
+<span class="sig-name descname"><span class="pre">promolecule</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.promolecule" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.reconstruction_error">
+<span class="sig-name descname"><span class="pre">reconstruction_error</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.reconstruction_error" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.solver">
+<span class="sig-name descname"><span class="pre">solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'fixed'</span></em><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.solver" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicPartitionResult.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicPartitionResult.to_dict" title="Link to this definition"></a></dt>
+<dd><p>Return arrays suitable for an NPZ result file.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">PeriodicStockholder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numbers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">models</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pseudo_numbers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Common stockholder iteration on a grid supporting periodic local grids.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">numbers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">models</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pseudo_numbers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density_cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.promolecule">
+<span class="sig-name descname"><span class="pre">promolecule</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">include_inactive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.promolecule" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_fixed">
+<span class="sig-name descname"><span class="pre">run_fixed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_fixed" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_hirshfeld_i">
+<span class="sig-name descname"><span class="pre">run_hirshfeld_i</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mixing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_hirshfeld_i" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_iterative">
+<span class="sig-name descname"><span class="pre">run_iterative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inner_threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inner_maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">linear</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'iterative'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_iterative" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_self_consistent_linear">
+<span class="sig-name descname"><span class="pre">run_self_consistent_linear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_self_consistent_linear" title="Link to this definition"></a></dt>
+<dd><p>Optimize fixed-basis coefficients with the global SC fixed-point equations.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_self_consistent_mbis">
+<span class="sig-name descname"><span class="pre">run_self_consistent_mbis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_self_consistent_mbis" title="Link to this definition"></a></dt>
+<dd><p>Optimize MBIS shell populations and exponents by moment updates.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_variational_linear">
+<span class="sig-name descname"><span class="pre">run_variational_linear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_variational_linear" title="Link to this definition"></a></dt>
+<dd><p>Optimize all linear pro-atom coefficients through the global extended KLD.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.run_variational_mbis">
+<span class="sig-name descname"><span class="pre">run_variational_mbis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">maxiter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.run_variational_mbis" title="Link to this definition"></a></dt>
+<dd><p>Optimize all MBIS shells globally on fixed per-shell local grids.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.periodic.core.PeriodicStockholder.stockholder_populations">
+<span class="sig-name descname"><span class="pre">stockholder_populations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">promolecule</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.periodic.core.PeriodicStockholder.stockholder_populations" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="horton_part.periodic.basis.html" class="btn btn-neutral float-left" title="horton_part.periodic.basis module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="horton_part.periodic.methods.html" class="btn btn-neutral float-right" title="horton_part.periodic.methods module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, YingXing Cheng.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

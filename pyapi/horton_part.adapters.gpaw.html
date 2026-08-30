@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>horton_part.adapters.gpaw module &mdash; Horton-Part  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/override.css?v=064c4a14" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=9eb32ce0"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="horton_part.algo package" href="horton_part.algo.html" />
+    <link rel="prev" title="horton_part.adapters package" href="horton_part.adapters.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Horton-Part
+          </a>
+              <div class="version">
+                latest
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#downloading-the-code">Downloading the Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#installing">Installing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#running-tests">Running Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#building-the-documentation">Building the Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../periodic.html">Periodic real-space partitioning</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#generating-an-input-archive-from-gpaw">Generating an input archive from GPAW</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#command-line-use">Command-line use</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#python-api">Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#real-material-parity-validation">Real-material parity validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#method-scope">Method scope</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Quick Start</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/quick_start.html">From Command Line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/periodic_quick_start.html">Periodic real-space partitioning: quick start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Construct-a-periodic-grid-and-density">Construct a periodic grid and density</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Run-MBIS">Run MBIS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Inspect-and-save-the-result">Inspect and save the result</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_quick_start.html#Production-inputs">Production inputs</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/setup.html">Prepare Molecular Density and Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/isa.html">Iterative Stockholder Analysis (ISA) method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/gisa.html">Gaussian Iterative Stockholder Analysis (GISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Quadprog-Solver">Quadprog Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#Using-API">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#Customized-Implementation">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#CVXOPT-Solver">CVXOPT Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#id1">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/gisa.html#id2">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#ECOS-Sovler">ECOS Sovler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#OSQP-Solver">OSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Customized-SLSQP-Solver">Customized SLSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/gisa.html#Customized-Least-Square-Sovler">Customized Least-Square Sovler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/mbis.html">Minimum Basis Iterative Stockholder (MBIS) scheme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/lisa.html">Alternating Linear approximation of the ISA (aLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Direct-Inversion-in-Iterative-Space-(DIIS)">Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/lisa.html#Newton-Method">Newton Method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/lisa.html#Customized-Methods">Customized Methods</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/lisa_diis.html">New Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/glisa.html">Global Linear approximation of the ISA (gLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/glisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/glisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../notebooks/glisa.html#Direct-Inversion-of-Iterative-Space-(DIIS)">Direct Inversion of Iterative Space (DIIS)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/hirshfeld.html">(Iterative) Hirshfeld method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Hirshfeld-method">Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Iterative-Hirshfeld-method">Iterative Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/hirshfeld.html#Export-AIM-density-to-a-cube-file">Export AIM density to a cube file</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/mulliken.html">Mulliken method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/periodic_methods.html">Comparing periodic stockholder methods</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Basis-requirements">Basis requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Check-every-partition">Check every partition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../notebooks/periodic_methods.html#Optional-self-consistent-solver">Optional self-consistent solver</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">horton_part</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="horton_part.html">horton_part package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="horton_part.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4 current"><a class="reference internal" href="horton_part.adapters.html">horton_part.adapters package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.algo.html">horton_part.algo package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.core.html">horton_part.core package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.periodic.html">horton_part.periodic package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.scripts.html">horton_part.scripts package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.html#submodules">Submodules</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.alisa.html">horton_part.alisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.becke.html">horton_part.becke module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.gisa.html">horton_part.gisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.glisa.html">horton_part.glisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.gmbis.html">horton_part.gmbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.hirshfeld.html">horton_part.hirshfeld module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.hirshfeld_i.html">horton_part.hirshfeld_i module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.isa.html">horton_part.isa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.mbis.html">horton_part.mbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.mulliken.html">horton_part.mulliken module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.nlis.html">horton_part.nlis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="horton_part.utils.html">horton_part.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="horton_part.html#module-horton_part">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Horton-Part</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">horton_part</a></li>
+          <li class="breadcrumb-item"><a href="horton_part.html">horton_part package</a></li>
+          <li class="breadcrumb-item"><a href="horton_part.adapters.html">horton_part.adapters package</a></li>
+      <li class="breadcrumb-item active">horton_part.adapters.gpaw module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/pyapi/horton_part.adapters.gpaw.rst" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-horton_part.adapters.gpaw">
+<span id="horton-part-adapters-gpaw-module"></span><h1>horton_part.adapters.gpaw module<a class="headerlink" href="#module-horton_part.adapters.gpaw" title="Link to this heading"></a></h1>
+<p>Convert a legacy GPAW restart into a HORTON-Part periodic density archive.</p>
+<p>This module is adapted from <code class="xref py py-mod docutils literal notranslate"><span class="pre">denspart.adapters.gpaw</span></code> on DensPart’s <code class="docutils literal notranslate"><span class="pre">lisa</span></code>
+branch at commit <code class="docutils literal notranslate"><span class="pre">ce0d986</span></code>. GPAW is imported lazily so that it remains an
+optional interoperability dependency.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.GridPart">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">GridPart</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">densnames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.GridPart" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Helper class for collecting density grid data.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.GridPart.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">densnames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.GridPart.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.assemble_density_arrays">
+<span class="sig-name descname"><span class="pre">assemble_density_arrays</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">uniform_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.assemble_density_arrays" title="Link to this definition"></a></dt>
+<dd><p>Combine uniform and augmentation grids into HORTON-Part arrays.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>uniform_data</strong> – Dictionary with detailed data from the uniform grid of a GPAW calculation.</p></li>
+<li><p><strong>atoms</strong> – List of dictionaries with atomic-grid data.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary containing the data needed for periodic partitioning.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>density</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.compute_augmentation_spheres">
+<span class="sig-name descname"><span class="pre">compute_augmentation_spheres</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">uniform_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">setups</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atnums</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atcoords</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.compute_augmentation_spheres" title="Link to this definition"></a></dt>
+<dd><p>Compute the density density corrections within the muffin tin spheres on grids.</p>
+<section id="parametes">
+<h2>Parametes<a class="headerlink" href="#parametes" title="Link to this heading"></a></h2>
+<dl class="simple">
+<dt>uniform_data, setups, atoms</dt><dd><p>Data generated by get_uniform_grid_data and get_atomic_grid_data.</p>
+</dd>
+<dt>atnums</dt><dd><p>Atomic numbers</p>
+</dd>
+<dt>atcoords</dt><dd><p>Atomic (nuclear) coordinates.</p>
+</dd>
+</dl>
+<p>All results are stored in the atoms argument.</p>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.compute_uniform_points">
+<span class="sig-name descname"><span class="pre">compute_uniform_points</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">uniform_data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.compute_uniform_points" title="Link to this definition"></a></dt>
+<dd><p>Compute the trivial positions and weights of the uniform grid points.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.dump_spline">
+<span class="sig-name descname"><span class="pre">dump_spline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">setup</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ell</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.dump_spline" title="Link to this definition"></a></dt>
+<dd><p>Convert a spline from a GPAW atom setup.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> – Dictionary in which the spline is stored.</p></li>
+<li><p><strong>key</strong> – Used for making dictionary keys.</p></li>
+<li><p><strong>y</strong> – Function values at the spline grid points.</p></li>
+<li><p><strong>setup</strong> – The GPAW setup to which this spline belongs.</p></li>
+<li><p><strong>ell</strong> – Angular momentum.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.eval_correction">
+<span class="sig-name descname"><span class="pre">eval_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atom_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">setup_data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.eval_correction" title="Link to this definition"></a></dt>
+<dd><p>Compute the pseudo to all-electron corrections for one muffin-tin sphere.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>atom_data</strong> – Dictionary with the density matrices.</p></li>
+<li><p><strong>setup_data</strong> – Atomic (basis) functions stored on radial grids.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The atomic grid for integrations in the muffin tin sphere.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>grid</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Conventions used in variable names, following GPAW conventions:
+- with t = pseudo
+- without t = all-electron
+- c = core
+- v = valence</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.get_atomic_grid_data">
+<span class="sig-name descname"><span class="pre">get_atomic_grid_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.get_atomic_grid_data" title="Link to this definition"></a></dt>
+<dd><p>Load atomic setups and atomic wavefunctions from GPAW calculation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>calc</strong> – GPAW calculator instance.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>setups</em> – A dictionary with atomic setups used. Keys are atomic numbers and values are
+dictionaries with relevant data for later evaluation of the density corrections
+within the augmentation spheres.</p></li>
+<li><p><em>atoms</em> – A list with atomic wavefunction data. Contains dm and optional spindm.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.get_horton2_order">
+<span class="sig-name descname"><span class="pre">get_horton2_order</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ells</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.get_horton2_order" title="Link to this definition"></a></dt>
+<dd><p>Return a permutation of the basis functions to obtain HORTON 2 conventions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ells</strong> – Array with angular momenta of the basis functions.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reordering of the basis functions.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>permutation</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.get_uniform_grid_data">
+<span class="sig-name descname"><span class="pre">get_uniform_grid_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cellvecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atnums</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bohr</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.get_uniform_grid_data" title="Link to this definition"></a></dt>
+<dd><p>Take the (pseudo) density on the the uniform grid. This is the easy part.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>calc</strong> – GPAW calculator instance.</p></li>
+<li><p><strong>cellvecs</strong> – 3 x 3 array whose rows are cell vectors.</p></li>
+<li><p><strong>atnums</strong> – Array with atomic numbers.</p></li>
+<li><p><strong>bohr</strong> – The ASE conversion factor from bohr to angstrom.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary with several items extracted from the GPAW calculator.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>uniform_data</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.main">
+<span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.main" title="Link to this definition"></a></dt>
+<dd><p>Command-line interface.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.parse_args">
+<span class="sig-name descname"><span class="pre">parse_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.parse_args" title="Link to this definition"></a></dt>
+<dd><p>Parse command-line arguments.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="horton_part.adapters.gpaw.prepare_input">
+<span class="sig-name descname"><span class="pre">prepare_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calc</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#horton_part.adapters.gpaw.prepare_input" title="Link to this definition"></a></dt>
+<dd><p>Prepare HORTON-Part input from a GPAW run.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>atoms</strong> – A list of ASE atoms from a GPAW calculation.</p></li>
+<li><p><strong>calc</strong> – The GPAW calculator instance</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary with all input data for a partitioning.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>input_data</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="horton_part.adapters.html" class="btn btn-neutral float-left" title="horton_part.adapters package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="horton_part.algo.html" class="btn btn-neutral float-right" title="horton_part.algo package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, YingXing Cheng.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

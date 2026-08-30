@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comparing periodic stockholder methods &mdash; Horton-Part  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/override.css?v=064c4a14" />
+      <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=9eb32ce0"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+        <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="horton_part" href="../pyapi/modules.html" />
+    <link rel="prev" title="Mulliken method" href="mulliken.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Horton-Part
+          </a>
+              <div class="version">
+                latest
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#downloading-the-code">Downloading the Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#installing">Installing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#running-tests">Running Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#building-the-documentation">Building the Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../periodic.html">Periodic real-space partitioning</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#generating-an-input-archive-from-gpaw">Generating an input archive from GPAW</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#command-line-use">Command-line use</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#python-api">Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#real-material-parity-validation">Real-material parity validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../periodic.html#method-scope">Method scope</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Quick Start</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick_start.html">From Command Line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="periodic_quick_start.html">Periodic real-space partitioning: quick start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="periodic_quick_start.html#Construct-a-periodic-grid-and-density">Construct a periodic grid and density</a></li>
+<li class="toctree-l2"><a class="reference internal" href="periodic_quick_start.html#Run-MBIS">Run MBIS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="periodic_quick_start.html#Inspect-and-save-the-result">Inspect and save the result</a></li>
+<li class="toctree-l2"><a class="reference internal" href="periodic_quick_start.html#Production-inputs">Production inputs</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Prepare Molecular Density and Grid</a></li>
+<li class="toctree-l1"><a class="reference internal" href="isa.html">Iterative Stockholder Analysis (ISA) method</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gisa.html">Gaussian Iterative Stockholder Analysis (GISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gisa.html#Quadprog-Solver">Quadprog Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gisa.html#Using-API">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="gisa.html#Customized-Implementation">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gisa.html#CVXOPT-Solver">CVXOPT Solver</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gisa.html#id1">Using API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="gisa.html#id2">Customized Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gisa.html#ECOS-Sovler">ECOS Sovler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gisa.html#OSQP-Solver">OSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gisa.html#Customized-SLSQP-Solver">Customized SLSQP Solver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gisa.html#Customized-Least-Square-Sovler">Customized Least-Square Sovler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mbis.html">Minimum Basis Iterative Stockholder (MBIS) scheme</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lisa.html">Alternating Linear approximation of the ISA (aLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="lisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="lisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="lisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lisa.html#Direct-Inversion-in-Iterative-Space-(DIIS)">Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lisa.html#Newton-Method">Newton Method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="lisa.html#Customized-Methods">Customized Methods</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lisa_diis.html">New Direct Inversion in Iterative Space (DIIS)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glisa.html">Global Linear approximation of the ISA (gLISA) method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="glisa.html#Non-linear-optimization-problem">Non-linear optimization problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="glisa.html#Convex-optimization-method">Convex optimization method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="glisa.html#Trust-region-method">Trust-region method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="glisa.html#Non-linear-equations-(fixed-point-equations)">Non-linear equations (fixed-point equations)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="glisa.html#Self-consistent-method">Self-consistent method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="glisa.html#Direct-Inversion-of-Iterative-Space-(DIIS)">Direct Inversion of Iterative Space (DIIS)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="hirshfeld.html">(Iterative) Hirshfeld method</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="hirshfeld.html#Hirshfeld-method">Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hirshfeld.html#Iterative-Hirshfeld-method">Iterative Hirshfeld method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hirshfeld.html#Export-AIM-density-to-a-cube-file">Export AIM density to a cube file</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mulliken.html">Mulliken method</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Comparing periodic stockholder methods</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#Basis-requirements">Basis requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#Check-every-partition">Check every partition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#Optional-self-consistent-solver">Optional self-consistent solver</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../pyapi/modules.html">horton_part</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../pyapi/horton_part.html">horton_part package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../pyapi/horton_part.html#subpackages">Subpackages</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.adapters.html">horton_part.adapters package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.algo.html">horton_part.algo package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.core.html">horton_part.core package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.periodic.html">horton_part.periodic package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.scripts.html">horton_part.scripts package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../pyapi/horton_part.html#submodules">Submodules</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.alisa.html">horton_part.alisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.becke.html">horton_part.becke module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.gisa.html">horton_part.gisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.glisa.html">horton_part.glisa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.gmbis.html">horton_part.gmbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.hirshfeld.html">horton_part.hirshfeld module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.hirshfeld_i.html">horton_part.hirshfeld_i module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.isa.html">horton_part.isa module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.mbis.html">horton_part.mbis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.mulliken.html">horton_part.mulliken module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.nlis.html">horton_part.nlis module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../pyapi/horton_part.utils.html">horton_part.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../pyapi/horton_part.html#module-horton_part">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Horton-Part</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Comparing periodic stockholder methods</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/notebooks/periodic_methods.ipynb" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Comparing-periodic-stockholder-methods">
+<h1>Comparing periodic stockholder methods<a class="headerlink" href="#Comparing-periodic-stockholder-methods" title="Link to this heading"></a></h1>
+<p>This notebook applies Hirshfeld, Hirshfeld-I, MBIS, LISA, and AVH-B to the same periodic density and uniform grid. The example illustrates method-specific basis requirements and common numerical checks; it is not intended as a physical model of crystalline hydrogen.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">horton_part</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProAtomDB</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">horton_part.periodic</span><span class="w"> </span><span class="kn">import</span> <span class="n">partition_periodic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">periodic_setup</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_demo_spline_basis</span><span class="p">,</span> <span class="n">make_demo_system</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">coordinates</span><span class="p">,</span> <span class="n">numbers</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">lisa_basis</span> <span class="o">=</span> <span class="n">make_demo_system</span><span class="p">()</span>
+<span class="n">spline_basis</span> <span class="o">=</span> <span class="n">make_demo_spline_basis</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"integrated electrons: </span><span class="si">{</span><span class="n">grid</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">density</span><span class="p">)</span><span class="si">:</span><span class="s2">.8f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+integrated electrons: 1.99999972
+</pre></div></div>
+</div>
+<section id="Basis-requirements">
+<h2>Basis requirements<a class="headerlink" href="#Basis-requirements" title="Link to this heading"></a></h2>
+<p>MBIS constructs its own Slater basis. LISA uses normalized exponential functions with fixed exponents and optimized nonnegative populations. Hirshfeld, Hirshfeld-I, and AVH use electron-normalized radial-spline densities of isolated charged atoms. AVH-B selects the physically bound states from that library. The neutral spline schema is shared with finite-system calculations; no basis conversion is required.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">finite_proatoms</span> <span class="o">=</span> <span class="n">ProAtomDB</span><span class="o">.</span><span class="n">from_spline_file</span><span class="p">(</span><span class="n">spline_basis</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"finite-system elements:"</span><span class="p">,</span> <span class="n">finite_proatoms</span><span class="o">.</span><span class="n">get_numbers</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"available H charge states:"</span><span class="p">,</span> <span class="n">finite_proatoms</span><span class="o">.</span><span class="n">get_charges</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+finite-system elements: [1]
+available H charge states: [1, 0, -1]
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">calculations</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"Hirshfeld"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"hirshfeld"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"basis"</span><span class="p">:</span> <span class="n">spline_basis</span><span class="p">}),</span>
+    <span class="s2">"Hirshfeld-I"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"hirshfeld-i"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"basis"</span><span class="p">:</span> <span class="n">spline_basis</span><span class="p">}),</span>
+    <span class="s2">"MBIS"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"mbis"</span><span class="p">,</span> <span class="p">{}),</span>
+    <span class="s2">"LISA"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"lisa"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"basis"</span><span class="p">:</span> <span class="n">lisa_basis</span><span class="p">}),</span>
+    <span class="s2">"AVH-B"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"avh"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"basis"</span><span class="p">:</span> <span class="n">spline_basis</span><span class="p">,</span> <span class="s2">"avh_variant"</span><span class="p">:</span> <span class="s2">"B"</span><span class="p">}),</span>
+<span class="p">}</span>
+<span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">options</span><span class="p">)</span> <span class="ow">in</span> <span class="n">calculations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">results</span><span class="p">[</span><span class="n">label</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_periodic</span><span class="p">(</span>
+        <span class="n">method</span><span class="p">,</span>
+        <span class="n">coordinates</span><span class="p">,</span>
+        <span class="n">numbers</span><span class="p">,</span>
+        <span class="n">grid</span><span class="p">,</span>
+        <span class="n">density</span><span class="p">,</span>
+        <span class="n">density_cutoff</span><span class="o">=</span><span class="mf">1.0e-14</span><span class="p">,</span>
+        <span class="n">threshold</span><span class="o">=</span><span class="mf">1.0e-7</span><span class="p">,</span>
+        <span class="n">maxiter</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">options</span><span class="p">,</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'method'</span><span class="si">:</span><span class="s2">12s</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'q(H1)'</span><span class="si">:</span><span class="s2">&gt;10s</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'q(H2)'</span><span class="si">:</span><span class="s2">&gt;10s</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'iterations'</span><span class="si">:</span><span class="s2">&gt;11s</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'solver'</span><span class="si">:</span><span class="s2">&gt;10s</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s2">12s</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">charges</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">+10.6f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">charges</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">+10.6f</span><span class="si">}</span><span class="s2"> "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">iterations</span><span class="si">:</span><span class="s2">11d</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">solver</span><span class="si">:</span><span class="s2">&gt;10s</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+method            q(H1)      q(H2)  iterations     solver
+Hirshfeld     -0.202526  +0.202532           0      fixed
+Hirshfeld-I   -0.254761  +0.254762           8         sc
+MBIS          -0.193535  +0.193536          30  optimizer
+LISA          -0.200000  +0.200000          27  optimizer
+AVH-B         -0.196296  +0.196297          18  optimizer
+</pre></div></div>
+</div>
+</section>
+<section id="Check-every-partition">
+<h2>Check every partition<a class="headerlink" href="#Check-every-partition" title="Link to this heading"></a></h2>
+<p>A converged calculation should conserve the total charge, reconstruct the supplied density from the AIM densities, and satisfy the pointwise partition of unity wherever the promolecular density is nonzero.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">active</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">promolecule</span> <span class="o">&gt;</span> <span class="mf">1.0e-15</span>
+    <span class="n">unity_error</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">aim_weights</span><span class="p">[:,</span> <span class="n">active</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">converged</span>
+    <span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">charges</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">&lt;</span> <span class="mf">1.0e-5</span>
+    <span class="k">assert</span> <span class="n">unity_error</span> <span class="o">&lt;</span> <span class="mf">1.0e-12</span>
+    <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">reconstruction_error</span> <span class="o">&lt;</span> <span class="mf">1.0e-12</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"All five partitions passed the conservation checks."</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+All five partitions passed the conservation checks.
+</pre></div></div>
+</div>
+</section>
+<section id="Optional-self-consistent-solver">
+<h2>Optional self-consistent solver<a class="headerlink" href="#Optional-self-consistent-solver" title="Link to this heading"></a></h2>
+<p>LISA, AVH, and MBIS also accept <code class="docutils literal notranslate"><span class="pre">solver=&quot;sc&quot;</span></code>. The optimizer remains the default because relative performance and convergence depend on the material and basis. The two LISA routes agree for this well-conditioned example.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">lisa_sc</span> <span class="o">=</span> <span class="n">partition_periodic</span><span class="p">(</span>
+    <span class="s2">"lisa"</span><span class="p">,</span>
+    <span class="n">coordinates</span><span class="p">,</span>
+    <span class="n">numbers</span><span class="p">,</span>
+    <span class="n">grid</span><span class="p">,</span>
+    <span class="n">density</span><span class="p">,</span>
+    <span class="n">basis</span><span class="o">=</span><span class="n">lisa_basis</span><span class="p">,</span>
+    <span class="n">solver</span><span class="o">=</span><span class="s2">"sc"</span><span class="p">,</span>
+    <span class="n">threshold</span><span class="o">=</span><span class="mf">1.0e-7</span><span class="p">,</span>
+    <span class="n">maxiter</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"optimizer charges:"</span><span class="p">,</span> <span class="n">results</span><span class="p">[</span><span class="s2">"LISA"</span><span class="p">]</span><span class="o">.</span><span class="n">charges</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"SC charges:       "</span><span class="p">,</span> <span class="n">lisa_sc</span><span class="o">.</span><span class="n">charges</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"maximum difference:"</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s2">"LISA"</span><span class="p">]</span><span class="o">.</span><span class="n">charges</span> <span class="o">-</span> <span class="n">lisa_sc</span><span class="o">.</span><span class="n">charges</span><span class="p">)))</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+optimizer charges: [-0.19999981  0.20000009]
+SC charges:        [-0.19999983  0.20000011]
+maximum difference: 1.6057171592365194e-08
+</pre></div></div>
+</div>
+<p>The charge magnitude varies slightly because each method defines a different pro-atom model. This dependence is expected: AIM charges are analysis quantities rather than unique observables. For a scientific comparison, keep the density, quadrature, atomic-density libraries, convergence thresholds, and charge reference fixed across methods.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="mulliken.html" class="btn btn-neutral float-left" title="Mulliken method" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../pyapi/modules.html" class="btn btn-neutral float-right" title="horton_part" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, YingXing Cheng.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
