@@ -135,6 +135,7 @@ Modules
     :caption: User Documentation
 
     ./installation.rst
+    ./periodic.rst
 
 
 
@@ -143,6 +144,7 @@ Modules
     :caption: Quick Start
 
     ./notebooks/quick_start.ipynb
+    ./notebooks/periodic_quick_start.ipynb
 
 
 .. toctree::
@@ -159,6 +161,7 @@ Modules
 
     ./notebooks/hirshfeld.ipynb
     ./notebooks/mulliken.ipynb
+    ./notebooks/periodic_methods.ipynb
 
 
 .. toctree::

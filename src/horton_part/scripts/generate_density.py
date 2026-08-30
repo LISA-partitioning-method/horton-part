@@ -1,4 +1,5 @@
 # HORTON-PART: molecular density partition schemes based on HORTON package.
+# Copyright (C) 2011-2020 The DensPart Development Team
 # Copyright (C) 2023-2025 The HORTON-PART Development Team
 #
 # This file is part of HORTON-PART

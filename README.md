@@ -66,12 +66,48 @@ This package implements partitioning schemes described in three papers: [a mathe
 - Generalized Minimal Basis Iterative Stockholder (GMBIS)
 - Non-linear approximation of the ISA (NLIS) method
 
+### Periodic real-space grids
+
+The periodic API provides a shared `qc-grid` engine for
+Hirshfeld, Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. It accumulates translated local
+grid images and can return both atomic charges and full AIM weights. Fixed LISA,
+Hirshfeld, and AVH basis functions and active Hirshfeld-I charge states are cached only
+on their local grids. Periodic MBIS similarly reuses shell-local grids, expanding a
+grid only when its optimized shell becomes more diffuse. All-electron
+DensPart-style NPZ files, including uniform and PAW augmentation grid blocks, can
+be used directly:
+
+```bash
+part-from-gpaw calculation.gpw density.npz  # run in a legacy GPAW environment
+part-periodic density.npz mbis.npz --method mbis
+part-periodic density.npz mbis-sc.npz --method mbis --solver sc
+part-periodic density.npz hi.npz --method hirshfeld-i \
+  --basis pbe-6311pgdp-sapporo-dkh3tzp-dkh2.json
+```
+
+GPAW remains optional and is not installed with HORTON-Part. The converter runs
+serially and preserves the all-electron PAW augmentation blocks required for the
+article calculations.
+
+Periodic LISA, AVH, and MBIS provide both the default SciPy optimizer and a
+finite-system-style self-consistent route selected with `--solver sc`. The result
+archive records the solver used; performance should be benchmarked for each system.
+
+Hirshfeld, Hirshfeld-I, and AVH use a shared
+`aim-proatom-spline-v1` library; finite and periodic LISA both accept
+`aim-lisa-basis-v1` in addition to the bundled basis. See
+[the periodic guide](docs/periodic.rst) for the input
+schema, Python API, output fields, and method-specific basis requirements. Executable
+examples are provided in the [periodic quick start](docs/notebooks/periodic_quick_start.ipynb)
+and [five-method comparison](docs/notebooks/periodic_methods.ipynb) notebooks.
+
 ## License
 
 ![GPLv3 License](https://img.shields.io/badge/license-GPLv3-blue.svg)
 
 
 `horton-part` is distributed under the GNU General Public License version 3 or later.
+Third-party source-code acknowledgements are listed in [`NOTICE`](NOTICE).
 
 ## Dependencies
 

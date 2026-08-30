@@ -1,0 +1,533 @@
+# HORTON-PART: molecular and periodic density partitioning.
+# Copyright (C) 2023-2026 The HORTON-PART Development Team
+#
+# This file is part of HORTON-PART and is distributed under the GNU General
+# Public License, version 3 or (at your option) any later version.
+"""Tests for the common periodic stockholder engine."""
+
+import numpy as np
+import pytest
+from grid import PeriodicGrid
+
+from horton_part import ProAtomDB
+from horton_part.periodic import (
+    InterpolatedProAtom,
+    LinearProAtom,
+    MBISProAtom,
+    PeriodicStockholder,
+    load_lisa_basis,
+    load_spline_proatoms,
+    partition_periodic,
+)
+from horton_part.periodic.basis import ExponentialShape
+from horton_part.scripts.partition_periodic import main as periodic_main
+
+
+def _uniform_periodic_grid(length=8.0, npoint=20, cellvecs=None):
+    cellvecs = np.eye(3) * length if cellvecs is None else np.asarray(cellvecs, dtype=float)
+    axis = (np.arange(npoint) + 0.5) / npoint
+    fractional = np.stack(np.meshgrid(axis, axis, axis, indexing="ij"), axis=-1).reshape(-1, 3)
+    points = fractional @ cellvecs
+    weights = np.full(len(points), abs(np.linalg.det(cellvecs)) / len(points))
+    return PeriodicGrid(points, weights, cellvecs, wrap=True)
+
+
+def _periodic_density(grid, center, shape, cutoff=1.0e-10):
+    localgrid = grid.get_localgrid(center, shape.cutoff(cutoff, 1.0))
+    radii = np.linalg.norm(localgrid.points - center, axis=1)
+    density = np.zeros(len(grid.points))
+    np.add.at(density, localgrid.indices, shape.evaluate(radii))
+    return density
+
+
+def _spline_basis():
+    radii = np.linspace(1.0e-4, 12.0, 801)
+    step = radii[1] - radii[0]
+    radial_weights = np.full_like(radii, step)
+    radial_weights[[0, -1]] *= 0.5
+    volume_weights = 4.0 * np.pi * radii**2 * radial_weights
+    states = []
+    for charge, exponent in ((-1, 0.4), (0, 1.0), (1, None)):
+        electrons = 1 - charge
+        if electrons:
+            density = np.exp(-exponent * radii**2)
+            density *= electrons / np.dot(volume_weights, density)
+        else:
+            density = np.zeros_like(radii)
+        states.append(
+            {
+                "charge": charge,
+                "electrons": electrons,
+                "density": density.tolist(),
+                "bound_to_electron_loss": charge >= 0,
+            }
+        )
+    return {
+        "format": "aim-proatom-spline-v1",
+        "metadata": {},
+        "elements": {
+            "1": {
+                "symbol": "H",
+                "radii": radii.tolist(),
+                "radial_weights": radial_weights.tolist(),
+                "states": states,
+            }
+        },
+    }
+
+
+def test_load_lisa_basis_formats():
+    legacy = {"1": [[1.0, 2.0], [2.0, 0.5], [0.4, 0.6]]}
+    versioned = {
+        "format": "aim-lisa-basis-v1",
+        "elements": {"1": {"orders": [1.0, 2.0], "exponents": [2.0, 0.5], "initials": [0.4, 0.6]}},
+    }
+    legacy_shapes, legacy_initials = load_lisa_basis(legacy)[1]
+    versioned_shapes, versioned_initials = load_lisa_basis(versioned)[1]
+    assert [(shape.order, shape.exponent) for shape in legacy_shapes] == [
+        (shape.order, shape.exponent) for shape in versioned_shapes
+    ]
+    assert np.array_equal(legacy_initials, versioned_initials)
+    versioned["format"] = "denspart-lisa-basis-v1"
+    assert 1 in load_lisa_basis(versioned)
+
+
+def test_shared_spline_basis_builds_finite_database():
+    basis = _spline_basis()
+    database = ProAtomDB.from_spline_file(basis)
+    assert database.get_numbers() == [1]
+    assert database.get_charges(1) == [1, 0, -1]
+    assert database.get_record(1, -1).safe is False
+    for charge in database.get_charges(1):
+        record = database.get_record(1, charge)
+        population = 4.0 * np.pi * np.dot(
+            record.rgrid.weights * record.rgrid.points**2, record.rho
+        )
+        assert population == pytest.approx(1 - charge, abs=1.0e-6)
+
+
+def test_lisa_periodic_image_and_weight_reconstruction():
+    grid = _uniform_periodic_grid()
+    center = np.array([0.12, 4.0, 4.0])
+    shape = ExponentialShape(2.0, 1.0)
+    density = _periodic_density(grid, center, shape)
+
+    # The atom lies near x=0, so its image must also populate the opposite cell face.
+    assert np.any(density[grid.points[:, 0] > 7.5] > 0.0)
+
+    result = partition_periodic(
+        "lisa",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis={"1": [[2.0], [1.0], [1.0]]},
+        density_cutoff=1.0e-10,
+        threshold=1.0e-9,
+        inner_threshold=1.0e-10,
+        maxiter=20,
+    )
+    assert result.converged
+    assert result.charges[0] == pytest.approx(0.0, abs=2.0e-7)
+    assert result.parameters[0][0] == pytest.approx(1.0, abs=2.0e-7)
+    assert result.reconstruction_error < 1.0e-12
+    valid = result.promolecule > 1.0e-15
+    assert np.allclose(result.aim_weights[:, valid].sum(axis=0), 1.0)
+
+
+@pytest.mark.parametrize("solver", ("optimizer", "sc"))
+def test_lisa_recovers_two_atom_populations(solver):
+    grid = _uniform_periodic_grid(length=10.0)
+    coordinates = np.array([[2.5, 5.0, 5.0], [7.5, 5.0, 5.0]])
+    density = np.zeros(len(grid.points))
+    target_coefficients = ((0.7, 0.5), (0.2, 0.6))
+    for center, coefficients in zip(coordinates, target_coefficients, strict=True):
+        for coefficient, exponent in zip(coefficients, (1.5, 0.4), strict=True):
+            shape = ExponentialShape(2.0, exponent)
+            localgrid = grid.get_localgrid(center, shape.cutoff(1.0e-10, coefficient))
+            radii = np.linalg.norm(localgrid.points - center, axis=1)
+            np.add.at(density, localgrid.indices, coefficient * shape.evaluate(radii))
+
+    result = partition_periodic(
+        "lisa",
+        coordinates,
+        np.array([1, 1]),
+        grid,
+        density,
+        basis={"1": [[2.0, 2.0], [1.5, 0.4], [0.5, 0.5]]},
+        threshold=1.0e-8,
+        inner_threshold=1.0e-9,
+        maxiter=1000,
+        solver=solver,
+    )
+    assert result.solver == solver
+    assert result.charges == pytest.approx([-0.2, 0.2], abs=5.0e-6)
+    assert np.concatenate(result.parameters) == pytest.approx(
+        np.ravel(target_coefficients), abs=5.0e-5
+    )
+
+
+@pytest.mark.parametrize("solver", ("optimizer", "sc"))
+def test_mbis_one_atom_periodic_density(solver):
+    grid = _uniform_periodic_grid(npoint=24)
+    center = np.array([0.12, 4.0, 4.0])
+    # This is the normalized one-electron MBIS initial pro-atom for hydrogen.
+    density = _periodic_density(grid, center, ExponentialShape(1.0, 2.0))
+    result = partition_periodic(
+        "mbis",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        density_cutoff=1.0e-10,
+        threshold=1.0e-8,
+        inner_threshold=1.0e-9,
+        maxiter=20,
+        solver=solver,
+    )
+    assert result.converged
+    assert result.solver == solver
+    assert result.charges[0] == pytest.approx(0.0, abs=5.0e-4)
+    assert result.reconstruction_error < 1.0e-12
+
+
+def test_mbis_shell_derivatives_match_finite_differences():
+    radii = np.linspace(0.0, 8.0, 101)
+    population = 1.3
+    exponent = 0.8
+    derivatives = MBISProAtom.shell_derivatives(population, exponent, radii)
+    steps = (1.0e-6, 1.0e-6)
+    for index, step in enumerate(steps):
+        lower = [population, exponent]
+        upper = [population, exponent]
+        lower[index] -= step
+        upper[index] += step
+        finite_difference = (
+            MBISProAtom.evaluate_shell(*upper, radii) - MBISProAtom.evaluate_shell(*lower, radii)
+        ) / (2.0 * step)
+        assert derivatives[index] == pytest.approx(finite_difference, rel=2.0e-9, abs=1.0e-11)
+
+
+def test_mbis_local_grids_are_cached_and_expand_only_when_needed():
+    grid = _uniform_periodic_grid(npoint=12)
+    center = np.array([4.0, 4.0, 4.0])
+    density = _periodic_density(grid, center, ExponentialShape(1.0, 2.0))
+    engine = PeriodicStockholder(
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        [MBISProAtom(1)],
+    )
+    shells = engine._mbis_shells()
+    first_localgrid = shells[0][3]
+    promolecule = engine.promolecule()
+    engine.stockholder_populations(promolecule)
+    assert engine._mbis_shells() is shells
+    assert engine._mbis_shells()[0][3] is first_localgrid
+    engine.models[0].propars[1] = 1.0
+    assert engine._expand_mbis_shells()
+    assert engine._mbis_shells()[0][3] is not first_localgrid
+    assert not engine._expand_mbis_shells()
+
+
+def test_linear_basis_is_cached_as_local_blocks():
+    states = load_spline_proatoms(_spline_basis())[1]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=20.0, npoint=20)
+    center = np.array([10.0, 10.0, 10.0])
+    density = _periodic_density(grid, center, neutral)
+    engine = PeriodicStockholder(
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        [LinearProAtom((neutral,), (1.0,), 1.0)],
+    )
+    blocks = engine._linear_blocks(0)
+    assert engine._linear_blocks(0) is blocks
+    assert len(blocks) == 1
+    assert blocks[0].values.shape == blocks[0].indices.shape
+    assert blocks[0].weighted_values.shape == blocks[0].indices.shape
+    assert len(np.unique(blocks[0].indices)) == len(blocks[0].indices)
+    assert blocks[0].values.size < density.size
+
+
+def test_hirshfeld_i_charge_states_use_cached_local_blocks():
+    states = load_spline_proatoms(_spline_basis())[1]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=20.0, npoint=20)
+    center = np.array([10.0, 10.0, 10.0])
+    density = _periodic_density(grid, center, neutral)
+    model = InterpolatedProAtom(1, states)
+    engine = PeriodicStockholder(center[None, :], np.array([1]), grid, density, [model])
+    model.charge = -0.25
+    promolecule = engine.promolecule()
+    blocks = engine._interpolated_basis_cache[0]
+    block_ids = {charge: id(block) for charge, block in blocks.items()}
+
+    localgrid = engine._localgrid(0)
+    values, _ = engine._evaluate_local(0, localgrid)
+    expected = np.zeros_like(density)
+    np.add.at(expected, localgrid.indices, values)
+    engine.promolecule()
+    assert engine._interpolated_basis_cache[0] is blocks
+    assert {charge: id(block) for charge, block in blocks.items()} == block_ids
+    assert set(blocks) == {-1, 0}
+    assert promolecule == pytest.approx(expected, abs=1.0e-10)
+
+
+def test_dense_proatoms_are_only_built_for_requested_weights(monkeypatch):
+    states = load_spline_proatoms(_spline_basis())[1]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=16)
+    center = np.array([6.0, 6.0, 6.0])
+    density = _periodic_density(grid, center, neutral)
+    engine = PeriodicStockholder(
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        [LinearProAtom((neutral,), (1.0,), 1.0)],
+    )
+
+    def fail_if_materialized(_iatom):
+        raise AssertionError("dense pro-atom materialized")
+
+    monkeypatch.setattr(engine, "_dense_proatom", fail_if_materialized)
+    result = engine.run_fixed("hirshfeld", return_weights=False)
+    assert result.aim_weights is None
+    assert np.isnan(result.reconstruction_error)
+    with pytest.raises(AssertionError, match="dense pro-atom materialized"):
+        engine.run_fixed("hirshfeld", return_weights=True)
+
+
+def test_fixed_partition_distinguishes_integrated_and_model_charges():
+    basis = _spline_basis()
+    neutral = next(state for state in load_spline_proatoms(basis)[1] if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=20)
+    center = np.array([0.12, 6.0, 6.0])
+    density = 0.8 * _periodic_density(grid, center, neutral)
+    result = partition_periodic(
+        "hirshfeld",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+    )
+    expected_population = np.dot(grid.weights, density)
+    assert result.charges[0] == pytest.approx(1.0 - expected_population)
+    assert result.populations[0] == pytest.approx(expected_population)
+    assert result.model_charges[0] == pytest.approx(0.0)
+    assert result.model_populations[0] == pytest.approx(1.0)
+
+
+def test_partition_is_invariant_to_lattice_translation_in_skewed_cell():
+    cellvecs = np.array([[8.0, 0.0, 0.0], [1.5, 7.0, 0.0], [0.7, 0.9, 6.5]])
+    grid = _uniform_periodic_grid(npoint=12, cellvecs=cellvecs)
+    basis = _spline_basis()
+    neutral = next(state for state in load_spline_proatoms(basis)[1] if state.charge == 0)
+    coordinates = np.array([[0.08, 2.0, 2.5], [4.1, 4.5, 3.0]])
+    density = sum(_periodic_density(grid, center, neutral) for center in coordinates)
+    reference = partition_periodic(
+        "hirshfeld", coordinates, np.ones(2, dtype=int), grid, density, basis=basis
+    )
+    translated = coordinates.copy()
+    translated[0] += cellvecs[0] - cellvecs[1]
+    shifted = partition_periodic(
+        "hirshfeld", translated, np.ones(2, dtype=int), grid, density, basis=basis
+    )
+    assert shifted.charges == pytest.approx(reference.charges, abs=1.0e-12)
+    assert shifted.promolecule == pytest.approx(reference.promolecule, abs=1.0e-12)
+    assert shifted.aim_weights == pytest.approx(reference.aim_weights, abs=1.0e-12)
+
+
+def test_spline_hirshfeld_i_and_avh_use_shared_states():
+    basis = _spline_basis()
+    states = load_spline_proatoms(basis)[1]
+    assert [state.electrons for state in states] == [2, 1, 0]
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=24)
+    center = np.array([0.12, 6.0, 6.0])
+    density = _periodic_density(grid, center, neutral)
+
+    hirshfeld_i = partition_periodic(
+        "hirshfeld-i",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+        threshold=1.0e-8,
+        maxiter=20,
+    )
+    avh = partition_periodic(
+        "avh-b",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+        threshold=1.0e-8,
+        maxiter=20,
+    )
+    assert hirshfeld_i.converged
+    assert avh.converged
+    assert hirshfeld_i.charges[0] == pytest.approx(avh.charges[0], abs=1.0e-7)
+    # The synthetic monoanion is marked unbound, so AVH-B retains only neutral H.
+    assert len(avh.parameters[0]) == 1
+    supplied = partition_periodic(
+        "avh-supplied",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+        threshold=1.0e-8,
+        maxiter=20,
+    )
+    assert supplied.converged
+    assert supplied.method == "avh-supplied"
+    # Supplied-state mode retains the unbound monoanion but excludes the empty cation endpoint.
+    assert len(supplied.parameters[0]) == 2
+    with pytest.raises(ValueError, match="AVH-A for Z=1 is missing required states"):
+        partition_periodic(
+            "avh-a",
+            center[None, :],
+            np.array([1]),
+            grid,
+            density,
+            basis=basis,
+        )
+
+
+def test_avh_sc_activates_all_supplied_states():
+    basis = _spline_basis()
+    states = load_spline_proatoms(basis)[1]
+    anion = next(state for state in states if state.charge == -1)
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=16.0, npoint=24)
+    center = np.array([8.0, 8.0, 8.0])
+    density = 0.35 * _periodic_density(grid, center, anion)
+    density += 0.65 * _periodic_density(grid, center, neutral)
+
+    result = partition_periodic(
+        "avh-supplied",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+        solver="sc",
+        threshold=1.0e-9,
+        maxiter=1000,
+    )
+
+    assert result.solver == "sc"
+    assert result.parameters[0] == pytest.approx([0.35, 0.65], abs=2.0e-5)
+    assert np.all(result.parameters[0] > 0.0)
+
+
+def test_solver_option_is_limited_to_optimized_periodic_methods():
+    basis = _spline_basis()
+    neutral = next(state for state in load_spline_proatoms(basis)[1] if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=12)
+    center = np.array([6.0, 6.0, 6.0])
+    density = _periodic_density(grid, center, neutral)
+    with pytest.raises(ValueError, match="solver option applies only"):
+        partition_periodic(
+            "hirshfeld",
+            center[None, :],
+            np.array([1]),
+            grid,
+            density,
+            basis=basis,
+            solver="sc",
+        )
+    with pytest.raises(ValueError, match="must be 'optimizer' or 'sc'"):
+        partition_periodic(
+            "mbis",
+            center[None, :],
+            np.array([1]),
+            grid,
+            density,
+            solver="unknown",
+        )
+
+
+def test_periodic_command_line_roundtrip(tmp_path):
+    grid = _uniform_periodic_grid()
+    center = np.array([0.12, 4.0, 4.0])
+    density = _periodic_density(grid, center, ExponentialShape(2.0, 1.0))
+    input_file = tmp_path / "density.npz"
+    output_file = tmp_path / "partition.npz"
+    np.savez(
+        input_file,
+        atcoords=center[None, :],
+        atnums=np.array([1]),
+        points=grid.points,
+        weights=grid.weights,
+        density=density,
+        cellvecs=np.eye(3) * 8.0,
+        grid_sizes=np.array([len(grid.points)]),
+    )
+    basis_file = tmp_path / "basis.json"
+    basis_file.write_text('{"1": [[2.0], [1.0], [1.0]]}', encoding="utf8")
+
+    assert (
+        periodic_main(
+            [
+                str(input_file),
+                str(output_file),
+                "--method",
+                "lisa",
+                "--basis",
+                str(basis_file),
+                "--solver",
+                "sc",
+                "--no-aim-weights",
+            ]
+        )
+        == 0
+    )
+    with np.load(output_file) as result:
+        assert "aim_weights" not in result
+        assert result["method"] == "lisa"
+        assert result["solver"] == "sc"
+        assert result["parameter_labels"].tolist() == ["basis_0"]
+        assert result["charges"][0] == pytest.approx(0.0, abs=2.0e-7)
+        assert result["model_charges"][0] == pytest.approx(0.0, abs=2.0e-7)
+        assert result["grid_sizes"].tolist() == [len(grid.points)]
+        assert np.isnan(result["reconstruction_error"])
+
+
+def test_periodic_command_line_rejects_invalid_grid_blocks(tmp_path):
+    grid = _uniform_periodic_grid(npoint=4)
+    input_file = tmp_path / "density.npz"
+    np.savez(
+        input_file,
+        atcoords=np.zeros((1, 3)),
+        atnums=np.ones(1, dtype=int),
+        points=grid.points,
+        weights=grid.weights,
+        density=np.ones(len(grid.points)),
+        cellvecs=np.eye(3) * 8.0,
+        grid_sizes=np.array([len(grid.points) - 1]),
+    )
+    with pytest.raises(ValueError, match="Grid sizes must be positive block lengths"):
+        periodic_main([str(input_file), str(tmp_path / "partition.npz")])
+
+    noninteger_file = tmp_path / "noninteger-density.npz"
+    np.savez(
+        noninteger_file,
+        atcoords=np.zeros((1, 3)),
+        atnums=np.ones(1, dtype=int),
+        points=grid.points,
+        weights=grid.weights,
+        density=np.ones(len(grid.points)),
+        cellvecs=np.eye(3) * 8.0,
+        grid_sizes=np.array([float(len(grid.points))]),
+    )
+    with pytest.raises(ValueError, match="Grid sizes must use an integer dtype"):
+        periodic_main([str(noninteger_file), str(tmp_path / "partition.npz")])

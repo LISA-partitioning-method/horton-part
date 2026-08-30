@@ -268,6 +268,41 @@ class ProAtomDB:
         # # Screen info
         # self._log_init()
 
+    @classmethod
+    def from_spline_file(cls, source, population_tolerance=1.0e-6):
+        """Construct a finite-system database from a shared spline pro-atom library.
+
+        The same ``aim-proatom-spline-v1`` file can consequently be supplied to
+        molecular Hirshfeld/Hirshfeld-I and periodic stockholder calculations.
+        The legacy DensPart schema name remains accepted for compatibility.
+        """
+        from ..periodic.basis import load_spline_proatoms
+
+        states_by_number = load_spline_proatoms(source, population_tolerance)
+        records = []
+        explicit_safety = {}
+        for number, states in states_by_number.items():
+            for state in states:
+                energy = state.energy_hartree
+                if energy is None:
+                    # Energy only orders duplicate records and diagnoses bound states.
+                    # Charge gives a deterministic order when old files omit energies.
+                    energy = float(state.charge)
+                record = ProAtomRecord(
+                    number,
+                    state.charge,
+                    float(energy),
+                    OneDGrid(state.radii.copy(), state.radial_weights.copy()),
+                    state.density * state.electrons,
+                )
+                records.append(record)
+                explicit_safety[(number, state.charge)] = state.bound_to_electron_loss
+        database = cls(records)
+        for key, safe in explicit_safety.items():
+            if safe is not None:
+                database._map[key]._safe = bool(safe)
+        return database
+
     # def _log_init(self):
     #     if log.do_medium:
     #         log("Initialized: %s" % self.__class__.__name__)

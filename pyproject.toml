@@ -13,7 +13,7 @@ keywords = ['partition schemes', 'atom-in-moleucle']
 description = "Molecular partitioning schemes used in computational chemistry"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -58,6 +58,8 @@ Changelog = "https://github.com/LISA-partitioning-method/horton-part/blob/main/C
 part = "horton_part.__main__:main"
 part-gen = "horton_part.scripts.generate_density:main"
 part-dens = "horton_part.scripts.partition_density:main"
+part-periodic = "horton_part.scripts.partition_periodic:main"
+part-from-gpaw = "horton_part.adapters.gpaw:main"
 part-cube = "horton_part.scripts.generate_cube:main"
 
 [tool.ruff]
@@ -93,3 +95,4 @@ local_scheme = "no-local-version"
 minversion = "7.0"
 testpaths = ["tests"]
 addopts = "-v"
+markers = ["slow: optional real-data integration tests"]

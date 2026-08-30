@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main  # Set your default branch here
+  pull_request:
 
 jobs:
   build-and-deploy:
@@ -37,6 +38,7 @@ jobs:
         cd ../
 
     - name: Deploy to GitHub Pages
+      if: github.event_name == 'push'
       uses: peaceiris/actions-gh-pages@v4
       with:
         publish_branch: gh-pages
