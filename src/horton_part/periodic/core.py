@@ -55,11 +55,13 @@ class PeriodicPartitionResult:
     converged: bool
     history: np.ndarray
     reconstruction_error: float
+    solver: str = "fixed"
 
     def to_dict(self):
         """Return arrays suitable for an NPZ result file."""
         result = {
             "method": np.array(self.method),
+            "solver": np.array(self.solver),
             "charges": self.charges,
             "populations": self.populations,
             "grid_populations": self.grid_populations,
@@ -421,6 +423,11 @@ class PeriodicStockholder:
         target[block.indices] += scale * block.values
 
     @staticmethod
+    def _accumulate_local_values(target, localgrid, values):
+        """Fold translated local-grid values into a primitive-cell array."""
+        target += np.bincount(localgrid.indices, weights=values, minlength=target.size)
+
+    @staticmethod
     def _integrate_block(block, factor):
         """Integrate a local basis block times a primitive-cell factor."""
         return np.dot(block.weighted_values, factor[block.indices])
@@ -520,7 +527,7 @@ class PeriodicStockholder:
         return self._mbis_shell_cache
 
     def _expand_mbis_shells(self):
-        """Expand cached shell grids when optimized functions extend beyond them."""
+        """Expand cached shell grids with headroom when optimized shells become diffuse."""
         expanded = False
         shells = []
         for iatom, ishell, radius, localgrid, radii in self._mbis_shells():
@@ -531,7 +538,10 @@ class PeriodicStockholder:
                 self.density_cutoff,
             )
             if required > radius * (1.0 + 1.0e-8):
-                radius = required
+                # SC changes exponents incrementally. Rebuilding a periodic local grid
+                # after every tiny radius increase dominates the runtime, so retain
+                # modest headroom without changing the density-cutoff contract.
+                radius = max(required * 1.05, radius * 1.10)
                 localgrid = self.grid.get_localgrid(self.coordinates[iatom], radius)
                 radii = np.linalg.norm(localgrid.points - self.coordinates[iatom], axis=1)
                 expanded = True
@@ -545,7 +555,7 @@ class PeriodicStockholder:
         for iatom, ishell, _, localgrid, radii in self._mbis_shells():
             population, exponent = self.models[iatom].propars.reshape(-1, 2)[ishell]
             values = self.models[iatom].evaluate_shell(population, exponent, radii)
-            np.add.at(promolecule, localgrid.indices, values)
+            self._accumulate_local_values(promolecule, localgrid, values)
         return promolecule
 
     def _dense_proatom(self, iatom):
@@ -568,7 +578,7 @@ class PeriodicStockholder:
                     continue
                 population, exponent = model.propars.reshape(-1, 2)[ishell]
                 values = model.evaluate_shell(population, exponent, radii)
-                np.add.at(proatom, localgrid.indices, values)
+                self._accumulate_local_values(proatom, localgrid, values)
         else:
             raise TypeError(f"Unsupported periodic pro-atom model: {type(model).__name__}.")
         return proatom
@@ -666,7 +676,7 @@ class PeriodicStockholder:
 
     def run_fixed(self, method, return_weights=True):
         promolecule = self.promolecule()
-        return self._finalize(method, promolecule, 0, True, [], return_weights)
+        return self._finalize(method, promolecule, 0, True, [], return_weights, solver="fixed")
 
     def run_hirshfeld_i(self, threshold, maxiter, mixing=0.5, return_weights=True):
         if threshold <= 0.0 or maxiter <= 0:
@@ -700,6 +710,7 @@ class PeriodicStockholder:
                     True,
                     history,
                     return_weights,
+                    solver="sc",
                 )
         raise RuntimeError(f"Periodic Hirshfeld-I did not converge in {maxiter} iterations.")
 
@@ -712,6 +723,7 @@ class PeriodicStockholder:
         inner_maxiter,
         linear,
         return_weights=True,
+        solver="iterative",
     ):
         if threshold <= 0.0 or inner_threshold <= 0.0:
             raise ValueError("Outer and inner thresholds must be positive.")
@@ -722,6 +734,8 @@ class PeriodicStockholder:
         history.append(self.pseudo_numbers - self.stockholder_populations(previous)[0])
         for iteration in range(1, maxiter + 1):
             self._fit_models(previous, inner_threshold, inner_maxiter, linear)
+            if all(isinstance(model, MBISProAtom) for model in self.models):
+                self._expand_mbis_shells()
             current = self.promolecule(include_inactive=linear)
             difference = np.sqrt(np.dot(self.grid.weights, (current - previous) ** 2))
             history.append(self.pseudo_numbers - self.stockholder_populations(current)[0])
@@ -734,6 +748,7 @@ class PeriodicStockholder:
                     True,
                     history,
                     return_weights,
+                    solver=solver,
                 )
             previous = current
         raise RuntimeError(f"Periodic {method} did not converge in {maxiter} iterations.")
@@ -826,6 +841,77 @@ class PeriodicStockholder:
             True,
             history,
             return_weights,
+            solver="optimizer",
+        )
+
+    def run_self_consistent_linear(
+        self,
+        method,
+        threshold,
+        maxiter,
+        return_weights=True,
+    ):
+        """Optimize fixed-basis coefficients with the global SC fixed-point equations."""
+        if threshold <= 0.0 or maxiter <= 0:
+            raise ValueError("The threshold and maximum iteration count must be positive.")
+        if not all(isinstance(model, LinearProAtom) for model in self.models):
+            raise TypeError("Linear SC optimization requires LinearProAtom models.")
+
+        history = [self.pseudo_numbers - np.array([model.population for model in self.models])]
+        previous = self.promolecule()
+        numerical_cutoff = min(self.density_cutoff, 1.0e-15)
+        for iteration in range(1, maxiter + 1):
+            valid = (self.density > numerical_cutoff) & (previous > numerical_cutoff)
+            ratio = np.divide(
+                self.density,
+                previous,
+                out=np.zeros_like(self.density),
+                where=valid,
+            )
+            updated_models = []
+            for iatom, model in enumerate(self.models):
+                updated_models.append(
+                    np.array(
+                        [
+                            coefficient * self._integrate_block(block, ratio)
+                            for coefficient, block in zip(
+                                model.coefficients,
+                                self._linear_blocks(iatom),
+                                strict=True,
+                            )
+                        ]
+                    )
+                )
+            updated = np.concatenate(updated_models)
+            if not np.isfinite(updated).all() or np.any(updated < 0.0):
+                raise RuntimeError(f"Periodic {method} produced invalid SC coefficients.")
+
+            offset = 0
+            for model in self.models:
+                count = len(model.coefficients)
+                model.coefficients[:] = updated[offset : offset + count]
+                offset += count
+
+            current = self.promolecule()
+            change = np.sqrt(np.dot(self.grid.weights, (current - previous) ** 2))
+            logger.debug("Periodic %s SC iteration %d: change=%.6e", method, iteration, change)
+            history.append(
+                self.pseudo_numbers - np.array([model.population for model in self.models])
+            )
+            if change < threshold:
+                return self._finalize(
+                    method,
+                    current,
+                    iteration,
+                    True,
+                    history,
+                    return_weights,
+                    solver="sc",
+                )
+            previous = current
+        raise RuntimeError(
+            f"Periodic {method} SC optimization did not converge in {maxiter} iterations; "
+            "increase maxiter or use solver='optimizer'."
         )
 
     def run_variational_mbis(self, threshold, maxiter, return_weights=True):
@@ -847,7 +933,7 @@ class PeriodicStockholder:
                 for iparam, (_, _, _, localgrid, radii) in enumerate(shell_data):
                     shell_population, exponent = parameters[2 * iparam : 2 * iparam + 2]
                     values = MBISProAtom.evaluate_shell(shell_population, exponent, radii)
-                    np.add.at(promolecule, localgrid.indices, values)
+                    self._accumulate_local_values(promolecule, localgrid, values)
 
                 valid = (self.density > 1.0e-15) & (promolecule > 1.0e-15)
                 ratio = np.divide(
@@ -912,6 +998,73 @@ class PeriodicStockholder:
             True,
             history,
             return_weights,
+            solver="optimizer",
+        )
+
+    def run_self_consistent_mbis(
+        self,
+        threshold,
+        maxiter,
+        return_weights=True,
+    ):
+        """Optimize MBIS shell populations and exponents by moment updates."""
+        if threshold <= 0.0 or maxiter <= 0:
+            raise ValueError("The threshold and maximum iteration count must be positive.")
+        if not all(isinstance(model, MBISProAtom) for model in self.models):
+            raise TypeError("MBIS SC optimization requires MBISProAtom models.")
+
+        history = [self.pseudo_numbers - np.array([model.population for model in self.models])]
+        previous = self.promolecule()
+        numerical_cutoff = min(self.density_cutoff, 1.0e-15)
+        for iteration in range(1, maxiter + 1):
+            valid = (self.density > numerical_cutoff) & (previous > numerical_cutoff)
+            ratio = np.divide(
+                self.density,
+                previous,
+                out=np.zeros_like(self.density),
+                where=valid,
+            )
+            updates = []
+            for iatom, ishell, _, localgrid, radii in self._mbis_shells():
+                population, exponent = self.models[iatom].propars.reshape(-1, 2)[ishell]
+                shell = self.models[iatom].evaluate_shell(population, exponent, radii)
+                assigned = localgrid.weights * shell * ratio[localgrid.indices]
+                zeroth_moment = float(assigned.sum())
+                first_moment = float(np.dot(assigned, radii))
+                if (
+                    not np.isfinite(zeroth_moment)
+                    or not np.isfinite(first_moment)
+                    or zeroth_moment <= 0.0
+                    or first_moment <= 0.0
+                ):
+                    raise RuntimeError("Periodic MBIS produced an invalid shell moment.")
+                updates.append((iatom, ishell, zeroth_moment, 3.0 * zeroth_moment / first_moment))
+
+            for iatom, ishell, population, exponent in updates:
+                shell_parameters = self.models[iatom].propars.reshape(-1, 2)[ishell]
+                shell_parameters[:] = population, exponent
+            self._expand_mbis_shells()
+
+            current = self.promolecule()
+            change = np.sqrt(np.dot(self.grid.weights, (current - previous) ** 2))
+            logger.debug("Periodic MBIS SC iteration %d: change=%.6e", iteration, change)
+            history.append(
+                self.pseudo_numbers - np.array([model.population for model in self.models])
+            )
+            if change < threshold:
+                return self._finalize(
+                    "mbis",
+                    current,
+                    iteration,
+                    True,
+                    history,
+                    return_weights,
+                    solver="sc",
+                )
+            previous = current
+        raise RuntimeError(
+            f"Periodic MBIS SC optimization did not converge in {maxiter} iterations; "
+            "increase maxiter or use solver='optimizer'."
         )
 
     def _finalize(
@@ -922,6 +1075,7 @@ class PeriodicStockholder:
         converged,
         history,
         return_weights,
+        solver="fixed",
     ):
         grid_populations, _ = self.stockholder_populations(promolecule)
         model_populations = np.array([model.population for model in self.models])
@@ -960,4 +1114,5 @@ class PeriodicStockholder:
             converged=converged,
             history=np.asarray(history if history else [charges]),
             reconstruction_error=reconstruction_error,
+            solver=solver,
         )

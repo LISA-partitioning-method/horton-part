@@ -89,6 +89,15 @@ def _build_parser():
     parser.add_argument("--density-cutoff", type=float, default=1.0e-10)
     parser.add_argument("--mixing", type=float, default=0.5)
     parser.add_argument(
+        "--solver",
+        choices=("optimizer", "sc"),
+        default="optimizer",
+        help=(
+            "Coefficient solver for LISA, AVH, and MBIS: SciPy optimization or "
+            "self-consistent updates (default: optimizer)."
+        ),
+    )
+    parser.add_argument(
         "--no-aim-weights",
         action="store_true",
         help="Do not store the potentially large per-atom weight array.",
@@ -124,6 +133,7 @@ def main(argv=None):
         density_cutoff=args.density_cutoff,
         mixing=args.mixing,
         avh_variant=args.avh_variant,
+        solver=args.solver,
         return_weights=not args.no_aim_weights,
     )
     density_integral = float(np.dot(weights, density))

@@ -78,9 +78,19 @@ DensPart-style NPZ files, including uniform and PAW augmentation grid blocks, ca
 be used directly:
 
 ```bash
+part-from-gpaw calculation.gpw density.npz  # run in a legacy GPAW environment
 part-periodic density.npz mbis.npz --method mbis
+part-periodic density.npz mbis-sc.npz --method mbis --solver sc
 part-periodic density.npz hi.npz --method hirshfeld-i --basis pbe-periodic.json
 ```
+
+GPAW remains optional and is not installed with HORTON-Part. The converter runs
+serially and preserves the all-electron PAW augmentation blocks required for the
+article calculations.
+
+Periodic LISA, AVH, and MBIS provide both the default SciPy optimizer and a
+finite-system-style self-consistent route selected with `--solver sc`. The result
+archive records the solver used; performance should be benchmarked for each system.
 
 Hirshfeld, Hirshfeld-I, and AVH use a
 `denspart-spline-proatom-basis-v1` library; LISA accepts either the bundled basis

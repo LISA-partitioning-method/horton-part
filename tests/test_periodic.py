@@ -118,7 +118,8 @@ def test_lisa_periodic_image_and_weight_reconstruction():
     assert np.allclose(result.aim_weights[:, valid].sum(axis=0), 1.0)
 
 
-def test_lisa_recovers_two_atom_populations():
+@pytest.mark.parametrize("solver", ("optimizer", "sc"))
+def test_lisa_recovers_two_atom_populations(solver):
     grid = _uniform_periodic_grid(length=10.0)
     coordinates = np.array([[2.5, 5.0, 5.0], [7.5, 5.0, 5.0]])
     density = np.zeros(len(grid.points))
@@ -139,15 +140,18 @@ def test_lisa_recovers_two_atom_populations():
         basis={"1": [[2.0, 2.0], [1.5, 0.4], [0.5, 0.5]]},
         threshold=1.0e-8,
         inner_threshold=1.0e-9,
-        maxiter=100,
+        maxiter=1000,
+        solver=solver,
     )
+    assert result.solver == solver
     assert result.charges == pytest.approx([-0.2, 0.2], abs=5.0e-6)
     assert np.concatenate(result.parameters) == pytest.approx(
         np.ravel(target_coefficients), abs=5.0e-5
     )
 
 
-def test_mbis_one_atom_periodic_density():
+@pytest.mark.parametrize("solver", ("optimizer", "sc"))
+def test_mbis_one_atom_periodic_density(solver):
     grid = _uniform_periodic_grid(npoint=24)
     center = np.array([0.12, 4.0, 4.0])
     # This is the normalized one-electron MBIS initial pro-atom for hydrogen.
@@ -162,8 +166,10 @@ def test_mbis_one_atom_periodic_density():
         threshold=1.0e-8,
         inner_threshold=1.0e-9,
         maxiter=20,
+        solver=solver,
     )
     assert result.converged
+    assert result.solver == solver
     assert result.charges[0] == pytest.approx(0.0, abs=5.0e-4)
     assert result.reconstruction_error < 1.0e-12
 
@@ -379,6 +385,60 @@ def test_spline_hirshfeld_i_and_avh_use_shared_states():
         )
 
 
+def test_avh_sc_activates_all_supplied_states():
+    basis = _spline_basis()
+    states = load_spline_proatoms(basis)[1]
+    anion = next(state for state in states if state.charge == -1)
+    neutral = next(state for state in states if state.charge == 0)
+    grid = _uniform_periodic_grid(length=16.0, npoint=24)
+    center = np.array([8.0, 8.0, 8.0])
+    density = 0.35 * _periodic_density(grid, center, anion)
+    density += 0.65 * _periodic_density(grid, center, neutral)
+
+    result = partition_periodic(
+        "avh-supplied",
+        center[None, :],
+        np.array([1]),
+        grid,
+        density,
+        basis=basis,
+        solver="sc",
+        threshold=1.0e-9,
+        maxiter=1000,
+    )
+
+    assert result.solver == "sc"
+    assert result.parameters[0] == pytest.approx([0.35, 0.65], abs=2.0e-5)
+    assert np.all(result.parameters[0] > 0.0)
+
+
+def test_solver_option_is_limited_to_optimized_periodic_methods():
+    basis = _spline_basis()
+    neutral = next(state for state in load_spline_proatoms(basis)[1] if state.charge == 0)
+    grid = _uniform_periodic_grid(length=12.0, npoint=12)
+    center = np.array([6.0, 6.0, 6.0])
+    density = _periodic_density(grid, center, neutral)
+    with pytest.raises(ValueError, match="solver option applies only"):
+        partition_periodic(
+            "hirshfeld",
+            center[None, :],
+            np.array([1]),
+            grid,
+            density,
+            basis=basis,
+            solver="sc",
+        )
+    with pytest.raises(ValueError, match="must be 'optimizer' or 'sc'"):
+        partition_periodic(
+            "mbis",
+            center[None, :],
+            np.array([1]),
+            grid,
+            density,
+            solver="unknown",
+        )
+
+
 def test_periodic_command_line_roundtrip(tmp_path):
     grid = _uniform_periodic_grid()
     center = np.array([0.12, 4.0, 4.0])
@@ -407,6 +467,8 @@ def test_periodic_command_line_roundtrip(tmp_path):
                 "lisa",
                 "--basis",
                 str(basis_file),
+                "--solver",
+                "sc",
                 "--no-aim-weights",
             ]
         )
@@ -415,6 +477,7 @@ def test_periodic_command_line_roundtrip(tmp_path):
     with np.load(output_file) as result:
         assert "aim_weights" not in result
         assert result["method"] == "lisa"
+        assert result["solver"] == "sc"
         assert result["parameter_labels"].tolist() == ["basis_0"]
         assert result["charges"][0] == pytest.approx(0.0, abs=2.0e-7)
         assert result["model_charges"][0] == pytest.approx(0.0, abs=2.0e-7)

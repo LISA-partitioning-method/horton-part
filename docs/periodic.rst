@@ -9,6 +9,26 @@ Hirshfeld-I, MBIS, LISA, and AVH-A/B/M. An explicitly named
 ``avh-supplied`` mode is also available for reproducing calculations made
 with a user-defined subset of charged states.
 
+Generating an input archive from GPAW
+-------------------------------------
+
+``part-from-gpaw`` converts a legacy GPAW restart into the all-electron NPZ
+representation consumed by ``part-periodic``. Run it inside the environment where
+GPAW is already installed; GPAW is deliberately not a HORTON-Part dependency.
+The converter currently requires GPAW legacy mode and one process because it reads
+the calculator's PAW setup and atomic density-matrix internals.
+
+.. code-block:: bash
+
+   part-from-gpaw calculation.gpw density.npz
+   part-periodic density.npz mbis.npz --method mbis
+
+The archive combines the uniform pseudo-density grid with one atom-centered PAW
+augmentation-correction grid per atom. It records the block lengths in
+``grid_sizes`` and writes coordinates, cell vectors, weights, and densities in
+atomic units. This is the same complete representation used for the periodic
+partitioning calculations; a pseudo-density-only archive is not sufficient.
+
 Command-line use
 ----------------
 
@@ -35,6 +55,26 @@ integrate to ``Z - charge``; valence-only spline libraries are not yet supported
        --basis pbe-periodic.json --avh-variant B
    part-periodic density.npz avh-supplied.npz --method avh \
        --basis custom-states.json --avh-variant supplied
+
+LISA, AVH, and MBIS accept ``--solver optimizer`` (the default) or
+``--solver sc``. The SC route uses the same nonnegative fixed-point coefficient
+updates as the molecular implementation; MBIS additionally updates every shell
+exponent from its first radial moment. It does not call ``scipy.optimize.minimize``.
+For AVH, all selected states start with coefficient one so that multiplicative SC
+updates can activate them. Solver performance is system dependent, so compare both
+routes before selecting one for production. Nearly linearly dependent LISA or AVH
+bases can make plain SC converge very slowly; the optimizer remains the recommended
+default for such cases:
+
+.. code-block:: bash
+
+   part-periodic density.npz lisa-sc.npz --method lisa \
+       --basis lisa.json --solver sc
+   part-periodic density.npz mbis-sc.npz --method mbis --solver sc
+
+The output ``solver`` field records the selected route. Plain Hirshfeld has no
+optimized coefficients, while Hirshfeld-I already uses its own charge-interpolation
+fixed-point cycle; therefore ``--solver`` does not apply to those methods.
 
 The radial-spline file used by Hirshfeld, Hirshfeld-I, and AVH must follow
 ``denspart-spline-proatom-basis-v1``. LISA accepts the bundled HORTON-Part basis,

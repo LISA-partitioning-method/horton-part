@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added the optional `part-from-gpaw` converter for creating complete periodic
+  density archives from legacy GPAW restart files without adding GPAW as a dependency.
+- Added finite-system-style self-consistent coefficient updates for periodic LISA,
+  AVH, and MBIS, selectable with `part-periodic --solver sc`.
+
+### Fixed
+- Corrected spin-density block assembly in the GPAW converter.
+
 ## [1.1.6]  - 2024-12-03
 
 ### Added

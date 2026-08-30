@@ -76,6 +76,7 @@ def partition_periodic(
     density_cutoff=1.0e-10,
     mixing=0.5,
     avh_variant="B",
+    solver="optimizer",
     return_weights=True,
 ):
     """Partition a periodic real-space density with a supported AIM method."""
@@ -92,6 +93,15 @@ def partition_periodic(
     if canonical.startswith("avh-"):
         avh_variant = canonical.removeprefix("avh-")
     canonical = aliases.get(canonical, canonical)
+    solver = solver.lower().replace("_", "-")
+    solver = {
+        "opt": "optimizer",
+        "self-consistent": "sc",
+    }.get(solver, solver)
+    if solver not in ("optimizer", "sc"):
+        raise ValueError("Periodic solver must be 'optimizer' or 'sc'.")
+    if canonical in ("hirshfeld", "hirshfeld-i") and solver != "optimizer":
+        raise ValueError("The solver option applies only to periodic LISA, AVH, and MBIS.")
     numbers = np.asarray(numbers, dtype=int)
     pseudo_numbers = numbers.astype(float) if pseudo_numbers is None else pseudo_numbers
 
@@ -125,9 +135,14 @@ def partition_periodic(
                 models.append(InterpolatedProAtom(number, states))
             else:
                 selected = _select_avh_states(states, avh_variant, int(number))
-                coefficients = np.array(
-                    [float(pseudo_number) if state.charge == 0 else 0.0 for state in selected]
-                )
+                if solver == "sc":
+                    # Match the finite-system AVH implementation. Multiplicative SC
+                    # updates cannot activate a coefficient initialized to zero.
+                    coefficients = np.ones(len(selected))
+                else:
+                    coefficients = np.array(
+                        [float(pseudo_number) if state.charge == 0 else 0.0 for state in selected]
+                    )
                 models.append(LinearProAtom(selected, coefficients, float(pseudo_number) + 3.0))
     else:
         raise ValueError(
@@ -148,6 +163,13 @@ def partition_periodic(
     if canonical == "hirshfeld-i":
         return engine.run_hirshfeld_i(threshold, maxiter, mixing, return_weights)
     if canonical in ("lisa", "avh"):
+        if solver == "sc":
+            return engine.run_self_consistent_linear(
+                f"avh-{avh_variant.lower()}" if canonical == "avh" else canonical,
+                threshold,
+                maxiter,
+                return_weights,
+            )
         return engine.run_variational_linear(
             f"avh-{avh_variant.lower()}" if canonical == "avh" else canonical,
             threshold,
@@ -155,6 +177,12 @@ def partition_periodic(
             return_weights,
         )
     if canonical == "mbis":
+        if solver == "sc":
+            return engine.run_self_consistent_mbis(
+                threshold,
+                maxiter,
+                return_weights,
+            )
         return engine.run_variational_mbis(threshold, maxiter, return_weights)
     return engine.run_iterative(
         canonical,
